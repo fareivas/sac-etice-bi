@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ETICE • Dashboard da Diretoria</title>
+<style>
+:root{
+  --bg:#f4f7fb; --card:#ffffff; --text:#162033; --muted:#64748b; --line:#dbe3ef;
+  --primary:#164e63; --primary2:#0f766e; --good:#15803d; --warn:#b45309; --bad:#b91c1c;
+  --info:#1d4ed8; --soft:#eef4f8; --shadow:0 8px 24px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(120deg,#0f172a,#164e63);color:#fff;padding:22px 24px;position:sticky;top:0;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.top{max-width:1500px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand h1{margin:0;font-size:22px}.brand p{margin:5px 0 0;color:#d7eef3;font-size:13px}
+.badge{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:999px;font-size:12px}
+main{max-width:1500px;margin:0 auto;padding:20px}
+.filters{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));gap:10px;background:var(--card);padding:14px;border-radius:14px;box-shadow:var(--shadow);margin-bottom:16px}
+select,input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text)}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:16px 0}
+.kpi{background:var(--card);padding:16px;border-radius:14px;box-shadow:var(--shadow);border-top:4px solid var(--primary)}
+.kpi small{color:var(--muted);display:block;margin-bottom:6px}.kpi strong{font-size:24px}.kpi .delta{font-size:12px;margin-top:7px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:16px;overflow:hidden}
+.card h2{font-size:16px;margin:0 0 12px}.card h3{font-size:14px;margin:0 0 10px}
+.sub{font-size:12px;color:var(--muted);margin-top:-6px;margin-bottom:12px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:760px;background:#fff}
+th,td{text-align:left;padding:10px 9px;border-bottom:1px solid var(--line);font-size:12px;vertical-align:top}
+th{background:#f8fafc;color:#475569;position:sticky;top:0}
+tr:hover td{background:#f8fbfd}
+.tag{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.good{background:#dcfce7;color:#166534}.warn{background:#fef3c7;color:#92400e}.bad{background:#fee2e2;color:#991b1b}.info{background:#dbeafe;color:#1e40af}.neutral{background:#e2e8f0;color:#334155}
+.progress{height:9px;background:#e5e7eb;border-radius:999px;overflow:hidden}.progress>span{display:block;height:100%;background:linear-gradient(90deg,#0f766e,#14b8a6)}
+.alert{border-left:5px solid var(--bad);background:#fff7f7;padding:12px 14px;border-radius:10px;margin:8px 0}
+.alert.warnbox{border-left-color:var(--warn);background:#fffaf0}.alert.infobox{border-left-color:var(--info);background:#f6f9ff}
+.action{font-weight:700;color:#0f766e}
+.matrix{display:grid;grid-template-columns:180px repeat(6,1fr);gap:5px;align-items:stretch;font-size:11px}
+.mh,.mc{padding:9px 6px;border-radius:8px;text-align:center;border:1px solid var(--line)}.mh{background:#f8fafc;font-weight:700}.mc.good{background:#dcfce7}.mc.warn{background:#fef3c7}.mc.bad{background:#fee2e2}
+.bar{display:flex;align-items:center;gap:8px;margin:8px 0}.bar label{width:130px;font-size:12px;color:#475569}.bar .track{flex:1;height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar .fill{height:100%;background:#0f766e}.bar b{font-size:12px;width:55px;text-align:right}
+.timeline{display:flex;gap:8px;flex-wrap:wrap}.step{flex:1;min-width:150px;padding:11px;border-radius:10px;border:1px solid var(--line);background:#fafcff}.step b{display:block;font-size:12px}.step span{font-size:11px;color:var(--muted)}
+.footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
+.note{font-size:11px;color:var(--muted);margin-top:8px}
+button{border:0;background:#0f766e;color:#fff;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px}
+button:hover{filter:brightness(.95)}
+.hidden-row{display:none}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.grid2{grid-template-columns:1fr}.grid3{grid-template-columns:1fr}.filters{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){header{position:static}.top{align-items:flex-start;flex-direction:column}.kpis{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:1fr}.kpi strong{font-size:20px}.matrix{grid-template-columns:130px repeat(6,85px);overflow:auto}main{padding:12px}}
+
+.payflow{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:8px;overflow:auto;padding-bottom:4px}
+.phase{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;min-width:120px}
+.phase b{display:block;font-size:12px;margin-bottom:4px}.phase span{font-size:11px;color:var(--muted)}
+.phase .amt{font-size:13px;color:var(--text);font-weight:700;margin-top:6px}
+.metricrow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
+.metricbox{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.metricbox small{display:block;color:var(--muted);font-size:10px}.metricbox b{font-size:16px}
+@media(max-width:800px){.metricrow{grid-template-columns:repeat(2,1fr)}}
+
+.abc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px}
+.abc-card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:16px}
+.abc-card h2{font-size:16px;margin:0 0 8px}
+.abc-legend{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.abcA{background:#fee2e2;color:#991b1b}.abcB{background:#fef3c7;color:#92400e}.abcC{background:#dcfce7;color:#166534}
+.abcbar{display:flex;height:18px;border-radius:999px;overflow:hidden;background:#e5e7eb;margin:8px 0 12px}
+.abcbar .a{width:50%;background:#b91c1c}.abcbar .b{width:30%;background:#b45309}.abcbar .c{width:20%;background:#15803d}
+.rank{display:flex;align-items:center;gap:8px;margin:7px 0}
+.rank .name{width:170px;font-size:12px}
+.rank .track{flex:1;height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden}
+.rank .fill{height:100%;background:#164e63}
+.rank .val{width:95px;text-align:right;font-size:12px;font-weight:700}
+@media(max-width:900px){.abc-grid{grid-template-columns:1fr}.rank .name{width:125px}}
+</style>
+</head>
+<body>
+<header><div class="top"><div class="brand"><h1>ETICE • Dashboard da Diretoria</h1><p>Cockpit executivo de riscos, continuidade, licitações e impacto</p></div><div class="badge">ETICE • Protótipo Power BI • <span id="horaAtual"></span></div></div></header>
+<main>
+<section class="filters">
+  <select><option>Todas as gerências</option><option>Soluções Corporativas</option><option>CDC</option><option>Data Center</option><option>Inovação</option></select>
+  <select><option>Todos os serviços</option><option>Nuvem</option><option>Telecom</option><option>Segurança</option><option>Datacenter</option></select>
+  <select><option>Somente riscos relevantes</option><option>Críticos</option><option>Críticos + atenção</option></select>
+  <select><option>Horizonte 180 dias</option><option>90 dias</option><option>365 dias</option></select>
+  <input id="buscaDir" placeholder="Buscar gerência, contrato, fornecedor ou processo..." oninput="filtrarTabela('buscaDir','tblDir')">
+</section>
+
+<section class="kpis">
+  <div class="kpi"><small>Contratos críticos</small><strong>12</strong><div class="delta">5 podem afetar operação</div></div>
+  <div class="kpi"><small>Valor sob risco</small><strong>R$ 28,6 mi</strong><div class="delta">Saldo, vigência, SLA e pagamento</div></div>
+  <div class="kpi"><small>Serviços com gap</small><strong>4</strong><div class="delta">Contrato atual x sucessor</div></div>
+  <div class="kpi"><small>Renovações atrasadas</small><strong>8</strong><div class="delta">3 acima de D-60</div></div>
+  <div class="kpi"><small>Licitações críticas</small><strong>5</strong><div class="delta">2 com risco de atraso operacional</div></div>
+  <div class="kpi"><small>Decisões executivas</small><strong>7</strong><div class="delta">Pendentes nesta semana</div></div>
+</section>
+
+<div class="grid2">
+<section class="card">
+<h2>Top riscos que exigem decisão da Diretoria</h2>
+<div class="table-wrap"><table id="tblDir"><thead><tr><th>Impacto</th><th>Gerência</th><th>Contrato / Empresa</th><th>Problema</th><th>Impacto operacional/financeiro</th><th>Ação requerida</th><th>Prazo</th></tr></thead><tbody>
+<tr><td><span class="tag bad">Crítico</span></td><td>Soluções Corp.</td><td>CT-042/2026 • Alpha</td><td>Saldo acaba em 49 dias</td><td>Nuvem governamental • R$ 6,2 mi expostos</td><td class="action">Definir contingência + contratação sucessora</td><td>48h</td></tr>
+<tr><td><span class="tag bad">Crítico</span></td><td>CDC</td><td>CT-018/2026 • Beta</td><td>Renovação atrasada</td><td>Backbone • risco de continuidade</td><td class="action">Priorizar fluxo jurídico/contratual</td><td>24h</td></tr>
+<tr><td><span class="tag bad">Crítico</span></td><td>Data Center</td><td>PROC-2026-091</td><td>Edital ainda não publicado</td><td>Contrato atual termina em 73 dias</td><td class="action">Revisão executiva do cronograma</td><td>3 dias</td></tr>
+<tr><td><span class="tag warn">Atenção</span></td><td>Soluções Corp.</td><td>CT-077/2025 • Gama</td><td>SLA reincidente</td><td>R$ 1,1 mi sujeitos a glosa</td><td class="action">Plano corretivo e eventual sanção</td><td>5 dias</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="card">
+<h2>Gap de Continuidade</h2><div class="sub">Diferença entre término/exaustão do contrato atual e entrada provável do sucessor.</div>
+<div class="alert"><b>Nuvem corporativa: gap projetado de 37 dias</b><br>Atual indisponível em 49 dias • sucessor estimado em 86 dias.</div>
+<div class="alert"><b>Backbone CDC: gap projetado de 21 dias</b><br>Renovação atrasada e contingência ainda não formalizada.</div>
+<div class="alert warnbox"><b>Backup corporativo: margem de apenas 12 dias</b><br>Licitação em fase de análise técnica.</div>
+</section>
+</div>
+
+<div class="grid3">
+<section class="card"><h2>Risco por gerência</h2>
+<div class="bar"><label>Soluções Corp.</label><div class="track"><div class="fill" style="width:86%"></div></div><b>9 riscos</b></div>
+<div class="bar"><label>CDC</label><div class="track"><div class="fill" style="width:63%"></div></div><b>6 riscos</b></div>
+<div class="bar"><label>Data Center</label><div class="track"><div class="fill" style="width:52%"></div></div><b>5 riscos</b></div>
+<div class="bar"><label>Inovação</label><div class="track"><div class="fill" style="width:18%"></div></div><b>2 riscos</b></div>
+</section>
+<section class="card"><h2>Pipeline de contratações</h2>
+<div class="timeline"><div class="step"><b>ETP</b><span>4 processos</span></div><div class="step"><b>TR</b><span>3 processos</span></div><div class="step"><b>Edital</b><span>5 processos</span></div><div class="step"><b>Julgamento</b><span>2 processos</span></div><div class="step"><b>Assinatura</b><span>3 processos</span></div></div>
+</section>
+<section class="card"><h2>Impacto financeiro</h2>
+<div class="alert warnbox"><b>R$ 8,7 mi</b><br>saldos abaixo do limite de segurança.</div>
+<div class="alert warnbox"><b>R$ 5,4 mi</b><br>medidos, faturados ou pagos com pendências.</div>
+<div class="alert infobox"><b>R$ 14,5 mi</b><br>contratos críticos por continuidade.</div>
+</section>
+</div>
+
+<section class="card" style="margin-bottom:14px">
+  <h2>Visão Executiva do Ciclo de Caixa Contratual</h2>
+  <div class="sub">Recebimento dos clientes, obrigações com fornecedores e capital temporariamente retido em etapas internas.</div>
+  <section class="kpis" style="margin:8px 0 14px">
+    <div class="kpi"><small>Recebido de clientes no mês</small><strong>R$ 42,8 mi</strong><div class="delta">+6,2% vs. mês anterior</div></div>
+    <div class="kpi"><small>Pago a fornecedores</small><strong>R$ 36,1 mi</strong><div class="delta">84,3% do recebido</div></div>
+    <div class="kpi"><small>Receita recebida c/ obrigação pendente</small><strong>R$ 6,7 mi</strong><div class="delta">R$ 2,4 mi acima do prazo-alvo</div></div>
+    <div class="kpi"><small>A receber de clientes</small><strong>R$ 9,3 mi</strong><div class="delta">R$ 1,8 mi vencidos</div></div>
+    <div class="kpi"><small>Ciclo médio financeiro</small><strong>18,9 d</strong><div class="delta">Meta: ≤ 15 dias</div></div>
+    <div class="kpi"><small>Maior ciclo aberto</small><strong>63 d</strong><div class="delta">Fornecedor Ômega</div></div>
+  </section>
+  <div class="grid2">
+    <div>
+      <h3>Onde o dinheiro está parado</h3>
+      <div class="bar"><label>A receber cliente</label><div class="track"><div class="fill" style="width:82%"></div></div><b>9,3 mi</b></div>
+      <div class="bar"><label>Ateste/medição</label><div class="track"><div class="fill" style="width:57%"></div></div><b>6,5 mi</b></div>
+      <div class="bar"><label>Processo financeiro</label><div class="track"><div class="fill" style="width:38%"></div></div><b>4,3 mi</b></div>
+      <div class="bar"><label>Programado</label><div class="track"><div class="fill" style="width:22%"></div></div><b>2,5 mi</b></div>
+    </div>
+    <div>
+      <div class="alert"><b>R$ 2,4 mi</b><br>de receitas já recebidas possuem obrigações com fornecedores relacionadas há mais de 15 dias sem pagamento.</div>
+      <div class="alert warnbox"><b>3 áreas concentram 71% do atraso interno</b><br>Ateste de medição é o principal gargalo.</div>
+      <div class="alert infobox"><b>Indicador executivo recomendado:</b><br>% das obrigações pagas em até X dias após o recebimento do cliente e após o aceite da medição.</div>
+    </div>
+  </div>
+</section>
+
+
+<section class="card" style="margin-bottom:14px">
+  <h2>Concentração Econômica — Curva ABC de Fornecedores e Clientes</h2>
+  <div class="sub">Visão executiva das organizações que concentram 80% do relacionamento financeiro da ETICE.</div>
+  <div class="grid2">
+    <div>
+      <h3>Fornecedores estratégicos — Classes A e B</h3>
+      <div class="rank"><span class="tag abcA">A</span><span class="name">Fornecedor Alpha</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="val">R$ 34,2 mi</span></div>
+      <div class="rank"><span class="tag abcA">A</span><span class="name">Fornecedor Beta</span><div class="track"><div class="fill" style="width:73%"></div></div><span class="val">R$ 24,8 mi</span></div>
+      <div class="rank"><span class="tag abcA">A</span><span class="name">Fornecedor Gama</span><div class="track"><div class="fill" style="width:57%"></div></div><span class="val">R$ 19,6 mi</span></div>
+      <div class="rank"><span class="tag abcB">B</span><span class="name">Fornecedor Delta</span><div class="track"><div class="fill" style="width:51%"></div></div><span class="val">R$ 17,3 mi</span></div>
+      <div class="rank"><span class="tag abcB">B</span><span class="name">Fornecedor Épsilon</span><div class="track"><div class="fill" style="width:41%"></div></div><span class="val">R$ 14,1 mi</span></div>
+      <div class="rank"><span class="tag abcB">B</span><span class="name">Fornecedor Zeta</span><div class="track"><div class="fill" style="width:40%"></div></div><span class="val">R$ 13,7 mi</span></div>
+      <div class="alert warnbox"><b>Risco de concentração:</b> 3 fornecedores classe A representam aproximadamente 51% dos pagamentos do período.</div>
+    </div>
+    <div>
+      <h3>Clientes estratégicos — Classes A e B</h3>
+      <div class="rank"><span class="tag abcA">A</span><span class="name">SEDUC</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="val">R$ 28,9 mi</span></div>
+      <div class="rank"><span class="tag abcA">A</span><span class="name">SSPDS</span><div class="track"><div class="fill" style="width:64%"></div></div><span class="val">R$ 18,4 mi</span></div>
+      <div class="rank"><span class="tag abcA">A</span><span class="name">SEFAZ</span><div class="track"><div class="fill" style="width:39%"></div></div><span class="val">R$ 11,2 mi</span></div>
+      <div class="rank"><span class="tag abcB">B</span><span class="name">SEPLAG</span><div class="track"><div class="fill" style="width:37%"></div></div><span class="val">R$ 10,8 mi</span></div>
+      <div class="rank"><span class="tag abcB">B</span><span class="name">SESA</span><div class="track"><div class="fill" style="width:33%"></div></div><span class="val">R$ 9,6 mi</span></div>
+      <div class="rank"><span class="tag abcB">B</span><span class="name">Casa Civil</span><div class="track"><div class="fill" style="width:31%"></div></div><span class="val">R$ 8,9 mi</span></div>
+      <div class="alert"><b>Prioridade executiva:</b> qualquer problema relevante em cliente ou fornecedor classe A deve aparecer automaticamente na fila da Diretoria.</div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="footer">Protótipo autocontido para especificação visual. Dados simulados. Nenhuma dependência externa.</div>
+<script>
+function filtrarTabela(inputId, tableId){
+  const q=(document.getElementById(inputId).value||'').toLowerCase();
+  const rows=document.querySelectorAll('#'+tableId+' tbody tr');
+  rows.forEach(r=>{r.style.display=r.innerText.toLowerCase().includes(q)?'':'none';});
+}
+function toggleDetalhes(id){
+  document.getElementById(id).classList.toggle('hidden-row');
+}
+function atualizarData(){
+  const el=document.getElementById('horaAtual');
+  if(el){const d=new Date(); el.textContent=d.toLocaleString('pt-BR');}
+}
+document.addEventListener('DOMContentLoaded',atualizarData);
+</script>
+</body></html>

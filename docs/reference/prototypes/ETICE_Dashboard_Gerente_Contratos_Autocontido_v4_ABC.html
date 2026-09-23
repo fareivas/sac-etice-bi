@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ETICE • Dashboard do Gerente de Contratos</title>
+<style>
+:root{
+  --bg:#f4f7fb; --card:#ffffff; --text:#162033; --muted:#64748b; --line:#dbe3ef;
+  --primary:#164e63; --primary2:#0f766e; --good:#15803d; --warn:#b45309; --bad:#b91c1c;
+  --info:#1d4ed8; --soft:#eef4f8; --shadow:0 8px 24px rgba(15,23,42,.08);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(120deg,#0f172a,#164e63);color:#fff;padding:22px 24px;position:sticky;top:0;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.top{max-width:1500px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand h1{margin:0;font-size:22px}.brand p{margin:5px 0 0;color:#d7eef3;font-size:13px}
+.badge{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:999px;font-size:12px}
+main{max-width:1500px;margin:0 auto;padding:20px}
+.filters{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));gap:10px;background:var(--card);padding:14px;border-radius:14px;box-shadow:var(--shadow);margin-bottom:16px}
+select,input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text)}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:16px 0}
+.kpi{background:var(--card);padding:16px;border-radius:14px;box-shadow:var(--shadow);border-top:4px solid var(--primary)}
+.kpi small{color:var(--muted);display:block;margin-bottom:6px}.kpi strong{font-size:24px}.kpi .delta{font-size:12px;margin-top:7px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:16px;overflow:hidden}
+.card h2{font-size:16px;margin:0 0 12px}.card h3{font-size:14px;margin:0 0 10px}
+.sub{font-size:12px;color:var(--muted);margin-top:-6px;margin-bottom:12px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:760px;background:#fff}
+th,td{text-align:left;padding:10px 9px;border-bottom:1px solid var(--line);font-size:12px;vertical-align:top}
+th{background:#f8fafc;color:#475569;position:sticky;top:0}
+tr:hover td{background:#f8fbfd}
+.tag{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.good{background:#dcfce7;color:#166534}.warn{background:#fef3c7;color:#92400e}.bad{background:#fee2e2;color:#991b1b}.info{background:#dbeafe;color:#1e40af}.neutral{background:#e2e8f0;color:#334155}
+.progress{height:9px;background:#e5e7eb;border-radius:999px;overflow:hidden}.progress>span{display:block;height:100%;background:linear-gradient(90deg,#0f766e,#14b8a6)}
+.alert{border-left:5px solid var(--bad);background:#fff7f7;padding:12px 14px;border-radius:10px;margin:8px 0}
+.alert.warnbox{border-left-color:var(--warn);background:#fffaf0}.alert.infobox{border-left-color:var(--info);background:#f6f9ff}
+.action{font-weight:700;color:#0f766e}
+.matrix{display:grid;grid-template-columns:180px repeat(6,1fr);gap:5px;align-items:stretch;font-size:11px}
+.mh,.mc{padding:9px 6px;border-radius:8px;text-align:center;border:1px solid var(--line)}.mh{background:#f8fafc;font-weight:700}.mc.good{background:#dcfce7}.mc.warn{background:#fef3c7}.mc.bad{background:#fee2e2}
+.bar{display:flex;align-items:center;gap:8px;margin:8px 0}.bar label{width:130px;font-size:12px;color:#475569}.bar .track{flex:1;height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar .fill{height:100%;background:#0f766e}.bar b{font-size:12px;width:55px;text-align:right}
+.timeline{display:flex;gap:8px;flex-wrap:wrap}.step{flex:1;min-width:150px;padding:11px;border-radius:10px;border:1px solid var(--line);background:#fafcff}.step b{display:block;font-size:12px}.step span{font-size:11px;color:var(--muted)}
+.footer{color:var(--muted);font-size:11px;text-align:center;padding:20px}
+.note{font-size:11px;color:var(--muted);margin-top:8px}
+button{border:0;background:#0f766e;color:#fff;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px}
+button:hover{filter:brightness(.95)}
+.hidden-row{display:none}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.grid2{grid-template-columns:1fr}.grid3{grid-template-columns:1fr}.filters{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){header{position:static}.top{align-items:flex-start;flex-direction:column}.kpis{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:1fr}.kpi strong{font-size:20px}.matrix{grid-template-columns:130px repeat(6,85px);overflow:auto}main{padding:12px}}
+
+.payflow{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:8px;overflow:auto;padding-bottom:4px}
+.phase{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;min-width:120px}
+.phase b{display:block;font-size:12px;margin-bottom:4px}.phase span{font-size:11px;color:var(--muted)}
+.phase .amt{font-size:13px;color:var(--text);font-weight:700;margin-top:6px}
+.metricrow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
+.metricbox{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.metricbox small{display:block;color:var(--muted);font-size:10px}.metricbox b{font-size:16px}
+@media(max-width:800px){.metricrow{grid-template-columns:repeat(2,1fr)}}
+
+.abc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px}
+.abc-card{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:16px}
+.abc-card h2{font-size:16px;margin:0 0 8px}
+.abc-legend{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.abcA{background:#fee2e2;color:#991b1b}.abcB{background:#fef3c7;color:#92400e}.abcC{background:#dcfce7;color:#166534}
+.abcbar{display:flex;height:18px;border-radius:999px;overflow:hidden;background:#e5e7eb;margin:8px 0 12px}
+.abcbar .a{width:50%;background:#b91c1c}.abcbar .b{width:30%;background:#b45309}.abcbar .c{width:20%;background:#15803d}
+.rank{display:flex;align-items:center;gap:8px;margin:7px 0}
+.rank .name{width:170px;font-size:12px}
+.rank .track{flex:1;height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden}
+.rank .fill{height:100%;background:#164e63}
+.rank .val{width:95px;text-align:right;font-size:12px;font-weight:700}
+@media(max-width:900px){.abc-grid{grid-template-columns:1fr}.rank .name{width:125px}}
+</style>
+</head>
+<body>
+<header><div class="top"><div class="brand"><h1>ETICE • Dashboard do Gerente de Contratos</h1><p>Visão agregada de contratos, fiscais, riscos e intervenções</p></div><div class="badge">ETICE • Protótipo Power BI • <span id="horaAtual"></span></div></div></header>
+<main>
+<section class="filters">
+  <select><option>Todos os fiscais</option><option>Fiscal A</option><option>Fiscal B</option><option>Fiscal C</option></select>
+  <select><option>Todas as gerências</option><option>Soluções Corporativas</option><option>Data Center</option><option>CDC</option></select>
+  <select><option>Todos os riscos</option><option>Crítico</option><option>Atenção</option></select>
+  <select><option>Próximos 180 dias</option><option>90 dias</option><option>365 dias</option></select>
+  <input id="buscaGerente" placeholder="Buscar fiscal, contrato ou fornecedor..." oninput="filtrarTabela('buscaGerente','tblGerente')">
+</section>
+
+<section class="kpis">
+  <div class="kpi"><small>Contratos monitorados</small><strong>86</strong><div class="delta">12 fiscais responsáveis</div></div>
+  <div class="kpi"><small>Contratos críticos</small><strong>9</strong><div class="delta">+3 na última semana</div></div>
+  <div class="kpi"><small>Valor contratado</small><strong>R$ 214 mi</strong><div class="delta">Saldo agregado R$ 62,7 mi</div></div>
+  <div class="kpi"><small>Renovações atrasadas</small><strong>6</strong><div class="delta">3 impactam serviços críticos</div></div>
+  <div class="kpi"><small>SLA abaixo da meta</small><strong>11</strong><div class="delta">R$ 3,8 mi expostos</div></div>
+  <div class="kpi"><small>Intervenções gerenciais</small><strong>14</strong><div class="delta">5 exigem decisão nesta semana</div></div>
+</section>
+
+<div class="grid2">
+<section class="card">
+  <h2>Matriz Contrato × Dimensão de Risco</h2><div class="sub">Clique conceitualmente em uma célula para drill-through no Power BI.</div>
+  <div class="matrix">
+    <div class="mh">Contrato</div><div class="mh">Saldo</div><div class="mh">Vigência</div><div class="mh">SLA</div><div class="mh">Medição</div><div class="mh">Pagamento</div><div class="mh">Índice</div>
+    <div class="mh">CT-042 • Alpha</div><div class="mc bad">Crítico</div><div class="mc good">OK</div><div class="mc warn">Atenção</div><div class="mc good">OK</div><div class="mc good">OK</div><div class="mc bad">58</div>
+    <div class="mh">CT-018 • Beta</div><div class="mc warn">Atenção</div><div class="mc bad">Crítico</div><div class="mc good">OK</div><div class="mc good">OK</div><div class="mc bad">Atraso</div><div class="mc bad">54</div>
+    <div class="mh">CT-077 • Gama</div><div class="mc good">OK</div><div class="mc good">OK</div><div class="mc bad">Crítico</div><div class="mc good">OK</div><div class="mc warn">Atenção</div><div class="mc warn">69</div>
+    <div class="mh">CT-103 • Delta</div><div class="mc good">OK</div><div class="mc good">OK</div><div class="mc good">OK</div><div class="mc warn">Pendente</div><div class="mc good">OK</div><div class="mc warn">73</div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Carga e risco por fiscal</h2>
+  <div class="bar"><label>Fiscal A</label><div class="track"><div class="fill" style="width:92%"></div></div><b>10 ctr.</b></div>
+  <div class="bar"><label>Fiscal B</label><div class="track"><div class="fill" style="width:73%"></div></div><b>8 ctr.</b></div>
+  <div class="bar"><label>Fiscal C</label><div class="track"><div class="fill" style="width:61%"></div></div><b>7 ctr.</b></div>
+  <div class="bar"><label>Fiscal D</label><div class="track"><div class="fill" style="width:45%"></div></div><b>5 ctr.</b></div>
+  <div class="alert warnbox"><b>Fiscal A concentra 4 dos 9 contratos críticos.</b><br>Recomenda-se redistribuição ou apoio temporário.</div>
+</section>
+</div>
+
+<section class="card" style="margin-bottom:14px">
+<h2>Intervenções gerenciais priorizadas</h2>
+<div class="table-wrap"><table id="tblGerente"><thead><tr><th>Prior.</th><th>Fiscal</th><th>Contrato / Empresa</th><th>Risco</th><th>Impacto</th><th>Ação gerencial</th><th>Prazo</th></tr></thead><tbody>
+<tr><td><span class="tag bad">P1</span></td><td>Fiscal A</td><td>CT-042/2026 • Alpha</td><td>Saldo crítico</td><td>Possível interrupção de nuvem</td><td class="action">Autorizar plano de contingência e contratação sucessora</td><td>48h</td></tr>
+<tr><td><span class="tag bad">P1</span></td><td>Fiscal B</td><td>CT-018/2026 • Beta</td><td>Renovação atrasada</td><td>61 dias para término</td><td class="action">Escalonar fluxo de renovação</td><td>24h</td></tr>
+<tr><td><span class="tag warn">P2</span></td><td>Fiscal C</td><td>CT-077/2025 • Gama</td><td>SLA abaixo da meta</td><td>3 meses reincidentes</td><td class="action">Reunião executiva + plano corretivo</td><td>5 dias</td></tr>
+<tr><td><span class="tag warn">P2</span></td><td>Fiscal A</td><td>CT-103/2025 • Delta</td><td>Medição pendente</td><td>R$ 226 mil retidos</td><td class="action">Eliminar pendência documental</td><td>3 dias</td></tr>
+</tbody></table></div>
+</section>
+
+<div class="grid3">
+<section class="card"><h2>Forecast 180 dias</h2><div class="alert"><b>R$ 12,4 mi</b><br>de contratos com risco de saldo ou vigência.</div><div class="alert warnbox"><b>17 contratos</b><br>exigem renovação/aditivo/licitação.</div></section>
+<section class="card"><h2>Exposição financeira</h2><div class="bar"><label>SLA / glosas</label><div class="track"><div class="fill" style="width:63%"></div></div><b>3,8 mi</b></div><div class="bar"><label>Medições</label><div class="track"><div class="fill" style="width:41%"></div></div><b>2,5 mi</b></div><div class="bar"><label>Pagamento</label><div class="track"><div class="fill" style="width:29%"></div></div><b>1,7 mi</b></div></section>
+<section class="card"><h2>Qualidade da gestão</h2><div class="bar"><label>Dados completos</label><div class="track"><div class="fill" style="width:91%"></div></div><b>91%</b></div><div class="bar"><label>Ações no prazo</label><div class="track"><div class="fill" style="width:84%"></div></div><b>84%</b></div><div class="bar"><label>Renovações D-90</label><div class="track"><div class="fill" style="width:72%"></div></div><b>72%</b></div></section>
+</div>
+
+<section class="card" style="margin-bottom:14px">
+  <h2>Eficiência do Ciclo Financeiro — carteira gerenciada</h2>
+  <div class="sub">Volumes em cada fase e tempo entre etapas, permitindo localizar gargalos por fiscal, contrato, fornecedor e área responsável.</div>
+  <div class="payflow">
+    <div class="phase"><b>Faturado clientes</b><div class="amt">R$ 18,6 mi</div><span>142 documentos</span></div>
+    <div class="phase"><b>A receber</b><div class="amt">R$ 4,2 mi</div><span>31 documentos</span></div>
+    <div class="phase"><b>Recebido ETICE</b><div class="amt">R$ 14,4 mi</div><span>111 recebimentos</span></div>
+    <div class="phase"><b>Medição fornecedor</b><div class="amt">R$ 10,8 mi</div><span>26 pendências</span></div>
+    <div class="phase"><b>Processando pagamento</b><div class="amt">R$ 3,7 mi</div><span>19 processos</span></div>
+    <div class="phase"><b>Programado</b><div class="amt">R$ 2,1 mi</div><span>12 pagamentos</span></div>
+    <div class="phase"><b>Pago fornecedor</b><div class="amt">R$ 8,4 mi</div><span>79 pagamentos</span></div>
+  </div>
+  <div class="metricrow">
+    <div class="metricbox"><small>Tempo mínimo</small><b>6 dias</b></div>
+    <div class="metricbox"><small>Tempo médio</small><b>19,7 dias</b></div>
+    <div class="metricbox"><small>Mediana</small><b>17 dias</b></div>
+    <div class="metricbox"><small>P90</small><b>34 dias</b></div>
+    <div class="metricbox"><small>Tempo máximo</small><b>58 dias</b></div>
+  </div>
+  <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Fase</th><th>Valor parado</th><th>Qtd.</th><th>Tempo médio</th><th>P90</th><th>Responsável típico</th><th>Situação</th></tr></thead><tbody>
+    <tr><td>Cliente: faturamento → recebimento</td><td>R$ 4,2 mi</td><td>31</td><td>13,2 d</td><td>27 d</td><td>Comercial / Financeiro</td><td><span class="tag warn">Atenção</span></td></tr>
+    <tr><td>Fornecedor: medição → ateste</td><td>R$ 2,6 mi</td><td>18</td><td>7,8 d</td><td>16 d</td><td>Fiscal</td><td><span class="tag bad">Gargalo</span></td></tr>
+    <tr><td>Ateste → processo financeiro</td><td>R$ 1,1 mi</td><td>8</td><td>4,1 d</td><td>9 d</td><td>Contratos / Financeiro</td><td><span class="tag warn">Atenção</span></td></tr>
+    <tr><td>Programação → pagamento</td><td>R$ 2,1 mi</td><td>12</td><td>3,0 d</td><td>6 d</td><td>Financeiro</td><td><span class="tag good">Normal</span></td></tr>
+  </tbody></table></div>
+</section>
+
+
+<section class="abc-grid">
+  <div class="abc-card">
+    <h2>Curva ABC de Fornecedores</h2>
+    <div class="sub">Base padrão: pagamentos efetivos acumulados nos últimos 12 meses.</div>
+    <div class="abcbar"><div class="a"></div><div class="b"></div><div class="c"></div></div>
+    <div class="abc-legend">
+      <span class="tag abcA">A • até 50% acumulado</span>
+      <span class="tag abcB">B • 50% a 80%</span>
+      <span class="tag abcC">C • demais</span>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Classe</th><th>Fornecedor</th><th>Valor 12m</th><th>%</th><th>% acum.</th><th>Contratos</th><th>Risco atual</th></tr></thead><tbody>
+      <tr><td><span class="tag abcA">A</span></td><td><b>Fornecedor Alpha</b></td><td>R$ 34,2 mi</td><td>22,1%</td><td>22,1%</td><td>4</td><td><span class="tag bad">Crítico</span></td></tr>
+      <tr><td><span class="tag abcA">A</span></td><td><b>Fornecedor Beta</b></td><td>R$ 24,8 mi</td><td>16,0%</td><td>38,1%</td><td>3</td><td><span class="tag warn">Atenção</span></td></tr>
+      <tr><td><span class="tag abcA">A</span></td><td><b>Fornecedor Gama</b></td><td>R$ 19,6 mi</td><td>12,7%</td><td>50,8%</td><td>5</td><td><span class="tag warn">Atenção</span></td></tr>
+      <tr><td><span class="tag abcB">B</span></td><td><b>Fornecedor Delta</b></td><td>R$ 17,3 mi</td><td>11,2%</td><td>62,0%</td><td>2</td><td><span class="tag good">Normal</span></td></tr>
+      <tr><td><span class="tag abcB">B</span></td><td><b>Fornecedor Épsilon</b></td><td>R$ 14,1 mi</td><td>9,1%</td><td>71,1%</td><td>4</td><td><span class="tag good">Normal</span></td></tr>
+      <tr><td><span class="tag abcB">B</span></td><td><b>Fornecedor Zeta</b></td><td>R$ 13,7 mi</td><td>8,9%</td><td>80,0%</td><td>2</td><td><span class="tag warn">Atenção</span></td></tr>
+    </tbody></table></div>
+  </div>
+  <div class="abc-card">
+    <h2>Curva ABC de Clientes</h2>
+    <div class="sub">Base padrão: recebimentos efetivos acumulados nos últimos 12 meses.</div>
+    <div class="abcbar"><div class="a"></div><div class="b"></div><div class="c"></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Classe</th><th>Cliente</th><th>Recebido 12m</th><th>%</th><th>% acum.</th><th>Contratos</th><th>Situação</th></tr></thead><tbody>
+      <tr><td><span class="tag abcA">A</span></td><td><b>SEDUC</b></td><td>R$ 28,9 mi</td><td>24,8%</td><td>24,8%</td><td>6</td><td><span class="tag warn">Renovação</span></td></tr>
+      <tr><td><span class="tag abcA">A</span></td><td><b>SSPDS</b></td><td>R$ 18,4 mi</td><td>15,8%</td><td>40,6%</td><td>4</td><td><span class="tag bad">SLA</span></td></tr>
+      <tr><td><span class="tag abcA">A</span></td><td><b>SEFAZ</b></td><td>R$ 11,2 mi</td><td>9,6%</td><td>50,2%</td><td>3</td><td><span class="tag good">Normal</span></td></tr>
+      <tr><td><span class="tag abcB">B</span></td><td><b>SEPLAG</b></td><td>R$ 10,8 mi</td><td>9,3%</td><td>59,5%</td><td>3</td><td><span class="tag warn">Faturamento</span></td></tr>
+      <tr><td><span class="tag abcB">B</span></td><td><b>SESA</b></td><td>R$ 9,6 mi</td><td>8,2%</td><td>67,7%</td><td>4</td><td><span class="tag good">Normal</span></td></tr>
+      <tr><td><span class="tag abcB">B</span></td><td><b>Casa Civil</b></td><td>R$ 8,9 mi</td><td>7,6%</td><td>75,3%</td><td>2</td><td><span class="tag good">Normal</span></td></tr>
+      <tr><td><span class="tag abcB">B</span></td><td><b>SEINFRA</b></td><td>R$ 5,5 mi</td><td>4,7%</td><td>80,0%</td><td>2</td><td><span class="tag warn">Atenção</span></td></tr>
+    </tbody></table></div>
+  </div>
+</section>
+
+</main>
+<div class="footer">Protótipo autocontido para especificação visual. Dados simulados. Nenhuma dependência externa.</div>
+<script>
+function filtrarTabela(inputId, tableId){
+  const q=(document.getElementById(inputId).value||'').toLowerCase();
+  const rows=document.querySelectorAll('#'+tableId+' tbody tr');
+  rows.forEach(r=>{r.style.display=r.innerText.toLowerCase().includes(q)?'':'none';});
+}
+function toggleDetalhes(id){
+  document.getElementById(id).classList.toggle('hidden-row');
+}
+function atualizarData(){
+  const el=document.getElementById('horaAtual');
+  if(el){const d=new Date(); el.textContent=d.toLocaleString('pt-BR');}
+}
+document.addEventListener('DOMContentLoaded',atualizarData);
+</script>
+</body></html>
