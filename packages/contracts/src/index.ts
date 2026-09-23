@@ -2,3 +2,117 @@ import { z } from 'zod';
 
 export const apiMessageSchema = z.object({ message: z.string() });
 export type ApiMessage = z.infer<typeof apiMessageSchema>;
+
+const dateTimeSchema = z.iso.datetime({ offset: true, local: true });
+const sourceDateTimeSchema = z.iso.datetime({ offset: true });
+
+const fiscalDataCoverageSchema = z.strictObject({
+  activeContracts: z.enum(['AVAILABLE', 'UNAVAILABLE']),
+  pendingServiceOrders: z.enum(['AVAILABLE', 'UNAVAILABLE']),
+  criticalItems: z.enum(['AVAILABLE', 'UNAVAILABLE']),
+  overdueActions: z.enum(['AVAILABLE', 'UNAVAILABLE']),
+});
+
+const fiscalFiltersAppliedSchema = z.strictObject({
+  unidadeId: z.number().int().positive().nullable(),
+  contratoId: z.array(z.number().int().positive()).refine(
+    (ids) => new Set(ids).size === ids.length,
+    'contratoId deve conter IDs únicos',
+  ),
+  includeExternal: z.boolean(),
+});
+
+const fiscalMetaFields = {
+  generatedAt: dateTimeSchema,
+  dataReference: z.iso.date(),
+  timezone: z.string().refine((value) => {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: value });
+      return true;
+    } catch {
+      return false;
+    }
+  }, 'timezone IANA inválido'),
+  dataCoverage: fiscalDataCoverageSchema,
+  filtersApplied: fiscalFiltersAppliedSchema,
+};
+
+// O contrato documenta esses campos, mas não fecha os descritores de sources.
+const fiscalSourceDescriptorSchema = z.object({
+  system: z.string().optional(),
+  updatedAt: sourceDateTimeSchema.nullable().optional(),
+  status: z.enum(['AVAILABLE', 'STALE', 'UNAVAILABLE']).optional(),
+}).passthrough();
+
+const fiscalSacMetaSchema = z.strictObject({
+  ...fiscalMetaFields,
+  source: z.literal('SAC'),
+  merCoverage: z.literal('PROPOSTA'),
+  filtersApplied: fiscalFiltersAppliedSchema.extend({ includeExternal: z.literal(false) }),
+});
+
+const fiscalMixedMetaSchema = z.strictObject({
+  ...fiscalMetaFields,
+  sources: z.array(fiscalSourceDescriptorSchema).min(2),
+  merCoverage: z.literal('MIXED'),
+  filtersApplied: fiscalFiltersAppliedSchema.extend({ includeExternal: z.literal(true) }),
+});
+
+const fiscalPriorityQueueItemSchema = z.strictObject({
+  type: z.literal('SERVICE_ORDER'),
+  severity: z.string().nullable(),
+  contractId: z.number().int().nullable(),
+  contractNumber: z.string().nullable(),
+  supplierName: z.string().nullable(),
+  title: z.string().nullable(),
+  dueAt: sourceDateTimeSchema.nullable(),
+});
+
+const fiscalDataSchema = z.strictObject({
+  fiscal: z.strictObject({
+    userId: z.number().int(),
+    name: z.string().nullable(),
+  }),
+  cards: z.strictObject({
+    activeContracts: z.number().int().nullable(),
+    pendingServiceOrders: z.number().int().nullable(),
+    criticalItems: z.number().int().nullable(),
+    overdueActions: z.number().int().nullable(),
+    externalViolations: z.number().int().nullable(),
+  }),
+  priorityQueue: z.array(fiscalPriorityQueueItemSchema),
+});
+
+export const fiscalDashboardSummaryResponseSchema = z.union([
+  z.strictObject({ meta: fiscalSacMetaSchema, data: fiscalDataSchema }),
+  z.strictObject({ meta: fiscalMixedMetaSchema, data: fiscalDataSchema }),
+]).superRefine((response, context) => {
+  const sacCards = [
+    'activeContracts',
+    'pendingServiceOrders',
+    'criticalItems',
+    'overdueActions',
+  ] as const;
+
+  for (const card of sacCards) {
+    const unavailable = response.meta.dataCoverage[card] === 'UNAVAILABLE';
+    if ((response.data.cards[card] === null) !== unavailable) {
+      context.addIssue({
+        code: 'custom',
+        path: ['data', 'cards', card],
+        message: 'Card e dataCoverage inconsistentes',
+      });
+    }
+  }
+
+  if (response.meta.filtersApplied.includeExternal === false &&
+      response.data.cards.externalViolations !== null) {
+    context.addIssue({
+      code: 'custom',
+      path: ['data', 'cards', 'externalViolations'],
+      message: 'externalViolations deve ser null sem consulta aos KPIs',
+    });
+  }
+});
+
+export type FiscalDashboardSummaryResponse = z.infer<typeof fiscalDashboardSummaryResponseSchema>;
