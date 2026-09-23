@@ -22,7 +22,7 @@ function repository(overrides: Partial<FiscalSummaryRepository> = {}): FiscalSum
   return {
     getFiscalIdentity: vi.fn(async (userId) => ({ userId, name: 'Fiscal Exemplo' })),
     getAuthorizedContractScope: vi.fn(async () => ({
-      contracts: [{ contractId: 184, integrationUuid: 'uuid-contrato-184' }],
+      coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: 'uuid-contrato-184' }],
     })),
     getActiveContracts: vi.fn(async () => available(1)),
     getPendingServiceOrders: vi.fn(async () => available(2)),
@@ -60,7 +60,7 @@ describe('composeFiscalDashboardSummary', () => {
 
   it('with AVAILABLE KPIs emits multiple sources and preserves a valid external zero', async () => {
     const repo = repository({
-      getAuthorizedContractScope: vi.fn(async () => ({ contracts: [
+      getAuthorizedContractScope: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, contracts: [
         { contractId: 184, integrationUuid: 'uuid-184' },
         { contractId: 205, integrationUuid: null },
       ] })),
@@ -85,7 +85,7 @@ describe('composeFiscalDashboardSummary', () => {
 
   it('does not send null when every authorized contract lacks integrationUuid', async () => {
     const repo = repository({
-      getAuthorizedContractScope: vi.fn(async () => ({ contracts: [
+      getAuthorizedContractScope: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, contracts: [
         { contractId: 184, integrationUuid: null },
         { contractId: 205, integrationUuid: null },
       ] })),
@@ -166,7 +166,7 @@ describe('composeFiscalDashboardSummary', () => {
 
   it('preserves Fiscal and valid zero cards with empty portfolio, and passes through the empty queue', async () => {
     const repo = repository({
-      getAuthorizedContractScope: vi.fn(async () => ({ contracts: [] })),
+      getAuthorizedContractScope: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, contracts: [] })),
       getActiveContracts: vi.fn(async () => available(0)),
       getPendingServiceOrders: vi.fn(async () => available(0)),
       getCriticalItems: vi.fn(async () => available(0)),
@@ -193,6 +193,17 @@ describe('composeFiscalDashboardSummary', () => {
       criticalItems: 'AVAILABLE',
       overdueActions: 'AVAILABLE',
     });
+  });
+
+  it('turns unavailable historical scope into null cards without calling current-state ports', async () => {
+    const repo = repository({ getAuthorizedContractScope: vi.fn(async () => ({ coverage: 'UNAVAILABLE' as const })) });
+    const response = await composeFiscalDashboardSummary(
+      { authenticatedUserId: 77, filters: { ...filters(false), dataReferencia: '2026-09-20' } },
+      { repository: repo, kpiSource: kpiSource({ status: 'UNAVAILABLE', externalViolations: null, updatedAt: null }), now },
+    );
+    expect(response.data.cards).toMatchObject({ activeContracts: null, pendingServiceOrders: null, criticalItems: null, overdueActions: null });
+    expect(Object.values(response.meta.dataCoverage)).toEqual(['UNAVAILABLE', 'UNAVAILABLE', 'UNAVAILABLE', 'UNAVAILABLE']);
+    expect(repo.getActiveContracts).not.toHaveBeenCalled();
   });
 
   it('passes through queue fields including nulls without IPA or heuristic derivation', async () => {

@@ -14,9 +14,9 @@ export interface FiscalAuthorizedContract {
   integrationUuid: string | null;
 }
 
-export interface FiscalAuthorizedScope {
-  contracts: readonly FiscalAuthorizedContract[];
-}
+export type FiscalAuthorizedScope =
+  | { coverage: 'AVAILABLE'; contracts: readonly FiscalAuthorizedContract[] }
+  | { coverage: 'UNAVAILABLE' };
 
 /** An unavailable historical result has no numeric value; zero remains a real result. */
 export type FiscalIndicatorResult =
@@ -31,7 +31,7 @@ export interface FiscalRepositoryContext {
 
 export interface FiscalScopedRepositoryQuery {
   context: FiscalRepositoryContext;
-  scope: FiscalAuthorizedScope;
+  scope: Extract<FiscalAuthorizedScope, { coverage: 'AVAILABLE' }>;
 }
 
 export type FiscalPriorityQueueItem =

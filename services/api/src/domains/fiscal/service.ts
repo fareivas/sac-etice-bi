@@ -84,23 +84,27 @@ export async function composeFiscalDashboardSummary(
     throw new Error('Repository identity does not match authenticated user.');
   }
 
-  const query: FiscalScopedRepositoryQuery = { context, scope };
-  const [active, pending, critical, overdue, priorityQueue, external] = await Promise.all([
-    dependencies.repository.getActiveContracts(query).then(checkedIndicator),
-    dependencies.repository.getPendingServiceOrders(query).then(checkedIndicator),
-    dependencies.repository.getCriticalItems(query).then(checkedIndicator),
-    dependencies.repository.getOverdueActions(query).then(checkedIndicator),
-    dependencies.repository.getPriorityQueue(query),
-    input.filters.includeExternal
-      ? dependencies.kpiSource.getExternalViolations(
-        scope.contracts.flatMap((contract) => contract.integrationUuid === null
-          ? []
-          : [contract.integrationUuid]),
-      )
-        .then((result) => kpiResultSchema.parse(result))
-      : Promise.resolve(null),
-  ]);
-
+  const unavailable: FiscalIndicatorResult = { coverage: 'UNAVAILABLE' };
+  const [active, pending, critical, overdue, priorityQueue, external] = scope.coverage === 'UNAVAILABLE'
+    ? [unavailable, unavailable, unavailable, unavailable, [],
+      input.filters.includeExternal ? { status: 'UNAVAILABLE' as const, externalViolations: null, updatedAt: null } : null] as const
+    : await (async () => {
+      const query: FiscalScopedRepositoryQuery = { context, scope };
+      return Promise.all([
+        dependencies.repository.getActiveContracts(query).then(checkedIndicator),
+        dependencies.repository.getPendingServiceOrders(query).then(checkedIndicator),
+        dependencies.repository.getCriticalItems(query).then(checkedIndicator),
+        dependencies.repository.getOverdueActions(query).then(checkedIndicator),
+        dependencies.repository.getPriorityQueue(query),
+        input.filters.includeExternal
+          ? dependencies.kpiSource.getExternalViolations(
+            scope.contracts.flatMap((contract) => contract.integrationUuid === null
+              ? []
+              : [contract.integrationUuid]),
+          ).then((result) => kpiResultSchema.parse(result))
+          : Promise.resolve(null),
+      ]);
+    })();
   const generatedAt = (dependencies.now ?? (() => new Date()))().toISOString();
   const sacCards = {
     activeContracts: cardValue(active),

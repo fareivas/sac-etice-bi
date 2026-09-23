@@ -62,7 +62,7 @@ function repo(overrides: Partial<FiscalSummaryRepository> = {}): FiscalSummaryRe
   return {
     getFiscalIdentity: vi.fn(async (userId: number) => ({ userId, name: 'Fiscal Teste' })),
     getAuthorizedContractScope: vi.fn(async () => ({
-      contracts: [{ contractId: 184, integrationUuid: 'uuid-184' }],
+      coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: 'uuid-184' }],
     })),
     getActiveContracts: vi.fn(async () => available),
     getPendingServiceOrders: vi.fn(async () => available),

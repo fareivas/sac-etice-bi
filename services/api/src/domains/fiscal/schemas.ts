@@ -61,7 +61,7 @@ function validCalendarDate(value: string): boolean {
     date.getUTCDate() === day;
 }
 
-function dateInTimezone(now: Date, timezone: string): string {
+export function dateInTimezone(now: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     year: 'numeric',

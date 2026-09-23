@@ -1,6 +1,7 @@
-import { createApiError } from '../../shared/errors/index';
+import { createApiError, createInternalError } from '../../shared/errors/index';
 import { safeBigintId, type DbReader } from '../../shared/db/index';
-import { GET_FISCAL_IDENTITY } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS } from './queries';
+import { dateInTimezone } from './schemas';
 import type {
   FiscalAuthorizedScope,
   FiscalIdentity,
@@ -18,6 +19,9 @@ export class RepositoryOperationNotImplemented extends Error {
   }
 }
 
+interface ScopeRow { contrato_id: string | bigint }
+interface CountRow { total: string | bigint }
+
 interface IdentityRow {
   id: string | bigint;
   nome: string;
@@ -25,7 +29,11 @@ interface IdentityRow {
 }
 
 export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository {
-  constructor(private readonly db: DbReader) {}
+  constructor(private readonly db: DbReader, private readonly now: () => Date = () => new Date()) {}
+
+  private isCurrent(context: FiscalRepositoryContext): boolean {
+    return context.filters.dataReferencia === dateInTimezone(this.now(), context.filters.timezone);
+  }
 
   async getFiscalIdentity(authenticatedUserId: number): Promise<FiscalIdentity> {
     if (!Number.isSafeInteger(authenticatedUserId) || authenticatedUserId <= 0) {
@@ -40,12 +48,27 @@ export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository 
     return { userId, name: user.nome.trim() || null };
   }
 
-  async getAuthorizedContractScope(_context: FiscalRepositoryContext): Promise<FiscalAuthorizedScope> {
-    throw new RepositoryOperationNotImplemented('getAuthorizedContractScope');
+  async getAuthorizedContractScope(context: FiscalRepositoryContext): Promise<FiscalAuthorizedScope> {
+    if (context.filters.unidadeId !== null) {
+      throw createInternalError(new Error('Fiscal unit scope relation is undefined'));
+    }
+    if (!this.isCurrent(context)) return { coverage: 'UNAVAILABLE' };
+    const rows = await this.db.query<ScopeRow>(GET_FISCAL_CONTRACT_SCOPE, [context.authenticatedUserId]);
+    const authorized = [...new Set(rows.map((row) => safeBigintId(row.contrato_id)))];
+    const allowed = new Set(authorized);
+    const requested = context.filters.contratoId;
+    if (requested.some((id) => !allowed.has(id))) throw createApiError('FORBIDDEN_SCOPE');
+    const selected = requested.length ? [...new Set(requested)] : authorized;
+    return { coverage: 'AVAILABLE', contracts: selected.map((contractId) => ({ contractId, integrationUuid: null })) };
   }
 
-  async getActiveContracts(_query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
-    throw new RepositoryOperationNotImplemented('getActiveContracts');
+  async getActiveContracts(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
+    if (!this.isCurrent(query.context)) return { coverage: 'UNAVAILABLE' };
+    const ids = query.scope.contracts.map((contract) => contract.contractId);
+    if (ids.length === 0) return { coverage: 'AVAILABLE', value: 0 };
+    const rows = await this.db.query<CountRow>(COUNT_ACTIVE_FISCAL_CONTRACTS, [ids]);
+    const total = safeBigintId(rows[0]?.total);
+    return { coverage: 'AVAILABLE', value: total };
   }
 
   async getPendingServiceOrders(_query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
