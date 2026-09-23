@@ -12,8 +12,8 @@ Resources:
   FiscalFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../../services/api/
-      Handler: src/domains/fiscal/handler.handler
+      CodeUri: ../../
+      Handler: services/api/src/domains/fiscal/handler.handler
       Events:
         Api:
           Type: HttpApi
@@ -24,15 +24,15 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         EntryPoints:
-          - src/domains/fiscal/handler.ts
+          - services/api/src/domains/fiscal/handler.ts
         Target: es2022
         Format: cjs
 
   GerenteContratosFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../../services/api/
-      Handler: src/domains/gerente-contratos/handler.handler
+      CodeUri: ../../
+      Handler: services/api/src/domains/gerente-contratos/handler.handler
       Events:
         Api:
           Type: HttpApi
@@ -43,15 +43,15 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         EntryPoints:
-          - src/domains/gerente-contratos/handler.ts
+          - services/api/src/domains/gerente-contratos/handler.ts
         Target: es2022
         Format: cjs
 
   DiretoriaTecnicaFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../../services/api/
-      Handler: src/domains/diretoria-tecnica/handler.handler
+      CodeUri: ../../
+      Handler: services/api/src/domains/diretoria-tecnica/handler.handler
       Events:
         Api:
           Type: HttpApi
@@ -62,15 +62,15 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         EntryPoints:
-          - src/domains/diretoria-tecnica/handler.ts
+          - services/api/src/domains/diretoria-tecnica/handler.ts
         Target: es2022
         Format: cjs
 
   DiretoriaComercialFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../../services/api/
-      Handler: src/domains/diretoria-comercial/handler.handler
+      CodeUri: ../../
+      Handler: services/api/src/domains/diretoria-comercial/handler.handler
       Events:
         Api:
           Type: HttpApi
@@ -81,15 +81,15 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         EntryPoints:
-          - src/domains/diretoria-comercial/handler.ts
+          - services/api/src/domains/diretoria-comercial/handler.ts
         Target: es2022
         Format: cjs
 
   GerenteContasFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../../services/api/
-      Handler: src/domains/gerente-contas/handler.handler
+      CodeUri: ../../
+      Handler: services/api/src/domains/gerente-contas/handler.handler
       Events:
         Api:
           Type: HttpApi
@@ -100,7 +100,6 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         EntryPoints:
-          - src/domains/gerente-contas/handler.ts
+          - services/api/src/domains/gerente-contas/handler.ts
         Target: es2022
         Format: cjs
-

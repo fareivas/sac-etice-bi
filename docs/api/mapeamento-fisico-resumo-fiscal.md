@@ -100,6 +100,12 @@ O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-con
 7. Confirmar fonte física de `supplierName`, `severity`, `title` e `dueAt` e qual contrato/fornecedor pertence a cada ocorrência de OS.
 8. Confirmar implantação, completude e publicação dos `uuid_integracao`; fechar o contrato externo de unidade, janela, granularidade, estado, severidade, agregação e deduplicação das violações antes de consulta KPI real.
 
+## Estado da camada executável
+
+- A fronteira de autenticação/autorização do endpoint está definida por interfaces; o mecanismo real continua **NÃO_CONFIRMADO** e não foi implementado.
+- A factory injetável `createFiscalDashboardHandler` está implementada e compõe autenticação, parser, service e helpers HTTP.
+- O export de produção `handler` permanece em HTTP 501 até existirem adapters reais de autenticação, repository e KPIs.
+
 ## Referências documentais usadas
 
 - `docs/reference/specs/ER-ETICE-GERAL.pdf`, p. 1: diagrama do MER atual e entidades/relacionamentos.
