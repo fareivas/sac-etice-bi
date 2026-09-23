@@ -50,6 +50,22 @@ O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-con
 | Datas e histórico de status | **CONFIRMADO_ATUAL** para competência/vigência; suporte histórico **NÃO_CONFIRMADO** | O esquema registra `competencia`, `vigencia_inicio` e `vigencia_fim`, não prazo funcional de autorização/tratamento. O desenho ER contém o rótulo `trilha_status`, mas não fornece definição de colunas, chave, relação inequívoca com a OS ou cobertura; não prova reconstrução histórica. |
 | Predicado de pendência e lado contado | **NÃO_CONFIRMADO** | A DEC-011 requer mapear status que exigem ação do Fiscal, sem contar `unread` como regra de negócio e sem duplicar CLIENTE/FORNECEDOR. Os documentos não definem a máquina real de estados, lado elegível ou deduplicação física adequada. |
 
+#### Investigação operacional de pendências de OS (SAC oficial, 2026-09-23)
+
+**Classificação: PARCIALMENTE_MAPEADO.** Há um subconjunto identificável de decisões do Fiscal no Processo 1, mas não uma regra completa e inequívoca para `pendingServiceOrders` da DEC-011. `getPendingServiceOrders` permanece sem SQL.
+
+1. **Tipo específico:** `decisao_fiscal_p1` com `entidade_tipo = 'ordem_servico'` é criado por `agentes/p1_ordem_servico/grafo.py::notificar_fiscal` e resolvido por `api/rotas_ordens.py::decidir_fiscal`. `saldo_insuficiente` também pode ser criado para a mesma OS, mas o código não o define como decisão do Fiscal. Pendências de mapeamento são representadas por `ordens.subordem.status = 'mapeamento_pendente'`, não por esse tipo de `comum.pendencia`.
+2. **Estados:** `aberta` e `em_tratamento` são os estados ainda acionáveis usados tanto na criação idempotente quanto na ação fiscal. `resolvida` e `cancelada` saem desse conjunto; `api/rotas_operacao.py` permite assumir, resolver e cancelar pendências genericamente.
+3. **Cobertura:** `decisao_fiscal_p1` é criada apenas quando o grafo P1 chega ao nó `notificar_fiscal`. `api/rotas_ordens.py::mudar_status` permite levar uma OS de `em_validacao` a `aguardando_fiscal` sem criar pendência. Logo, uma OS com status que sugere ação fiscal pode não ter `decisao_fiscal_p1`.
+4. **Duplicação:** `notificar_fiscal` evita repetir uma pendência ainda aberta/em tratamento, mas a tabela `comum.pendencia` não tem unicidade por tipo/entidade; uma OS pode acumular pendências de tipos diferentes e novos ciclos de decisão depois de resolução. Uma eventual contagem precisaria usar OS distintas e definir quais tipos entram.
+5. **Lado:** `api/rotas_ordens.py::executar_p1` aceita somente OS `cliente`; `ordens.subordem` liga uma OS cliente a zero/uma OS fornecedor por subordem. A inclusão das OS fornecedor e o tratamento de possíveis pares cliente/fornecedor no card não estão normatizados.
+6. **Contrato:** `pendencia.entidade_id` aponta para `ordem_servico.id` quando `entidade_tipo = 'ordem_servico'`. `ordem_servico.contrato_id` é FK nullable. Para OS cliente sem contrato direto, atravessar `subordem` pode produzir múltiplos contratos fornecedor e não há regra aprovada que os equipare à carteira do Fiscal.
+7. **Status sem pendência:** o CRUD permite a transição manual para `aguardando_fiscal` apenas atualizando `ordem_servico.status`; `pendente` também pode representar bloqueio por saldo, com pendência de outro tipo. `unread` não aparece como critério de negócio.
+8. **Fotografia atual:** é possível consultar com segurança o subconjunto `decisao_fiscal_p1` aberto/em tratamento vinculado a OS, mas não provar que ele equivale a todas as OS pendentes de autorização ou tratamento pelo Fiscal. A união com status, subordens e outros tipos exigiria escolha semântica não aprovada.
+9. **Histórico:** `comum.pendencia` possui `criado_em`/`resolvida_em`, mas não registra todas as transições (como início de `em_tratamento`); `ordem_servico` guarda status atual e `atualizado_em`, sem histórico completo de status comprovado. Não há reconstrução confiável para `dataReferencia` passada.
+
+**Fontes físicas:** `backend/migrations/sql/0001_baseline.sql` (`comum.pendencia`, `ordens.ordem_servico`); `backend/migrations/versions/0005_subordem.py`; `backend/agentes/p1_ordem_servico/grafo.py`; `backend/api/rotas_ordens.py`; `backend/api/rotas_operacao.py`. Todas consultadas somente em leitura.
+
 ### D. `criticalItems`
 
 | Item | Classe | Evidência e limite |
