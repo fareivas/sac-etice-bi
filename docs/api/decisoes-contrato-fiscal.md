@@ -2,7 +2,7 @@
 
 **Endpoint:** `GET /api/v1/fiscais/me/dashboard/resumo`.
 
-**Objetivo:** registrar as decisões de contrato aprovadas para que o planejamento e a implementação não dependam do histórico da conversa. Lacunas de origem física permanecem explícitas; nenhuma delas autoriza uma regra por heurística.
+**Objetivo:** registrar as decisões de contrato aprovadas para que o planejamento e a implementação não dependam do histórico da conversa. Lacunas de origem física permanecem explícitas; nenhuma delas autoriza uma regra por heurística. As DEC-024 a DEC-031 complementam as decisões anteriores sem alterar o schema HTTP consolidado na DEC-023.
 
 **Documentos-base:**
 
@@ -322,16 +322,72 @@ Os zeros ilustram consulta válida com cobertura `AVAILABLE`, não falta de hist
 }
 ```
 
+## DEC-024 — Carteira Fiscal atual
+
+**Status:** APROVADA para a fotografia atual do protótipo.
+
+**Decisão normativa:** a carteira operacional atual do usuário é definida por `contratos.designacao.usuario_id = usuário`, `papel = 'fiscal'` e `ativo = true`. Essa designação física não distingue titular e suplente nem contém validade histórica; portanto não satisfaz retroativamente a exigência temporal da DEC-010. Designação atual nunca pode ser aplicada a `dataReferencia` passada. Sem reconstrução confiável da carteira histórica, os indicadores dependentes desse escopo ficam `UNAVAILABLE`, conforme DEC-014. A autorização para abrir a visão é separada da carteira (DEC-031).
+
+## DEC-025 — Significado de `unidadeId`
+
+**Status:** PENDENTE de definição funcional e modelagem.
+
+**Decisão normativa:** ainda é necessário definir o significado da unidade, sua relação com contrato e/ou designação, a abrangência da hierarquia e a validade temporal. Enquanto essa definição não existir, não atribuir semântica presumida ao filtro nem ignorar `unidadeId` explicitamente informado. ID sintaticamente inválido gera `INVALID_FILTER`; unidade válida fora do escopo autorizado gera `403 FORBIDDEN_SCOPE`, conforme DEC-016 e DEC-022.
+
+## DEC-026 — Elegibilidade de `pendingServiceOrders`
+
+**Status:** PENDENTE de decisão funcional.
+
+**Decisão normativa:** `decisao_fiscal_p1` aberta ou em tratamento é apenas um subconjunto comprovado de decisões do Fiscal, não o total do card. A regra completa ainda deve definir estados elegíveis da OS; tipos e estados de pendência; participação dos lados cliente e fornecedor; vínculo de OS cliente sem `contrato_id`; travessia por `ordens.subordem`; e deduplicação entre registros relacionados. A contagem final permanece de IDs distintos de OS elegíveis, conforme DEC-011. Não publicar a contagem desse subconjunto como o total do card.
+
+## DEC-027 — Elegibilidade de `priorityQueue`
+
+**Status:** APROVADA quanto ao vínculo padrão com DEC-026; implementação PENDENTE dessa decisão funcional.
+
+**Decisão normativa:** por padrão, itens `SERVICE_ORDER` usam a mesma elegibilidade aprovada para `pendingServiceOrders`, salvo decisão explícita futura em contrário. Enquanto não houver fonte formal, `severity`, `title` e `dueAt` são `null`, preservando as propriedades obrigatórias das DEC-006 e DEC-018 a DEC-021. Não chamar qualquer ordenação de IPA ou prioridade de negócio sem regra formal. A seleção de ocorrências da fila permanece dependente da DEC-026; `[]` continua significando ausência após consulta válida, não indisponibilidade presumida.
+
+## DEC-028 — `activeContracts` na fotografia atual
+
+**Status:** APROVADA para a fotografia atual do protótipo.
+
+**Decisão normativa:** `contratos.contrato.status = 'vigente'` representa a situação semântica `ATIVO` na fotografia atual. `rascunho`, `encerrado`, `rescindido` e `suspenso` não contam como `ATIVO`. Essa equivalência não reconstrói a situação em `dataReferencia` passada e não substitui a avaliação histórica exigida pela DEC-010 e DEC-014.
+
+## DEC-029 — Fonte de `criticalItems`
+
+**Status:** BLOQUEADA por definição de domínio e evolução do MER.
+
+**Decisão normativa:** a regra percentual da DEC-007 permanece válida. A apuração exige fonte confiável para `valor_vigente` e `saldo_a_executar` por item, incluindo o efeito dos aditivos aplicáveis. Não fazer rateio implícito de aditivo. A view atual `contratos.vw_saldo_item` não satisfaz essa exigência; seu `valor_contratado` deriva do valor base do item e não comprova valor vigente após aditivos.
+
+## DEC-030 — Fonte de `overdueActions`
+
+**Status:** BLOQUEADA por definição de domínio e evolução do MER.
+
+**Decisão normativa:** a apuração prevista na DEC-012 exige entidade e regras formais para plano de ação, incluindo estados/eventos de abertura ou andamento, conclusão, cancelamento, reabertura e alteração de prazo. A entidade aprovada `sac_gestao.plano_acao` não existe no SAC oficial inspecionado. Não substituir plano de ação por `comum.pendencia` por semelhança.
+
+## DEC-031 — Autorização da visão Fiscal
+
+**Status:** APROVADA quanto à separação entre autorização e carteira; política concreta de acesso PENDENTE.
+
+**Decisão normativa:** autorização para abrir a visão Fiscal e carteira de contratos são decisões distintas. Usuário autorizado pode ter carteira vazia e receber HTTP 200, conforme DEC-016. Designação define a carteira, não a autorização da visão. No protótipo, não afirmar equivalência com o RBAC oficial nem inventar tratamento de `admin` ou `superadmin` para esta rota.
+
+## Reafirmações das decisões vigentes
+
+- `unidadeId` válido e fora do escopo autorizado gera `403 FORBIDDEN_SCOPE` (DEC-016, DEC-022 e DEC-025).
+- Cobertura histórica é avaliada independentemente por card; `AVAILABLE` com valor `0` é diferente de `UNAVAILABLE` com valor `null` (DEC-014).
+- Fotografia atual nunca substitui histórico não reconstruível (DEC-014, DEC-024 e DEC-028).
+- Ausência física da entidade ou fonte necessária nunca é convertida em zero (DEC-014, DEC-029 e DEC-030).
+
 ## Dependências de implementação ainda abertas
 
-- Mapear fisicamente `ATIVO`, `SUSPENSO` e `ENCERRADO` e a vigência efetiva dos contratos.
-- Validar historicamente as designações do Fiscal, inclusive status e períodos.
-- Mapear status e lados físicos `CLIENTE`/`FORNECEDOR` que caracterizam `pendingServiceOrders` sem dupla contagem.
+- Para fotografia histórica, reconstruir situação e vigência efetiva dos contratos; DEC-028 só resolve a equivalência de status atual.
+- Modelar designações históricas, titularidade/suplência e unidade; DEC-024 só resolve a carteira atual e DEC-025 permanece pendente.
+- Fechar a elegibilidade completa de OS da DEC-026 antes de implementar `pendingServiceOrders` ou a seleção de `priorityQueue` da DEC-027.
 - Comprovar reconstrução histórica confiável por indicador e data de referência; não apresentar estado atual como histórico.
-- Identificar origem e cálculo confiável de `criticalItems`.
+- Definir a fonte por item, os efeitos de aditivos e a evolução do MER necessários à DEC-029.
 - Definir a integração real com o Projeto de KPIs para `externalViolations`.
 - Fechar unidade de contagem, janela temporal, granularidade, severidade, estado, agregação e deduplicação das violações externas.
-- Identificar fontes físicas de `priorityQueue[].severity`, `supplierName`, `title` e `dueAt`.
+- Identificar fontes físicas de `priorityQueue[].supplierName` e, se houver preenchimento futuro, de `severity`, `title` e `dueAt`; DEC-027 fixa `null` para esses três campos enquanto não houver fonte formal.
 - Identificar o campo real do nome em `public.fornecedor`.
-- Mapear ações canceladas/reabertas e catálogo completo de status de `plano_acao`.
+- Definir e modelar a entidade, os estados e os eventos de plano de ação exigidos pela DEC-030.
+- Definir a política concreta de autorização para abrir a visão Fiscal, sem confundi-la com a carteira da DEC-024 (DEC-031).
 - Fechar o schema estrito dos descritores de `meta.sources` além do que está demonstrado na especificação de endpoints.
