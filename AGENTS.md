@@ -2,6 +2,8 @@
 
 Antes de alterar contratos de API, backend, banco ou dashboards, consulte a documentação em `docs/reference/`.
 
+Antes de implementar `GET /api/v1/fiscais/me/dashboard/resumo`, consulte também `docs/api/decisoes-contrato-fiscal.md`, referência normativa complementar para esse endpoint.
+
 ## Fontes prioritárias
 
 1. `docs/reference/specs/Especificacao_Endpoints_Dashboards_SAC_ETICE.docx`
