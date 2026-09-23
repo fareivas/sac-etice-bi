@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: API mínima do protótipo SAC ETICE BI
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 10
+    MemorySize: 128
+
+Resources:
+  FiscalFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../services/api/
+      Handler: src/domains/fiscal/handler.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /api/fiscal
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/domains/fiscal/handler.ts
+        Target: es2022
+        Format: cjs
+
+  GerenteContratosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../services/api/
+      Handler: src/domains/gerente-contratos/handler.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /api/gerente-contratos
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/domains/gerente-contratos/handler.ts
+        Target: es2022
+        Format: cjs
+
+  DiretoriaTecnicaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../services/api/
+      Handler: src/domains/diretoria-tecnica/handler.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /api/diretoria-tecnica
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/domains/diretoria-tecnica/handler.ts
+        Target: es2022
+        Format: cjs
+
+  DiretoriaComercialFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../services/api/
+      Handler: src/domains/diretoria-comercial/handler.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /api/diretoria-comercial
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/domains/diretoria-comercial/handler.ts
+        Target: es2022
+        Format: cjs
+
+  GerenteContasFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../services/api/
+      Handler: src/domains/gerente-contas/handler.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /api/gerente-contas
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/domains/gerente-contas/handler.ts
+        Target: es2022
+        Format: cjs
+
