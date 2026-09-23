@@ -8,11 +8,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sac-etice-bi/contracts": "0.1.0"
+    "@sac-etice-bi/contracts": "0.1.0",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.0",
     "@types/node": "^26.6.2",
+    "@types/pg": "^8.23.1",
     "esbuild": "^0.25.0",
     "typescript": "^5.9.0",
     "vitest": "^3.0.0"
