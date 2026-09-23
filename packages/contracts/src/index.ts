@@ -1,9 +1,39 @@
 import { z } from 'zod';
 
+const dateTimeSchema = z.iso.datetime({ offset: true, local: true });
+
 export const apiMessageSchema = z.object({ message: z.string() });
 export type ApiMessage = z.infer<typeof apiMessageSchema>;
 
-const dateTimeSchema = z.iso.datetime({ offset: true, local: true });
+export const apiErrorCodeSchema = z.enum([
+  'INVALID_FILTER',
+  'UNAUTHENTICATED',
+  'FORBIDDEN_SCOPE',
+  'RESOURCE_NOT_FOUND',
+  'DATA_VERSION_CONFLICT',
+  'EXTERNAL_SOURCE_UNAVAILABLE',
+  'INTERNAL_ERROR',
+]);
+
+// details objects stay open because DEC-008 does not define a closed schema.
+export const apiErrorDetailsSchema = z.array(z.record(z.string(), z.unknown()));
+
+export const apiErrorResponseSchema = z.strictObject({
+  meta: z.strictObject({
+    generatedAt: dateTimeSchema,
+    correlationId: z.string().min(1),
+  }),
+  error: z.strictObject({
+    code: apiErrorCodeSchema,
+    message: z.string().min(1),
+    details: apiErrorDetailsSchema,
+  }),
+});
+
+export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
+export type ApiErrorDetails = z.infer<typeof apiErrorDetailsSchema>;
+export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
+
 const sourceDateTimeSchema = z.iso.datetime({ offset: true });
 
 const fiscalDataCoverageSchema = z.strictObject({

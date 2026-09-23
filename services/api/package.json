@@ -7,6 +7,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@sac-etice-bi/contracts": "0.1.0"
+  },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.0",
     "@types/node": "^26.6.2",

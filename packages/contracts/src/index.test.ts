@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { apiMessageSchema, fiscalDashboardSummaryResponseSchema } from './index';
+import {
+  apiErrorResponseSchema,
+  apiMessageSchema,
+  fiscalDashboardSummaryResponseSchema,
+} from './index';
 
 describe('apiMessageSchema', () => {
   it('aceita uma mensagem textual', () => {
@@ -8,6 +12,48 @@ describe('apiMessageSchema', () => {
 
   it('rejeita uma mensagem que não é texto', () => {
     expect(apiMessageSchema.safeParse({ message: 123 }).success).toBe(false);
+  });
+});
+
+describe('apiErrorResponseSchema', () => {
+  const validError = {
+    meta: { generatedAt: '2026-09-21T14:30:00-03:00', correlationId: 'req-123' },
+    error: { code: 'INVALID_FILTER', message: 'Filtros inválidos.', details: [] },
+  };
+
+  it('aceita envelope válido e details como array de objetos abertos', () => {
+    expect(apiErrorResponseSchema.safeParse(validError).success).toBe(true);
+    expect(apiErrorResponseSchema.safeParse({
+      ...validError,
+      error: { ...validError.error, details: [{ field: 'dataReferencia', rejected: 'ontem' }] },
+    }).success).toBe(true);
+  });
+
+  it('aceita todos os códigos DEC-008 e rejeita código desconhecido', () => {
+    const codes = [
+      'INVALID_FILTER', 'UNAUTHENTICATED', 'FORBIDDEN_SCOPE', 'RESOURCE_NOT_FOUND',
+      'DATA_VERSION_CONFLICT', 'EXTERNAL_SOURCE_UNAVAILABLE', 'INTERNAL_ERROR',
+    ];
+    for (const code of codes) {
+      expect(apiErrorResponseSchema.safeParse({
+        ...validError,
+        error: { ...validError.error, code },
+      }).success).toBe(true);
+    }
+    expect(apiErrorResponseSchema.safeParse({
+      ...validError,
+      error: { ...validError.error, code: 'OTHER_ERROR' },
+    }).success).toBe(false);
+  });
+
+  it('exige correlationId, message não vazia e details como array', () => {
+    for (const candidate of [
+      { ...validError, meta: { generatedAt: validError.meta.generatedAt } },
+      { ...validError, error: { ...validError.error, details: {} } },
+      { ...validError, error: { ...validError.error, message: '' } },
+    ]) {
+      expect(apiErrorResponseSchema.safeParse(candidate).success).toBe(false);
+    }
   });
 });
 
