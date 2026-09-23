@@ -10,7 +10,7 @@
 - **EXTERNO_KPI** — pertence ao Projeto de KPIs, fora do MER do SAC.
 - **NÃO_CONFIRMADO** — a documentação não determina origem, semântica, disponibilidade em produção ou regra suficiente.
 
-Não foi fornecido acesso a um catálogo de banco implantado, dump de DDL de produção ou dados operacionais. Portanto, “atual” significa documentado como parte do MER atual, não verificado em uma instância em execução.
+As seções anteriores registram a análise baseada nos documentos de referência deste protótipo. A seção “Verificação no SAC oficial”, acrescentada depois, registra inspeção read-only do repositório oficial e da instância PostgreSQL local; ela não afirma que a instância local representa produção.
 
 ## Contrato HTTP já decidido
 
@@ -114,3 +114,125 @@ O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-con
 - `docs/reference/specs/ETICE_Especificacao_Requisitos_Dashboards_Gestao_Contratos_v1_2_Preditivo.docx`, §§4.11, 5.3–5.4 e 12: conteúdo funcional do IPA, da fila Fiscal e do escopo funcional; não é DDL físico.
 - `docs/reference/specs/Proposta_Evolucao_MER_SAC_ETICE.docx`, §§1–2, 4.1–4.4, 6–7, 9 e apêndices A–B: divisão SAC/KPIs e caráter proposto das extensões.
 - `docs/reference/specs/alteracoes_mer_sac_postgresql.sql`, §§1–3, 5, 9, pós-execução: DDL proposto de UUID, designações, eventos/snapshots, riscos/ações e views.
+
+## Verificação no SAC oficial
+
+**Escopo inspecionado:** repositório `/home/fabio/projects/SAC-ETICE`, remoto `IFCE/SAC-ETICE`, branch `main`, commit `a71a13d9473e156882a5de7f3cc1652133af4960`. A árvore oficial estava limpa durante a inspeção. Nenhum arquivo foi alterado.
+
+**Banco:** conexão read-only bem-sucedida com a instância local documentada em `infra/compose.dev.yml`, database `sac`, PostgreSQL `16.15`. Todas as consultas de catálogo e agregações abaixo foram executadas entre `BEGIN READ ONLY` e `ROLLBACK`; não foram consultados nomes, e-mails, tokens ou outras linhas pessoais. O `alembic_version` implantado é `0032`; a cabeça do repositório inspecionado é `0036`. Nenhuma migration foi executada.
+
+Nesta seção, as classificações significam:
+
+- **DOCUMENTADO_E_ENCONTRADO** — descrito em migrations/código ou documentação oficial e localizado também no schema local, quando aplicável.
+- **DOCUMENTADO_MAS_NAO_ENCONTRADO** — aparece na proposta/documentação ou código esperado, mas não nas migrations oficiais aplicáveis e/ou no catálogo da instância local.
+- **ENCONTRADO_NAO_DOCUMENTADO** — existe no código/schema oficial consultado, mas não está descrito como tal nos documentos de referência deste protótipo.
+- **INDETERMINADO** — evidência parcial, divergente ou insuficiente para afirmar semântica/cobertura.
+
+### Evidência nas migrations
+
+| Objeto/semântica | Classificação | Evidência oficial |
+| --- | --- | --- |
+| Usuário | **DOCUMENTADO_E_ENCONTRADO** | Baseline `backend/migrations/sql/0001_baseline.sql`: `comum.usuario` com PK `id bigint`, `nome text NOT NULL`, `email`, `senha_hash`, `ativo`, `criado_em`, `atualizado_em`; `comum.usuario_perfil` relaciona usuário e perfil. O modelo não está em `public.usuario`. |
+| Contrato e fornecedor | **DOCUMENTADO_E_ENCONTRADO** | Baseline: `contratos.contrato` (`id`, `numero`, `ano`, `lado`, `fornecedor_id`, `cliente_id`, `valor_total`, `vigencia_inicio`, `vigencia_fim`, `gestor`, `fiscal`, `status`, timestamps), FKs para `fornecedores.fornecedor` e `comum.cliente`; `contratos.contrato_item`; `contratos.aditivo`; `fornecedores.fornecedor` com `razao_social`. Entidades correspondentes são namespaced e não `public.*`. |
+| Designação por contrato | **DOCUMENTADO_E_ENCONTRADO** | Migration `backend/migrations/versions/0022_designacao_fiscal.py`: `contratos.designacao(id, contrato_id, usuario_id, papel, ativo, criado_por, criado_em)`, índice parcial para uma designação ativa por `(contrato_id, papel)` e índice por usuário. Não há `unidade_id`, `principal`, `data_inicio`, `data_fim` nem estado histórico por intervalo nessa tabela. Papel CHECK: `fiscal` ou `gestor`. |
+| Ordem de serviço e itens | **DOCUMENTADO_E_ENCONTRADO** | Baseline: `ordens.ordem_servico`, `ordens.ordem_servico_item`, `ordens.medicao` e `ordens.medicao_item`. Migration `0005_subordem.py` remove a relação direta `os_espelhada_id` e cria `ordens.subordem`, que liga OS cliente, item, contrato/item fornecedor e, opcionalmente, OS fornecedor; há unicidade para OS fornecedor em `subordem`. Migration `0006_os_item_data_ativacao.py` acrescenta `ordem_servico_item.data_ativacao`. |
+| Histórico/auditoria | **DOCUMENTADO_E_ENCONTRADO** para trilha genérica; cobertura temporal completa **INDETERMINADO** | Baseline cria `comum.auditoria` com `criado_em`, `dados_antes` e `dados_depois`; não cria versão temporal completa nem snapshots para contrato/OS/itens. As migrations não criam trilha específica de status de `ordem_servico` ou versões de designação por data. |
+| `uuid_integracao` | **DOCUMENTADO_MAS_NAO_ENCONTRADO** | Não aparece nas migrations Alembic `0001`–`0036`. O banco local não tem colunas com esse nome nas entidades de contrato/OS/cliente/fornecedor/serviço. O `ALTER TABLE public.*` do SQL deste protótipo não corresponde ao layout namespaced oficial. |
+| Risco, plano de ação, unidade organizacional e snapshot de saldo do SQL proposto | **DOCUMENTADO_MAS_NAO_ENCONTRADO** | Não há migration oficial para schema `sac_gestao`, `risco`, `plano_acao`, `historico_acao`, `unidade_organizacional`, `usuario_unidade`, `movimento_contrato_item` ou `saldo_item_snapshot`. O catálogo local também não contém schema `sac_gestao` nem tabelas `risco`/`plano_acao`. |
+| Cabeça Alembic vs banco local | **INDETERMINADO** quanto a implantação sincronizada | Repositório contém migrations até `0036`; banco local marca `0032`. Portanto `0033`–`0036` não foram aplicadas nessa instância: `0033` inclui `bloqueada` no CHECK de `comum.extracao.status`; `0034` adiciona `formula_nome`/`formula_parametros` aos itens; `0035` adiciona `numero_real_impresso`; `0036` altera precisão numérica de quantidade/valor unitário e recria views. O banco consultado ainda mostra CHECK sem `bloqueada`, ausência dessas colunas e `numeric(14,4)`. Isso é drift local observado, não evidência sobre produção. |
+
+### Evidência no código oficial
+
+- O backend usa FastAPI e SQL explícito por `psycopg`; não foi encontrado um modelo ORM que substitua as migrations/código SQL como fonte física.
+- A autenticação está em `backend/api/auth.py`: JWT HS256; `sub` contém o ID de usuário; o token carrega nome, e-mail e perfis. Em requisição protegida, `usuario_atual` valida o Bearer, decodifica o JWT e relê no banco o usuário ativo e seus perfis, de modo que desativação/rebaixamento tenham efeito sem esperar o vencimento do token. O token documentado no código dura 12 horas. O perfil de automação `servico` usa `sub=0` e caminho especial, sem linha em `comum.usuario`.
+- `backend/core/autorizacao.py` contém uma matriz perfil × recurso. O perfil `fiscal` tem acesso aos recursos dessa matriz exceto `consulta_livre`; `admin` e `superadmin` passam pela matriz completa. A permissão é por recurso, não por contrato/unidade.
+- `backend/api/rotas_bi.py` aplica a permissão `bi` por perfil e lê views gerenciais sem recorte contratual por designação. Isso não constitui autorização row-level reutilizável para o resumo Fiscal.
+- `backend/contratos/designacao.py` implementa designações atuais `fiscal`/`gestor`: ao designar, desativa o registro ativo anterior daquele papel no contrato e insere outro; ao remover, marca `ativo=false`. `backend/api/rotas_designacao.py` deixa qualquer usuário autenticado listar designações de contrato existente e exige perfil `gestor` para alterá-las.
+- **ENCONTRADO_NAO_DOCUMENTADO** nos documentos de referência do protótipo: há autorização específica em `backend/ordens/aprovacao.py::pode_fiscalizar`. Para ações de aprovação de ciclo, admin/superadmin passam; quando há fiscal designado em contratos do ciclo, exige designação ativa do usuário em um deles; sem designado no ciclo, o perfil `fiscal` é fallback. Essa regra é específica daquele fluxo e não define autorização geral à visão Fiscal nem escopo do dashboard.
+- `backend/api/rotas_contratos.py` valida o catálogo de status de contrato e audita edições com valores antes/depois. `backend/api/rotas_ordens.py` valida status/lado e transições; edição e mudança manual de status registram alguns valores antes/depois em `comum.auditoria`.
+- Os fluxos de extração em `backend/agentes/extracao/nos.py` também atualizam contratos/OS e itens. Em vários casos a auditoria é somente `dados_depois`; itens de OS podem ser apagados e reinseridos durante a atualização. A trilha não captura de forma uniforme o estado anterior completo.
+- Busca no código/migrations oficiais não encontrou adapter/cliente do Projeto de KPIs, contrato HTTP externo ou ocorrência de `uuid_integracao`. As views em `bi` são derivadas do SAC.
+
+### Evidência no banco local
+
+O catálogo consultado confirma schemas namespaced `comum`, `contratos`, `ordens`, `fornecedores`, `catalogo`, `ingestao`, `bi`, entre outros. Em `public`, além de `alembic_version`, não há tabelas físicas de domínio.
+
+| Catálogo real | Valores permitidos por CHECK/código | Valores observados no banco local (agregação) |
+| --- | --- | --- |
+| `contratos.contrato.status` | `rascunho`, `vigente`, `encerrado`, `rescindido`, `suspenso` | `vigente` |
+| `ordens.ordem_servico.lado` | `cliente`, `fornecedor` | `fornecedor` |
+| `ordens.ordem_servico.status` | `recebida`, `em_validacao`, `pendente`, `aguardando_fiscal`, `aprovada`, `aguardando_assinaturas`, `ativa`, `executada`, `cancelada` | `recebida` (no lado `fornecedor`) |
+| `ordens.subordem.status` | `rascunho`, `mapeamento_pendente`, `pronta`, `os_gerada`, `cancelada` | nenhum valor observado |
+| `contratos.designacao.papel` / estado | `fiscal`/`gestor`; estado é booleano `ativo`, não enum | tabela sem designações observadas |
+| `comum.usuario_perfil.perfil` | CHECK no banco: `superadmin`, `admin`, `gestor`, `fiscal`, `financeiro`, `diretoria`, `operador` | `gestor`, `operador`, `superadmin`; nenhum perfil `fiscal` observado |
+| `risco.severidade`, `plano_acao.status/prioridade` | não existem nessas tabelas no banco consultado | indisponível: tabelas não existem |
+
+Os valores observados são somente uma fotografia dos dados presentes nessa instância local e não definem regra de negócio nem demonstram catálogo completo em produção. As constraints/código são a evidência do conjunto permitido.
+
+### Diferenças entre documentação e implementação
+
+1. A proposta SQL deste protótipo usa `public.usuario`, `public.contrato`, `public.contrato_item`, `public.ordem_servico`, `public.fornecedor`, `public.cliente` e `public.servico`. O SAC oficial usa, respectivamente, `comum.usuario`, `contratos.contrato`, `contratos.contrato_item`, `ordens.ordem_servico`, `fornecedores.fornecedor`, `comum.cliente` e `catalogo.servico`. O SQL proposto não deve ser tratado como aplicado nem executado contra o schema oficial sem reconciliação/migration apropriada.
+2. DEC-017 nomeia `public.usuario.id`, mas a PK física oficial é `comum.usuario.id` (`bigint`). DEC-021 nomeia `public.contrato.id`, mas a PK física oficial é `contratos.contrato.id` (`bigint`). A existência de entidades correspondentes não resolve por si só essa divergência nominal normativa; ela precisa ser reconhecida antes de fixar os adapters físicos. O usuário autenticado do código oficial usa `comum.usuario.id`.
+3. DEC-020 pressupõe `public.fornecedor`; a coluna real de nome é `fornecedores.fornecedor.razao_social` (`nome_fantasia` também existe e pode ser nulo). A coluna física está encontrada, mas a escolha de qual entidade fornecedora descreve uma ocorrência de OS cliente/fornecedor continua sem vínculo funcional aprovado.
+4. O SQL proposto possui designação com períodos, unidade, papel titular/suplente e status; o SAC tem `contratos.designacao` com `fiscal`/`gestor` e `ativo`, sem unidade ou validade temporal. É uma estrutura relacionada, mas não equivalente.
+5. O SQL proposto usa eventos/movimentos/snapshots, risco/plano de ação e UUIDs; essas estruturas não estão nas migrations oficiais inspecionadas nem no banco local. `contratos.aditivo`, `comum.auditoria` e `contratos.vw_saldo_item` existem, mas não substituem automaticamente `aditivo_item`, `historico_acao`, `movimento_contrato_item` ou `saldo_item_snapshot`.
+6. A migration oficial mais recente `0036` é posterior ao banco local `0032`. O drift local foi confirmado pelas colunas numéricas e ausências/presenças indicadas acima; não houve tentativa de sincronização.
+
+### Autenticação/RBAC real
+
+- Identidade autenticada: `api.auth.Usuario.id` deriva do `sub` do JWT e é reconciliada com `comum.usuario.id`; nome/perfis são relidos no banco para usuário humano ativo.
+- Perfis de aplicação incluem `superadmin`, `admin`, `gestor`, `fiscal`, `financeiro`, `diretoria`, `operador` e o token especial `servico`. O CHECK persistido no banco admite os sete perfis humanos acima; `servico` é tratado pelo formato do token, não por `usuario_perfil`.
+- O perfil `fiscal` existe no catálogo/código, mas nenhum perfil ou designação `fiscal` foi observado na instância local consultada.
+- RBAC de recurso e designação contratual são separados no código. A matriz não é escopo de linha; não há tabela de unidade/usuário-unidade no schema local. O helper específico de aprovação de ciclo não é política geral do endpoint.
+- Não foi encontrada rota equivalente a `GET /api/v1/fiscais/me/dashboard/resumo` no código oficial inspecionado. Não inferir que o perfil fiscal, sozinho, define a carteira contratual nem que uma designação, sozinha, autoriza a visão.
+
+### Histórico
+
+`updated_at`/`atualizado_em` isolado não é histórico. O banco não possui triggers de histórico nas tabelas fiscalizadas nem tabelas de versão temporal para contrato, designação, OS ou itens. `comum.auditoria` registra somente operações instrumentadas pelo código e não é um event store completo.
+
+| Indicador | Classificação | Evidência e limite para `dataReferencia` |
+| --- | --- | --- |
+| `activeContracts` | **HISTORICO_PARCIAL** | Status/vigências ficam no estado atual de `contratos.contrato`; alguns PATCH/reflexos de aditivo gravam antes/depois em auditoria e `contratos.aditivo` guarda fatos de aditivo. Não há validade temporal integral nem prova de que todas as alterações/importações estejam cobertas; não dá para garantir reconstrução confiável geral. |
+| `pendingServiceOrders` | **HISTORICO_PARCIAL** | Transições manuais de status de OS registram status antes/depois em auditoria. Extrações e atualizações automatizadas não registram uniformemente estado anterior; não há histórico dedicado de status. Não se pode garantir estado da OS em qualquer corte temporal. |
+| `criticalItems` | **HISTORICO_PARCIAL** para eventos auditados; cálculo confiável histórico **não disponível** | `contratos.vw_saldo_item` e `bi.saldos_por_item` calculam saldo a partir do conjunto atual de itens/OS; não recebem data de corte. Atualizações podem substituir itens, sem versão completa do saldo. Não há snapshot/movimento oficial de saldo; a auditoria não basta para afirmar valor histórico completo. |
+| `overdueActions` | **INDETERMINADO** | A entidade aprovada `sac_gestao.plano_acao` e seu histórico nem existem nas migrations oficiais/local. Não há base física para avaliar prazo/conclusão no tempo. `comum.pendencia` não foi equiparada a plano de ação. |
+
+### Viabilidade SQL por operação
+
+Nenhuma query de produção foi escrita nesta investigação.
+
+| Porta do repository | Estado | Evidência física e bloqueio |
+| --- | --- | --- |
+| `getFiscalIdentity` | **PARCIALMENTE_MAPEADO** | Fonte candidata confirmada: `comum.usuario.id` e `comum.usuario.nome`, com identidade verificada por JWT/RBAC em `api.auth`. O contrato aprovado nomeia `public.usuario.id`; resolver essa divergência física antes de implementar a consulta/adapter. A regra de nome “utilizável” continua sem critério além de permitir `null`. |
+| `getAuthorizedContractScope` | **BLOQUEADO** | `contratos.designacao` oferece `usuario_id`, `contrato_id`, `papel`, `ativo`, mas só papéis `fiscal`/`gestor`, sem `unidade_id` ou datas de validade. DEC-010 exige escopo por titular/suplente na data de referência; DEC-016 separa autorização à visão desse escopo. A matriz RBAC não fornece recorte de linhas. |
+| `getActiveContracts` | **BLOQUEADO** | Colunas candidatas confirmadas em `contratos.contrato`: `id`, `status`, `vigencia_inicio`, `vigencia_fim`; aditivos em `contratos.aditivo`. Status permitidos foram encontrados, mas sua equivalência à regra semântica aprovada e a vigência histórica composta não estão definidas/reconstruíveis com confiabilidade. |
+| `getPendingServiceOrders` | **BLOQUEADO** | Fonte `ordens.ordem_servico`, FK nullable `contrato_id`, `lado`, `status`; `ordens.subordem` liga a cadeia cliente/fornecedor. Catálogo de valores e transições existe, mas ainda falta decidir quais exigem ação do Fiscal, lados contados, tratamento sem dupla contagem e estado no corte histórico. |
+| `getCriticalItems` | **BLOQUEADO** | Fonte atual candidata: `contratos.contrato_item` + `contratos.vw_saldo_item` (`valor_contratado`, `valor_consumido`, `valor_saldo`) ou `bi.saldos_por_item`. Essas estruturas refletem estado atual, não nomes/valores de snapshot aprovados em DEC-007; faltam mapeamento semântico para `valor_vigente`/`saldo_a_executar` e histórico confiável. |
+| `getOverdueActions` | **BLOQUEADO** | DEC-012 fixa `sac_gestao.plano_acao`, mas esse schema/tabela/status não existe no SAC oficial inspecionado. Não substituir por `comum.pendencia` por semelhança. |
+| `getPriorityQueue` | **BLOQUEADO** | OS e contrato permitem relações candidatas (`ordens.ordem_servico.contrato_id` → `contratos.contrato.id`/`numero`); `fornecedor_id` pode apontar a `fornecedores.fornecedor.razao_social`. Ainda não está definida a elegibilidade/cadeia de fornecedor da ocorrência; não há fonte física aprovada para `severity`, `title` ou `dueAt`. |
+
+Nenhuma das sete portas está **PRONTO_PARA_SQL** para implementar sem interpretação adicional. `getFiscalIdentity` é a mais próxima, mas a divergência explícita do identificador físico impede afirmar conformidade exata com DEC-017 sem resolver o mapeamento.
+
+### SQL proposto: estruturas existentes e ausentes
+
+**Correspondentes físicos existentes, com nomes/semânticas próprios do SAC:** `comum.usuario`, `contratos.contrato`, `contratos.contrato_item`, `contratos.aditivo`, `ordens.ordem_servico`, `ordens.ordem_servico_item`, `ordens.subordem`, `fornecedores.fornecedor`, `comum.cliente`, `catalogo.servico`, `contratos.designacao`, `comum.auditoria`, `contratos.vw_saldo_item` e views `bi.*`. A existência de entidade homônima ou análoga não prova equivalência estrutural/funcional com o SQL do protótipo.
+
+**Ausentes no oficial consultado:** schema `sac_gestao`; todas as extensões `uuid_integracao`; `unidade_organizacional`/`usuario_unidade`; `designacao_contrato` nos campos propostos; `aditivo_item`; `movimento_contrato_item`; `saldo_item_snapshot`; `risco`; `plano_acao`; `historico_acao`; e as views `sac_gestao.vw_designacao_ativa`/`vw_saldo_item_contrato`. A instância local também não contém esses objetos.
+
+### KPI e dependências realmente bloqueantes
+
+Não foi encontrada integração real com o Projeto de KPIs, nem coluna `uuid_integracao` no código, migrations ou banco consultados. Os objetos `bi.*` pertencem ao banco SAC e não são evidência de cliente externo. `externalViolations` continua **EXTERNO_KPI**; não há endpoint, janela, payload, agregação ou contrato externo para implementar.
+
+Antes de escrever SQL/adapters de produção, continuam bloqueantes:
+
+1. resolver o mapeamento normativo `public.usuario.id`/`public.contrato.id` para as PKs namespaced reais do SAC;
+2. definir autorização da visão e escopo de contratos/unidade sem confundir RBAC, designação atual e filtro histórico;
+3. definir equivalência semântica de status e vigência de contrato;
+4. mapear estados/lados e elegibilidade de OS, além de uma fonte temporal confiável;
+5. identificar fonte aprovada para saldo vigente/saldo a executar e reconstrução histórica de itens;
+6. decidir como a entidade de plano de ação aprovada pela DEC-012 será disponibilizada no SAC oficial, pois não existe no schema inspecionado;
+7. localizar fontes formais de `severity`, `supplierName`, `title` e `dueAt` para fila, sem heurística;
+8. disponibilizar e reconciliar UUIDs de integração e fechar o contrato externo do Projeto de KPIs;
+9. alinhar a instância local `0032` à revisão de migrations oficial `0036` antes de usá-la como validação de uma implementação que dependa das quatro migrations ausentes.
+
+Esses achados não alteram as DEC-001–DEC-023 nem autorizam SQL. O handler do protótipo continua 501.
