@@ -336,15 +336,25 @@ Os zeros ilustram consulta válida com cobertura `AVAILABLE`, não falta de hist
 
 ## DEC-026 — Elegibilidade de `pendingServiceOrders`
 
-**Status:** PENDENTE de decisão funcional.
+**Status:** AINDA_BLOQUEADA por decisão funcional humana. A análise da fotografia atual foi aprovada como diagnóstico, não como regra de elegibilidade.
 
-**Decisão normativa:** `decisao_fiscal_p1` aberta ou em tratamento é apenas um subconjunto comprovado de decisões do Fiscal, não o total do card. A regra completa ainda deve definir estados elegíveis da OS; tipos e estados de pendência; participação dos lados cliente e fornecedor; vínculo de OS cliente sem `contrato_id`; travessia por `ordens.subordem`; e deduplicação entre registros relacionados. A contagem final permanece de IDs distintos de OS elegíveis, conforme DEC-011. Não publicar a contagem desse subconjunto como o total do card.
+**Constatações aprovadas:** `decisao_fiscal_p1` com status `aberta` ou `em_tratamento` comprova apenas um subconjunto de decisões do Fiscal, não o total do card. `aguardando_fiscal` isoladamente não prova elegibilidade: a transição manual pode ocorrer sem criar essa pendência. OS do lado fornecedor não entra automaticamente por estar relacionada a OS cliente. A travessia por `ordens.subordem` para atribuir OS cliente à carteira não foi aprovada; OS cliente com `contrato_id` nulo permanece sem regra inequívoca de escopo. Múltiplas pendências da mesma OS não devem implicar múltipla contagem: a unidade final continua sendo IDs distintos de OS elegíveis, conforme DEC-011. A fotografia atual não reconstrói a carteira, o status da OS e a pendência em `dataReferencia` passada; o indicador histórico permanece `UNAVAILABLE` conforme DEC-014. `unread` não é estado de negócio.
+
+**Bloqueio:** a implementação do **total** de `pendingServiceOrders` depende de decisão funcional humana sobre os estados e fluxos que exigem ação do Fiscal, tipos/estados de pendência, participação dos lados cliente e fornecedor, tratamento de OS cliente sem contrato direto e eventual vínculo por subordem. Não publicar o subconjunto `decisao_fiscal_p1` como total nem converter a impossibilidade de apuração em zero. A proposta analisada anteriormente não aprova nenhuma dessas escolhas de negócio.
 
 ## DEC-027 — Elegibilidade de `priorityQueue`
 
 **Status:** APROVADA quanto ao vínculo padrão com DEC-026; implementação PENDENTE dessa decisão funcional.
 
 **Decisão normativa:** por padrão, itens `SERVICE_ORDER` usam a mesma elegibilidade aprovada para `pendingServiceOrders`, salvo decisão explícita futura em contrário. Enquanto não houver fonte formal, `severity`, `title` e `dueAt` são `null`, preservando as propriedades obrigatórias das DEC-006 e DEC-018 a DEC-021. Não chamar qualquer ordenação de IPA ou prioridade de negócio sem regra formal. A seleção de ocorrências da fila permanece dependente da DEC-026; `[]` continua significando ausência após consulta válida, não indisponibilidade presumida.
+
+### Auditoria da indisponibilidade no HTTP 200
+
+O contrato consolidado da DEC-023 representa os cards SAC `pendingServiceOrders`, `criticalItems` e `overdueActions` indisponíveis por `null` acompanhado de `meta.dataCoverage` igual a `UNAVAILABLE` para cada card. Para `externalViolations`, `null` com fonte KPIs `UNAVAILABLE` e `updatedAt: null` representa ausência de dado externo válido (DEC-003/004); com `includeExternal=false`, `null` significa consulta externa desabilitada (DEC-005). Nenhum desses casos equivale ao inteiro `0` apurado.
+
+**Lacuna operacional da fila:** `data.priorityQueue` é obrigatória e seu tipo é array; `[]` significa ausência de ocorrências **após consulta válida** (DEC-006). A especificação de endpoints, seção 6.1, não prevê `null`, omissão, `coverage`/`status` próprio nem outro mecanismo para declarar a fila indisponível. `meta.dataCoverage.pendingServiceOrders` qualifica o card, não altera o significado do array da fila. Portanto, quando a elegibilidade ou a fonte da fila não puder ser apurada, nenhum HTTP 200 completo representa honestamente esse estado no contrato atual. A DEC-027 continua dependente da DEC-026. Não alterar o schema ou usar `[]` para contornar a lacuna sem decisão contratual documentada.
+
+**Estado da implementação:** o schema de contracts exige `priorityQueue` como array; a porta do repository retorna somente uma fila apurada; o service hoje coloca `[]` quando o escopo histórico é `UNAVAILABLE`, o que não constitui uma representação contratual de indisponibilidade. O handler publicado permanece 501. O harness DEV/TEST não publica HTTP 200 enquanto essa lacuna e a elegibilidade da DEC-026 permanecerem abertas.
 
 ## DEC-028 — `activeContracts` na fotografia atual
 
