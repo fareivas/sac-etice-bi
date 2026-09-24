@@ -34,17 +34,17 @@ describe('Fiscal summary presentation', () => {
     const html = render({ status: 'success', summary: summary(3) });
     expect(html).toContain('Fiscal Real');
     expect(html).toContain('2026-09-24');
-    expect(html).toContain('>3</p>');
+    expect(html).toContain('>3</strong>');
     expect(html).toContain('Cobertura parcial');
     expect(html).toContain('Indisponível');
     expect(html).toContain('Fila indisponível');
-    expect(html).toContain('Desabilitada');
-    expect(html).not.toContain('>0</p>');
+    expect(html).toContain('Consulta desabilitada');
+    expect(html).not.toContain('>0</strong>');
   });
 
   it('shows real zero and an available empty queue distinctly', () => {
     const html = render({ status: 'success', summary: summary(0, []) });
-    expect(html).toContain('>0</p>');
+    expect(html).toContain('>0</strong>');
     expect(html).toContain('Nenhum contrato ativo');
     expect(html).toContain('Fila apurada sem ocorrências');
     expect(html).not.toContain('Fila indisponível');
@@ -59,7 +59,7 @@ describe('Fiscal summary presentation', () => {
     };
     const html = render({ status: 'success', summary: mixed }, true);
     expect(html).toContain('Fonte KPI: Indisponível');
-    expect(html).not.toContain('Desabilitada');
+    expect(html).not.toContain('Consulta desabilitada');
   });
 
   it('keeps real zero separate from unavailable counts and queues', () => {
