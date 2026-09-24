@@ -35,7 +35,10 @@ export interface FiscalScopedRepositoryQuery {
 }
 
 export type FiscalPriorityQueueItem =
-  FiscalDashboardSummaryResponse['data']['priorityQueue'][number];
+  NonNullable<FiscalDashboardSummaryResponse['data']['priorityQueue']>[number];
+export type FiscalPriorityQueueResult =
+  | { coverage: 'AVAILABLE'; items: readonly FiscalPriorityQueueItem[] }
+  | { coverage: 'UNAVAILABLE' };
 
 /**
  * Port for future SAC reads. Implementations must not substitute current state
@@ -60,6 +63,6 @@ export interface FiscalSummaryRepository {
   getCriticalItems(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;
   getOverdueActions(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;
 
-  /** Returns only a successfully evaluated queue; inability to evaluate must not masquerade as []. */
-  getPriorityQueue(query: FiscalScopedRepositoryQuery): Promise<readonly FiscalPriorityQueueItem[]>;
+  /** An empty AVAILABLE queue differs from a queue that cannot be evaluated. */
+  getPriorityQueue(query: FiscalScopedRepositoryQuery): Promise<FiscalPriorityQueueResult>;
 }

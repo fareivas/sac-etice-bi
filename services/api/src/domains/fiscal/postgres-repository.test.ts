@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DbReader } from '../../shared/db/index';
 import { ApiError } from '../../shared/errors/index';
 import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS } from './queries';
-import { PostgresFiscalSummaryRepository, RepositoryOperationNotImplemented } from './postgres-repository';
+import { PostgresFiscalSummaryRepository } from './postgres-repository';
 
 function repository(rows: unknown[]) {
   const query = vi.fn().mockResolvedValue(rows);
@@ -127,12 +127,12 @@ describe('PostgresFiscalSummaryRepository', () => {
     await expect(repo.getActiveContracts({ context: context(), scope })).resolves.toEqual({ coverage: 'AVAILABLE', value: total });
   });
 
-  it('keeps remaining ports explicitly blocked', async () => {
+  it('reports blocked operations as unavailable without querying', async () => {
     const { repository: repo } = repository([]);
     const query = {} as Parameters<typeof repo.getPendingServiceOrders>[0];
     for (const operation of [repo.getPendingServiceOrders(query), repo.getCriticalItems(query),
       repo.getOverdueActions(query), repo.getPriorityQueue(query)]) {
-      await expect(operation).rejects.toBeInstanceOf(RepositoryOperationNotImplemented);
+      await expect(operation).resolves.toEqual({ coverage: 'UNAVAILABLE' });
     }
   });
 });

@@ -145,6 +145,19 @@ describe('fiscalDashboardSummaryResponseSchema', () => {
     expect(fiscalDashboardSummaryResponseSchema.safeParse(sacResponse).success).toBe(true);
   });
 
+  it('distingue fila com itens, vazia e indisponível, exigindo a propriedade', () => {
+    const empty = clone(mixedResponse);
+    const unavailable = clone(mixedResponse);
+    const absent = clone(mixedResponse);
+    empty.data.priorityQueue = [];
+    unavailable.data.priorityQueue = null as never;
+    delete (absent.data as Record<string, unknown>).priorityQueue;
+    expect(fiscalDashboardSummaryResponseSchema.safeParse(mixedResponse).success).toBe(true);
+    expect(fiscalDashboardSummaryResponseSchema.safeParse(empty).success).toBe(true);
+    expect(fiscalDashboardSummaryResponseSchema.safeParse(unavailable).success).toBe(true);
+    expect(fiscalDashboardSummaryResponseSchema.safeParse(absent).success).toBe(false);
+  });
+
   it('exige exatamente uma forma de identificar as fontes', () => {
     const both = clone(mixedResponse);
     const neither = clone(mixedResponse);

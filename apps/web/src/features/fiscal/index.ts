@@ -1,2 +1,1 @@
-// Área reservada para o dashboard deste domínio.
-export {};
+export { FiscalDashboard } from './summary';

@@ -6,18 +6,11 @@ import type {
   FiscalAuthorizedScope,
   FiscalIdentity,
   FiscalIndicatorResult,
-  FiscalPriorityQueueItem,
+  FiscalPriorityQueueResult,
   FiscalRepositoryContext,
   FiscalScopedRepositoryQuery,
   FiscalSummaryRepository,
 } from './repository';
-
-export class RepositoryOperationNotImplemented extends Error {
-  constructor(operation: string) {
-    super(`Fiscal repository operation is not implemented: ${operation}`);
-    this.name = 'RepositoryOperationNotImplemented';
-  }
-}
 
 interface ScopeRow { contrato_id: string | bigint }
 interface CountRow { total: string | bigint }
@@ -72,18 +65,18 @@ export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository 
   }
 
   async getPendingServiceOrders(_query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
-    throw new RepositoryOperationNotImplemented('getPendingServiceOrders');
+    return { coverage: 'UNAVAILABLE' };
   }
 
   async getCriticalItems(_query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
-    throw new RepositoryOperationNotImplemented('getCriticalItems');
+    return { coverage: 'UNAVAILABLE' };
   }
 
   async getOverdueActions(_query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
-    throw new RepositoryOperationNotImplemented('getOverdueActions');
+    return { coverage: 'UNAVAILABLE' };
   }
 
-  async getPriorityQueue(_query: FiscalScopedRepositoryQuery): Promise<readonly FiscalPriorityQueueItem[]> {
-    throw new RepositoryOperationNotImplemented('getPriorityQueue');
+  async getPriorityQueue(_query: FiscalScopedRepositoryQuery): Promise<FiscalPriorityQueueResult> {
+    return { coverage: 'UNAVAILABLE' };
   }
 }

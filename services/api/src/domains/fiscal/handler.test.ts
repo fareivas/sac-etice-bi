@@ -5,6 +5,9 @@ import type { FiscalAuthProvider, FiscalAuthenticationResult } from '../../share
 import type { FiscalSummaryRepository, FiscalIndicatorResult } from './repository';
 import type { FiscalKpiSource, FiscalKpiResult } from './service';
 import { createFiscalDashboardHandler, handler } from './handler';
+import { createLocalFiscalDashboardHandler } from './handler';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS } from './queries';
+import type { DbReader } from '../../shared/db/index';
 
 const NOW = new Date('2026-09-23T12:00:00.000Z');
 type TestHttpResponse = { statusCode: number; headers?: Record<string, string>; body?: string };
@@ -68,7 +71,7 @@ function repo(overrides: Partial<FiscalSummaryRepository> = {}): FiscalSummaryRe
     getPendingServiceOrders: vi.fn(async () => available),
     getCriticalItems: vi.fn(async () => available),
     getOverdueActions: vi.fn(async () => unavailable),
-    getPriorityQueue: vi.fn(async () => []),
+    getPriorityQueue: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     ...overrides,
   };
 }
@@ -109,6 +112,30 @@ function bodyOf(response: { body?: string }): Record<string, any> {
 }
 
 describe('Fiscal dashboard handler factory', () => {
+  it.each([false, true])('serves local DEV with real repository reads and external=%s', async (external) => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql === GET_FISCAL_IDENTITY) return [{ id: '77', nome: 'Fiscal Real', ativo: true }];
+      if (sql === GET_FISCAL_CONTRACT_SCOPE) return [{ contrato_id: '184' }];
+      if (sql === COUNT_ACTIVE_FISCAL_CONTRACTS) return [{ total: '1' }];
+      throw new Error('Unexpected SQL');
+    });
+    const local = createLocalFiscalDashboardHandler(
+      { query } as DbReader,
+      { NODE_ENV: 'development', LOCAL_FISCAL_USER_ID: '77', LOCAL_FISCAL_CAN_ACCESS_VIEW: 'true' },
+      () => NOW,
+    );
+    const response = await invoke(`includeExternal=${external}`, undefined, local);
+    expect(response.statusCode).toBe(200);
+    const body = bodyOf(response);
+    expect(body.data.fiscal).toEqual({ userId: 77, name: 'Fiscal Real' });
+    expect(body.data.cards).toMatchObject({ activeContracts: 1, pendingServiceOrders: null,
+      criticalItems: null, overdueActions: null, externalViolations: null });
+    expect(body.meta.dataCoverage).toEqual({ activeContracts: 'AVAILABLE', pendingServiceOrders: 'UNAVAILABLE',
+      criticalItems: 'UNAVAILABLE', overdueActions: 'UNAVAILABLE' });
+    expect(body.data.priorityQueue).toBeNull();
+    if (external) expect(body.meta.sources[1]).toMatchObject({ system: 'KPIs', status: 'UNAVAILABLE', updatedAt: null });
+    else expect(body.meta).toMatchObject({ source: 'SAC', merCoverage: 'PROPOSTA' });
+  });
   it('returns 200 with includeExternal=false and uses authenticated userId', async () => {
     const authProvider = auth();
     const repository = repo();
@@ -252,7 +279,9 @@ describe('Fiscal dashboard handler factory', () => {
     expect(bodyOf(response).meta.correlationId).toBe('injected-correlation-id');
   });
 
-  it('keeps the production export at 501 until real adapters exist', async () => {
+  it.each(['production', 'development'])('keeps export at 501 without permitted explicit activation in %s', async (nodeEnv) => {
+    vi.stubEnv('NODE_ENV', nodeEnv);
+    vi.stubEnv('LOCAL_FISCAL_DASHBOARD_ENABLED', nodeEnv === 'production' ? 'true' : undefined);
     const response = await handler(
       apiEvent() as APIGatewayProxyEventV2,
       {} as Context,
@@ -263,5 +292,6 @@ describe('Fiscal dashboard handler factory', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: 'Dashboard ainda não implementado.' }),
     });
+    vi.unstubAllEnvs();
   });
 });

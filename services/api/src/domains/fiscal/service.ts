@@ -86,7 +86,7 @@ export async function composeFiscalDashboardSummary(
 
   const unavailable: FiscalIndicatorResult = { coverage: 'UNAVAILABLE' };
   const [active, pending, critical, overdue, priorityQueue, external] = scope.coverage === 'UNAVAILABLE'
-    ? [unavailable, unavailable, unavailable, unavailable, [],
+    ? [unavailable, unavailable, unavailable, unavailable, { coverage: 'UNAVAILABLE' as const },
       input.filters.includeExternal ? { status: 'UNAVAILABLE' as const, externalViolations: null, updatedAt: null } : null] as const
     : await (async () => {
       const query: FiscalScopedRepositoryQuery = { context, scope };
@@ -148,7 +148,7 @@ export async function composeFiscalDashboardSummary(
           ...sacCards,
           externalViolations: external!.externalViolations,
         },
-        priorityQueue,
+        priorityQueue: priorityQueue.coverage === 'AVAILABLE' ? [...priorityQueue.items] : null,
       },
     }
     : {
@@ -167,7 +167,7 @@ export async function composeFiscalDashboardSummary(
           ...sacCards,
           externalViolations: null,
         },
-        priorityQueue,
+        priorityQueue: priorityQueue.coverage === 'AVAILABLE' ? [...priorityQueue.items] : null,
       },
     };
 

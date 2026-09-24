@@ -28,7 +28,7 @@ function repository(overrides: Partial<FiscalSummaryRepository> = {}): FiscalSum
     getPendingServiceOrders: vi.fn(async () => available(2)),
     getCriticalItems: vi.fn(async () => available(0)),
     getOverdueActions: vi.fn(async () => unavailable),
-    getPriorityQueue: vi.fn(async () => []),
+    getPriorityQueue: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     ...overrides,
   };
 }
@@ -171,7 +171,7 @@ describe('composeFiscalDashboardSummary', () => {
       getPendingServiceOrders: vi.fn(async () => available(0)),
       getCriticalItems: vi.fn(async () => available(0)),
       getOverdueActions: vi.fn(async () => available(0)),
-      getPriorityQueue: vi.fn(async () => []),
+      getPriorityQueue: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     });
     const response = await composeFiscalDashboardSummary(
       { authenticatedUserId: 77, filters: filters(false) },
@@ -203,7 +203,19 @@ describe('composeFiscalDashboardSummary', () => {
     );
     expect(response.data.cards).toMatchObject({ activeContracts: null, pendingServiceOrders: null, criticalItems: null, overdueActions: null });
     expect(Object.values(response.meta.dataCoverage)).toEqual(['UNAVAILABLE', 'UNAVAILABLE', 'UNAVAILABLE', 'UNAVAILABLE']);
+    expect(response.data.priorityQueue).toBeNull();
     expect(repo.getActiveContracts).not.toHaveBeenCalled();
+  });
+
+  it('represents unavailable current queue as null independently of card coverage', async () => {
+    const response = await composeFiscalDashboardSummary(
+      { authenticatedUserId: 77, filters: filters(false) },
+      { repository: repository({ getPriorityQueue: vi.fn(async () => ({ coverage: 'UNAVAILABLE' as const })) }),
+        kpiSource: kpiSource({ status: 'UNAVAILABLE', externalViolations: null, updatedAt: null }), now },
+    );
+    expect(response.data.priorityQueue).toBeNull();
+    expect(response.data.cards.pendingServiceOrders).toBe(2);
+    expect(response.meta.dataCoverage.pendingServiceOrders).toBe('AVAILABLE');
   });
 
   it('passes through queue fields including nulls without IPA or heuristic derivation', async () => {
@@ -216,14 +228,14 @@ describe('composeFiscalDashboardSummary', () => {
       title: null,
       dueAt: null,
     }];
-    const repo = repository({ getPriorityQueue: vi.fn(async () => queue) });
+    const repo = repository({ getPriorityQueue: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: queue })) });
     const response = await composeFiscalDashboardSummary(
       { authenticatedUserId: 77, filters: filters(false) },
       { repository: repo, kpiSource: kpiSource({ status: 'UNAVAILABLE', externalViolations: null, updatedAt: null }), now },
     );
 
     expect(response.data.priorityQueue).toEqual(queue);
-    expect(response.data.priorityQueue[0]).not.toHaveProperty('ipa');
+    expect(response.data.priorityQueue?.[0]).not.toHaveProperty('ipa');
   });
 
   it('rejects repository failures, mismatched identity and inconsistent dependency results', async () => {

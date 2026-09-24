@@ -110,7 +110,7 @@ const fiscalDataSchema = z.strictObject({
     overdueActions: z.number().int().nullable(),
     externalViolations: z.number().int().nullable(),
   }),
-  priorityQueue: z.array(fiscalPriorityQueueItemSchema),
+  priorityQueue: z.array(fiscalPriorityQueueItemSchema).nullable(),
 });
 
 export const fiscalDashboardSummaryResponseSchema = z.union([

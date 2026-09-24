@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import type { FiscalAuthProvider } from '../../shared/auth/index';
+import { LocalFiscalAuthProvider } from '../../shared/auth/local-fiscal';
+import { getDb, type DbReader } from '../../shared/db/index';
 import { ApiError, createApiError, createInternalError } from '../../shared/errors/index';
 import { errorResponse, jsonResponse } from '../../shared/http/index';
 import { FiscalQueryValidationError, parseFiscalDashboardQuery } from './schemas';
 import type { FiscalSummaryRepository } from './repository';
 import { composeFiscalDashboardSummary, type FiscalKpiSource } from './service';
+import { PostgresFiscalSummaryRepository } from './postgres-repository';
 
 export interface FiscalDashboardHandlerDependencies {
   authProvider: FiscalAuthProvider;
@@ -80,8 +83,36 @@ export function createFiscalDashboardHandler(
   };
 }
 
-export const handler: APIGatewayProxyHandlerV2 = async () => ({
-  statusCode: 501,
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ message: 'Dashboard ainda não implementado.' }),
-});
+/** Prototype adapter only; no connection to the external KPI project is claimed. */
+export const unavailablePrototypeKpiSource: FiscalKpiSource = {
+  async getExternalViolations() {
+    return { status: 'UNAVAILABLE', externalViolations: null, updatedAt: null };
+  },
+};
+
+export function createLocalFiscalDashboardHandler(
+  db: DbReader,
+  environment: NodeJS.ProcessEnv,
+  now?: () => Date,
+): APIGatewayProxyHandlerV2 {
+  return createFiscalDashboardHandler({
+    authProvider: new LocalFiscalAuthProvider(environment),
+    repository: new PostgresFiscalSummaryRepository(db, now),
+    kpiSource: unavailablePrototypeKpiSource,
+    now,
+  });
+}
+
+export const handler: APIGatewayProxyHandlerV2 = async (event, context, callback) => {
+  if ((process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') ||
+      process.env.LOCAL_FISCAL_DASHBOARD_ENABLED !== 'true') {
+    return {
+      statusCode: 501,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'Dashboard ainda não implementado.' }),
+    };
+  }
+  const response = await createLocalFiscalDashboardHandler(getDb(), process.env)(event, context, callback);
+  if (response === undefined) throw new Error('Fiscal handler returned no response');
+  return response;
+};

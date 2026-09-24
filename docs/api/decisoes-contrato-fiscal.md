@@ -58,7 +58,7 @@
 
 **Status:** APROVADA.
 
-**Decisão normativa:** `data.priorityQueue` é obrigatória; `[]` significa ausência de ocorrências após consulta válida. Nesta primeira versão, somente `type: "SERVICE_ORDER"` é suportado. Cada item tem `type`, `severity`, `contractId`, `contractNumber`, `supplierName`, `title` e `dueAt`. Não há campo IPA, paginação embutida nem ordenação implícita. A fila não é declarada equivalente à fila funcional completa.
+**Decisão normativa:** `data.priorityQueue` é obrigatória; `[]` significa ausência de ocorrências após consulta válida. A DEC-032 acrescenta `null` para fila indisponível. Nesta primeira versão, somente `type: "SERVICE_ORDER"` é suportado. Cada item tem `type`, `severity`, `contractId`, `contractNumber`, `supplierName`, `title` e `dueAt`. Não há campo IPA, paginação embutida nem ordenação implícita. A fila não é declarada equivalente à fila funcional completa.
 
 ## DEC-007 — `criticalItems`
 
@@ -222,7 +222,7 @@
 | `meta.filtersApplied` | Sim | objeto fechado pela DEC-022 | `unidadeId: null` significa filtro de unidade ausente |
 | `data.fiscal` | Sim | `{ userId: integer, name: string | null }` | `name: null` significa nome não utilizável |
 | `data.cards` | Sim | quatro cards SAC `integer | null` e `externalViolations: integer | null`; todas as propriedades obrigatórias | Card SAC `null` = cobertura histórica insuficiente; externo `null` segue DEC-004/005 |
-| `data.priorityQueue` | Sim | array de `SERVICE_ORDER`; `[]` após consulta válida vazia | Não aplicável |
+| `data.priorityQueue` | Sim | array de `SERVICE_ORDER` ou `null`; `[]` após consulta válida vazia | Fila não apurável (DEC-032) |
 | `priorityQueue[].type` | Sim | `SERVICE_ORDER` | Não aplicável |
 | `priorityQueue[].severity` | Sim | `string | null` | Valor indisponível |
 | `priorityQueue[].contractId` | Sim | `integer | null` | ID indisponível |
@@ -352,9 +352,9 @@ Os zeros ilustram consulta válida com cobertura `AVAILABLE`, não falta de hist
 
 O contrato consolidado da DEC-023 representa os cards SAC `pendingServiceOrders`, `criticalItems` e `overdueActions` indisponíveis por `null` acompanhado de `meta.dataCoverage` igual a `UNAVAILABLE` para cada card. Para `externalViolations`, `null` com fonte KPIs `UNAVAILABLE` e `updatedAt: null` representa ausência de dado externo válido (DEC-003/004); com `includeExternal=false`, `null` significa consulta externa desabilitada (DEC-005). Nenhum desses casos equivale ao inteiro `0` apurado.
 
-**Lacuna operacional da fila:** `data.priorityQueue` é obrigatória e seu tipo é array; `[]` significa ausência de ocorrências **após consulta válida** (DEC-006). A especificação de endpoints, seção 6.1, não prevê `null`, omissão, `coverage`/`status` próprio nem outro mecanismo para declarar a fila indisponível. `meta.dataCoverage.pendingServiceOrders` qualifica o card, não altera o significado do array da fila. Portanto, quando a elegibilidade ou a fonte da fila não puder ser apurada, nenhum HTTP 200 completo representa honestamente esse estado no contrato atual. A DEC-027 continua dependente da DEC-026. Não alterar o schema ou usar `[]` para contornar a lacuna sem decisão contratual documentada.
+**Indisponibilidade da fila:** a DEC-032 fecha a lacuna contratual: `data.priorityQueue = null` representa fila não apurável. `[]` continua reservado para consulta válida sem ocorrências. `meta.dataCoverage.pendingServiceOrders` qualifica somente o card. A DEC-027 continua dependente da DEC-026 para a seleção real de OS.
 
-**Estado da implementação:** o schema de contracts exige `priorityQueue` como array; a porta do repository retorna somente uma fila apurada; o service hoje coloca `[]` quando o escopo histórico é `UNAVAILABLE`, o que não constitui uma representação contratual de indisponibilidade. O handler publicado permanece 501. O harness DEV/TEST não publica HTTP 200 enquanto essa lacuna e a elegibilidade da DEC-026 permanecerem abertas.
+**Estado da implementação:** o contrato da DEC-032 permite a exposição local/DEV da indisponibilidade; a publicação em produção permanece bloqueada, com HTTP 501. A seleção real da fila permanece dependente da DEC-026.
 
 ## DEC-028 — `activeContracts` na fotografia atual
 
@@ -379,6 +379,12 @@ O contrato consolidado da DEC-023 representa os cards SAC `pendingServiceOrders`
 **Status:** APROVADA quanto à separação entre autorização e carteira; política concreta de acesso PENDENTE.
 
 **Decisão normativa:** autorização para abrir a visão Fiscal e carteira de contratos são decisões distintas. Usuário autorizado pode ter carteira vazia e receber HTTP 200, conforme DEC-016. Designação define a carteira, não a autorização da visão. No protótipo, não afirmar equivalência com o RBAC oficial nem inventar tratamento de `admin` ou `superadmin` para esta rota.
+
+## DEC-032 — Indisponibilidade de `data.priorityQueue`
+
+**Status:** APROVADA para o contrato do protótipo.
+
+**Decisão normativa:** em `GET /api/v1/fiscais/me/dashboard/resumo`, `data.priorityQueue` continua propriedade obrigatória e passa a ter tipo `array | null`. Um array representa uma fila apurada; `[]` significa consulta válida sem nenhuma ocorrência. `null` significa fila `UNAVAILABLE`, não apurável com confiança para o escopo e a `dataReference` solicitados. É proibido usar `[]` ou omitir a propriedade para representar indisponibilidade. `meta.dataCoverage.pendingServiceOrders` qualifica somente o card homônimo e não determina a disponibilidade da fila. Esta decisão não define elegibilidade de OS: a DEC-026 permanece responsável pela regra funcional e a DEC-027 pelo vínculo da seleção real da fila a essa regra.
 
 ## Reafirmações das decisões vigentes
 

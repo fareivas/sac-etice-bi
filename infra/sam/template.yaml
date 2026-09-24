@@ -18,7 +18,7 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
-            Path: /api/fiscal
+            Path: /api/v1/fiscais/me/dashboard/resumo
             Method: GET
     Metadata:
       BuildMethod: esbuild

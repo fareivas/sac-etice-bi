@@ -1,8 +1,3 @@
-export function App() {
-  return (
-    <main>
-      <h1>SAC ETICE BI</h1>
-      <p>Protótipo inicial dos dashboards.</p>
-    </main>
-  );
-}
+import { FiscalDashboard } from './features/fiscal';
+
+export function App() { return <FiscalDashboard />; }
