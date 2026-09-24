@@ -1,10 +1,21 @@
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-}
-
-main {
-  max-width: 64rem;
-  margin: 3rem auto;
-  padding: 0 1rem;
-}
+:root { font-family: system-ui, sans-serif; color: #17283a; background: #f3f6f8; }
+body { margin: 0; }
+main { max-width: 68rem; margin: 2.5rem auto; padding: 0 1.25rem 3rem; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: .4rem; }
+h2 { font-size: 1rem; }
+.fiscal-header { margin-bottom: 1.5rem; }
+.eyebrow { color: #476b80; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.external-switch { display: inline-flex; align-items: center; gap: .5rem; margin-bottom: 1.5rem; }
+.summary-context, .indicator-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.summary-context { margin-bottom: 1rem; }
+.summary-context p, .indicator-card, .queue-panel { background: white; border: 1px solid #dce5eb; border-radius: .65rem; padding: 1rem; }
+.indicator-grid { margin: 1rem 0; }
+.indicator-card p { margin-bottom: 0; }
+.indicator-value { font-size: 2rem; font-weight: 700; }
+.unavailable-value { color: #87560b; font-weight: 600; }
+.coverage-note { background: #fff4df; border-left: .3rem solid #bc7b17; padding: .8rem 1rem; }
+.queue-panel { margin: 1.5rem 0 1rem; }
+.queue-panel p:last-child { margin-bottom: 0; }
+.source-note { color: #476071; }
+[role="alert"] { background: #fff0ef; color: #8b2724; padding: 1rem; }
