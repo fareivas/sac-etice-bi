@@ -91,3 +91,33 @@ altere **somente no arquivo temporário** `FiscalFunction.NODE_ENV` para
 com `curl -i`: ela deve retornar HTTP 501 mesmo com a chave local em `true`.
 Restaure `development` para voltar à demonstração. O teste automatizado do
 handler também cobre esse bloqueio.
+
+## Fixture DEV/TEST para a carteira Fiscal
+
+Use somente no PostgreSQL local de desenvolvimento/teste. Esta fixture é opt-in,
+substitui o cenário anterior em uma transação e não popula OS, itens críticos,
+ações vencidas ou fila. O SAC-ETICE permanece somente leitura.
+
+Com `SAC_DB_HOST`, `SAC_DB_PORT`, `SAC_DB_NAME`, `SAC_DB_USER` e
+`SAC_DB_PASSWORD` configurados no shell (não grave a senha no repositório):
+
+```bash
+export NODE_ENV=development
+export ALLOW_LOCAL_DB_FIXTURES=true
+node scripts/dev/fiscal-fixture-setup.mjs A
+```
+
+Troque `A` por `B`, `C` ou `D` para recriar o recorte. O comando imprime os IDs
+`fiscalA` e `fiscalB`; configure `LOCAL_FISCAL_USER_ID` com o ID desejado no
+harness SAM. Os cenários são: A, fiscal A sem designações (0 ativo); B, um
+contrato vigente para A (1); C, dois vigentes e um de cada status suspenso,
+encerrado e rescindido para A (2); D, cenário C mais um vigente exclusivo de B
+(A=2, B=1). Os demais indicadores continuam `UNAVAILABLE`/`null`.
+
+```bash
+node scripts/dev/fiscal-fixture-cleanup.mjs
+```
+
+O cleanup remove somente registros identificados pela fixture. Ambos os comandos
+recusam `NODE_ENV=production`, exigem `ALLOW_LOCAL_DB_FIXTURES=true` e
+configuração `SAC_DB_*` válida.
