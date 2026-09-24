@@ -13,8 +13,9 @@ acessado com transações de leitura (`default_transaction_read_only=on`).
 - ID positivo de um usuário Fiscal ativo que tenha acesso à visão local;
 - portas locais 3000 (SAM) e 5173 (Vite) livres.
 
-O exemplo abaixo usa Linux e a rede `host` do Docker para alcançar o PostgreSQL
-em `127.0.0.1`. Ajuste host, porta, nome do banco e usuário às configurações
+O exemplo abaixo usa Linux e descobre o gateway da rede Docker `bridge` para
+alcançar o PostgreSQL do host. Dentro da Lambda, `127.0.0.1` aponta para o
+próprio contêiner. Ajuste porta, nome do banco e usuário às configurações
 locais. Não coloque a senha em arquivos versionados ou na linha de comando.
 
 ## 1. Iniciar o backend
@@ -24,7 +25,7 @@ No terminal 1, a partir da raiz de `sac-etice-bi`:
 ```bash
 npm install
 export LOCAL_FISCAL_USER_ID='<ID_FISCAL_ATIVO>'
-export SAC_DB_HOST='127.0.0.1'
+export SAC_DB_HOST="$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')"
 export SAC_DB_PORT='5434'
 export SAC_DB_NAME='sac'
 export SAC_DB_USER='<USUARIO_SOMENTE_LEITURA>'
@@ -45,7 +46,7 @@ settings.update(NODE_ENV='development', LOCAL_FISCAL_DASHBOARD_ENABLED='true',
 with open(os.environ['FISCAL_ENV_FILE'], 'w', encoding='utf-8') as file:
     json.dump({'FiscalFunction': settings}, file)
 PY
-sam local start-api --template-file /tmp/sac-etice-bi-sam-build/template.yaml --env-vars "$FISCAL_ENV_FILE" --docker-network host --host 127.0.0.1 --port 3000
+sam local start-api --template-file /tmp/sac-etice-bi-sam-build/template.yaml --env-vars "$FISCAL_ENV_FILE" --host 127.0.0.1 --port 3000
 ```
 
 Quando encerrar o SAM, elimine o arquivo temporário de ambiente com

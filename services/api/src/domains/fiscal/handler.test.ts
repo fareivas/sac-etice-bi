@@ -1,4 +1,6 @@
 import type { APIGatewayProxyEventV2, Context } from 'aws-lambda';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../shared/errors/index';
 import type { FiscalAuthProvider, FiscalAuthenticationResult } from '../../shared/auth/index';
@@ -112,6 +114,16 @@ function bodyOf(response: { body?: string }): Record<string, any> {
 }
 
 describe('Fiscal dashboard handler factory', () => {
+  it('declares safe SAM defaults while allowing explicit local environment overrides', () => {
+    const template = readFileSync(resolve(process.cwd(), '../../infra/sam/template.yaml'), 'utf8');
+    const fiscal = template.split('  FiscalFunction:')[1]?.split('  GerenteContratosFunction:')[0];
+    expect(fiscal).toContain('NODE_ENV: production');
+    expect(fiscal).toContain("LOCAL_FISCAL_DASHBOARD_ENABLED: 'false'");
+    for (const key of ['LOCAL_FISCAL_USER_ID', 'LOCAL_FISCAL_CAN_ACCESS_VIEW',
+      'SAC_DB_HOST', 'SAC_DB_PORT', 'SAC_DB_NAME', 'SAC_DB_USER', 'SAC_DB_PASSWORD']) {
+      expect(fiscal).toContain(`${key}:`);
+    }
+  });
   it.each([false, true])('serves local DEV with real repository reads and external=%s', async (external) => {
     const query = vi.fn(async (sql: string) => {
       if (sql === GET_FISCAL_IDENTITY) return [{ id: '77', nome: 'Fiscal Real', ativo: true }];

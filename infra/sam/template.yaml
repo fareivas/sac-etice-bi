@@ -14,6 +14,18 @@ Resources:
     Properties:
       CodeUri: ../../
       Handler: services/api/src/domains/fiscal/handler.handler
+      Environment:
+        Variables:
+          NODE_ENV: production
+          LOCAL_FISCAL_DASHBOARD_ENABLED: 'false'
+          LOCAL_FISCAL_USER_ID: ''
+          LOCAL_FISCAL_CAN_ACCESS_VIEW: 'false'
+          SAC_DB_HOST: ''
+          SAC_DB_PORT: ''
+          SAC_DB_NAME: ''
+          SAC_DB_USER: ''
+          SAC_DB_PASSWORD: ''
+          SAC_DB_SSL: 'false'
       Events:
         Api:
           Type: HttpApi
