@@ -336,25 +336,25 @@ Os zeros ilustram consulta válida com cobertura `AVAILABLE`, não falta de hist
 
 ## DEC-026 — Elegibilidade de `pendingServiceOrders`
 
-**Status:** AINDA_BLOQUEADA por decisão funcional humana. A análise da fotografia atual foi aprovada como diagnóstico, não como regra de elegibilidade.
+**Status:** APROVADA PARA O PROTÓTIPO com o modelo atual, apenas para fotografia atual.
 
-**Constatações aprovadas:** `decisao_fiscal_p1` com status `aberta` ou `em_tratamento` comprova apenas um subconjunto de decisões do Fiscal, não o total do card. `aguardando_fiscal` isoladamente não prova elegibilidade: a transição manual pode ocorrer sem criar essa pendência. OS do lado fornecedor não entra automaticamente por estar relacionada a OS cliente. A travessia por `ordens.subordem` para atribuir OS cliente à carteira não foi aprovada; OS cliente com `contrato_id` nulo permanece sem regra inequívoca de escopo. Múltiplas pendências da mesma OS não devem implicar múltipla contagem: a unidade final continua sendo IDs distintos de OS elegíveis, conforme DEC-011. A fotografia atual não reconstrói a carteira, o status da OS e a pendência em `dataReferencia` passada; o indicador histórico permanece `UNAVAILABLE` conforme DEC-014. `unread` não é estado de negócio.
+**Regra funcional:** contar `COUNT(DISTINCT ordens.ordem_servico.id)` das OS com `lado = 'cliente'`, `contrato_id` direto pertencente à carteira autorizada atual do Fiscal (restrita por `contratoId` quando informado), e pelo menos uma `comum.pendencia` com `entidade_tipo = 'ordem_servico'`, `entidade_id = ordem_servico.id`, `tipo = 'decisao_fiscal_p1'` e `status IN ('aberta', 'em_tratamento')`. Múltiplas pendências da mesma OS contam uma vez.
 
-**Bloqueio:** a implementação do **total** de `pendingServiceOrders` depende de decisão funcional humana sobre os estados e fluxos que exigem ação do Fiscal, tipos/estados de pendência, participação dos lados cliente e fornecedor, tratamento de OS cliente sem contrato direto e eventual vínculo por subordem. Não publicar o subconjunto `decisao_fiscal_p1` como total nem converter a impossibilidade de apuração em zero. A proposta analisada anteriormente não aprova nenhuma dessas escolhas de negócio.
+**Exclusões deliberadas:** `aguardando_fiscal` isolado; OS fornecedor; outros tipos de pendência; vínculo inferido por subordem; OS cliente com `contrato_id` nulo; reconstrução histórica a partir do estado atual. Para `dataReferencia` passada, `pendingServiceOrders = null` e `meta.dataCoverage.pendingServiceOrders = 'UNAVAILABLE'`.
 
 ## DEC-027 — Elegibilidade de `priorityQueue`
 
-**Status:** APROVADA quanto ao vínculo padrão com DEC-026; implementação PENDENTE dessa decisão funcional.
+**Status:** APROVADA PARA O PROTÓTIPO com a regra da DEC-026.
 
-**Decisão normativa:** por padrão, itens `SERVICE_ORDER` usam a mesma elegibilidade aprovada para `pendingServiceOrders`, salvo decisão explícita futura em contrário. Enquanto não houver fonte formal, `severity`, `title` e `dueAt` são `null`, preservando as propriedades obrigatórias das DEC-006 e DEC-018 a DEC-021. Não chamar qualquer ordenação de IPA ou prioridade de negócio sem regra formal. A seleção de ocorrências da fila permanece dependente da DEC-026; `[]` continua significando ausência após consulta válida, não indisponibilidade presumida.
+**Decisão normativa:** cada OS elegível pela DEC-026 gera no máximo um item `SERVICE_ORDER`. `contractId` e `contractNumber` vêm do contrato direto. `supplierName` só pode ser preenchido com fonte inequívoca formalmente aprovada; até lá é `null`. Sem fonte formal, `severity`, `title` e `dueAt` são `null`. Não há ordenação de prioridade aprovada. Consulta atual válida sem OS elegível produz `[]`; cobertura histórica/indisponível produz `null`.
 
 ### Auditoria da indisponibilidade no HTTP 200
 
 O contrato consolidado da DEC-023 representa os cards SAC `pendingServiceOrders`, `criticalItems` e `overdueActions` indisponíveis por `null` acompanhado de `meta.dataCoverage` igual a `UNAVAILABLE` para cada card. Para `externalViolations`, `null` com fonte KPIs `UNAVAILABLE` e `updatedAt: null` representa ausência de dado externo válido (DEC-003/004); com `includeExternal=false`, `null` significa consulta externa desabilitada (DEC-005). Nenhum desses casos equivale ao inteiro `0` apurado.
 
-**Indisponibilidade da fila:** a DEC-032 fecha a lacuna contratual: `data.priorityQueue = null` representa fila não apurável. `[]` continua reservado para consulta válida sem ocorrências. `meta.dataCoverage.pendingServiceOrders` qualifica somente o card. A DEC-027 continua dependente da DEC-026 para a seleção real de OS.
+**Indisponibilidade da fila:** a DEC-032 fecha a lacuna contratual: `data.priorityQueue = null` representa fila não apurável. `[]` continua reservado para consulta válida sem ocorrências. `meta.dataCoverage.pendingServiceOrders` qualifica somente o card. A DEC-027 reutiliza a elegibilidade aprovada na DEC-026 para a seleção real de OS.
 
-**Estado da implementação:** o contrato da DEC-032 permite a exposição local/DEV da indisponibilidade; a publicação em produção permanece bloqueada, com HTTP 501. A seleção real da fila permanece dependente da DEC-026.
+**Estado da implementação:** o contrato da DEC-032 permite a exposição local/DEV da indisponibilidade; a publicação em produção permanece bloqueada, com HTTP 501. A seleção real da fila segue a DEC-026 aprovada para a fotografia atual.
 
 ## DEC-028 — `activeContracts` na fotografia atual
 
@@ -397,7 +397,7 @@ O contrato consolidado da DEC-023 representa os cards SAC `pendingServiceOrders`
 
 - Para fotografia histórica, reconstruir situação e vigência efetiva dos contratos; DEC-028 só resolve a equivalência de status atual.
 - Modelar designações históricas, titularidade/suplência e unidade; DEC-024 só resolve a carteira atual e DEC-025 permanece pendente.
-- Fechar a elegibilidade completa de OS da DEC-026 antes de implementar `pendingServiceOrders` ou a seleção de `priorityQueue` da DEC-027.
+- Reavaliar a regra da DEC-026 antes de ampliar o protótipo além da fotografia atual e do modelo atual.
 - Comprovar reconstrução histórica confiável por indicador e data de referência; não apresentar estado atual como histórico.
 - Definir a fonte por item, os efeitos de aditivos e a evolução do MER necessários à DEC-029.
 - Definir a integração real com o Projeto de KPIs para `externalViolations`.

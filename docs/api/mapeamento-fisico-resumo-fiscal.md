@@ -52,7 +52,7 @@ O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-con
 
 #### Investigação operacional de pendências de OS (SAC oficial, 2026-09-23)
 
-**Classificação: PARCIALMENTE_MAPEADO.** Há um subconjunto identificável de decisões do Fiscal no Processo 1, mas não uma regra completa e inequívoca para `pendingServiceOrders` da DEC-011. `getPendingServiceOrders` permanece sem SQL.
+**Classificação histórica da investigação: PARCIALMENTE_MAPEADO.** A investigação identificou o subconjunto de decisões do Fiscal no Processo 1. A DEC-026 posteriormente aprovou esse recorte como regra do protótipo para fotografia atual, implementada abaixo.
 
 1. **Tipo específico:** `decisao_fiscal_p1` com `entidade_tipo = 'ordem_servico'` é criado por `agentes/p1_ordem_servico/grafo.py::notificar_fiscal` e resolvido por `api/rotas_ordens.py::decidir_fiscal`. `saldo_insuficiente` também pode ser criado para a mesma OS, mas o código não o define como decisão do Fiscal. Pendências de mapeamento são representadas por `ordens.subordem.status = 'mapeamento_pendente'`, não por esse tipo de `comum.pendencia`.
 2. **Estados:** `aberta` e `em_tratamento` são os estados ainda acionáveis usados tanto na criação idempotente quanto na ação fiscal. `resolvida` e `cancelada` saem desse conjunto; `api/rotas_operacao.py` permite assumir, resolver e cancelar pendências genericamente.
@@ -65,6 +65,12 @@ O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-con
 9. **Histórico:** `comum.pendencia` possui `criado_em`/`resolvida_em`, mas não registra todas as transições (como início de `em_tratamento`); `ordem_servico` guarda status atual e `atualizado_em`, sem histórico completo de status comprovado. Não há reconstrução confiável para `dataReferencia` passada.
 
 **Fontes físicas:** `backend/migrations/sql/0001_baseline.sql` (`comum.pendencia`, `ordens.ordem_servico`); `backend/migrations/versions/0005_subordem.py`; `backend/agentes/p1_ordem_servico/grafo.py`; `backend/api/rotas_ordens.py`; `backend/api/rotas_operacao.py`. Todas consultadas somente em leitura.
+
+#### Regra aprovada para o protótipo no modelo atual (DEC-026/027)
+
+A consulta parametrizada recebe exclusivamente os IDs da carteira atual autorizada, após a validação de `contratoId`. Parte de `ordens.ordem_servico os`, exige `os.lado = 'cliente'` e `os.contrato_id = ANY($1::bigint[])`, liga diretamente `contratos.contrato` por esse `contrato_id` e usa `EXISTS` em `comum.pendencia` com `entidade_tipo = 'ordem_servico'`, `entidade_id = os.id`, `tipo = 'decisao_fiscal_p1'` e `status IN ('aberta', 'em_tratamento')`. O card usa `COUNT(DISTINCT os.id)`; a fila seleciona OS distintas com `contrato.id` e `contrato.numero`, no máximo uma linha por OS. O mesmo predicado SQL é compartilhado.
+
+Esta é regra **do protótipo com o modelo atual**, não uma afirmação de cobertura funcional completa do SAC. Exclui `aguardando_fiscal` isolado, OS fornecedor, outros tipos de pendência, vínculo por subordem e OS cliente sem contrato direto. Carteira atual vazia retorna `0` e `[]`. Data passada retorna card `null`/`UNAVAILABLE` e fila `null`, sem consultar estado atual. `supplierName`, `severity`, `title` e `dueAt` permanecem `null` por falta de fonte formal inequívoca; nenhuma ordenação de prioridade foi aprovada.
 
 ### D. `criticalItems`
 
@@ -110,7 +116,7 @@ O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-con
 1. Confirmar o catálogo/DDL implantado e os tipos, nullability, constraints, colunas de nome e dados reais; as referências atuais são diagramas e um script explicitamente proposto.
 2. Definir mapeamento legado da situação de contrato e efeito de aditivos, prorrogação, suspensão, rescisão e encerramento em `dataReference`.
 3. Confirmar quais tabelas e dados de designação foram implantados, a semântica histórica de `status`, e cobertura dos períodos de titular/suplente.
-4. Mapear máquina de estados real de OS, papel de CLIENTE/FORNECEDOR, histórico, ação exigida do Fiscal e chave que evita duplicação entre ordens/subordens/itens.
+4. Para ampliar além da regra atual do protótipo, mapear máquina de estados completa de OS, papel de CLIENTE/FORNECEDOR e histórico. A DEC-026 fixa a deduplicação e o lado para a fotografia atual.
 5. Verificar se saldo snapshots/eventos existem, cobertura/reconciliação e possibilidade de obter `saldo_a_executar` e `valor_vigente` na data-alvo. A view proposta não é temporal.
 6. Confirmar implantação e completude de risco/plano/histórico, catálogo real de status, alterações históricas de prazo/conclusão e semântica de cancelamento/reabertura.
 7. Confirmar fonte física de `supplierName`, `severity`, `title` e `dueAt` e qual contrato/fornecedor pertence a cada ocorrência de OS.
@@ -222,7 +228,7 @@ Nenhuma query de produção foi escrita nesta investigação.
 | `getFiscalIdentity` | **PARCIALMENTE_MAPEADO** | Fonte candidata confirmada: `comum.usuario.id` e `comum.usuario.nome`, com identidade verificada por JWT/RBAC em `api.auth`. O contrato aprovado nomeia `public.usuario.id`; resolver essa divergência física antes de implementar a consulta/adapter. A regra de nome “utilizável” continua sem critério além de permitir `null`. |
 | `getAuthorizedContractScope` | **BLOQUEADO** | `contratos.designacao` oferece `usuario_id`, `contrato_id`, `papel`, `ativo`, mas só papéis `fiscal`/`gestor`, sem `unidade_id` ou datas de validade. DEC-010 exige escopo por titular/suplente na data de referência; DEC-016 separa autorização à visão desse escopo. A matriz RBAC não fornece recorte de linhas. |
 | `getActiveContracts` | **BLOQUEADO** | Colunas candidatas confirmadas em `contratos.contrato`: `id`, `status`, `vigencia_inicio`, `vigencia_fim`; aditivos em `contratos.aditivo`. Status permitidos foram encontrados, mas sua equivalência à regra semântica aprovada e a vigência histórica composta não estão definidas/reconstruíveis com confiabilidade. |
-| `getPendingServiceOrders` | **BLOQUEADO** | Fonte `ordens.ordem_servico`, FK nullable `contrato_id`, `lado`, `status`; `ordens.subordem` liga a cadeia cliente/fornecedor. Catálogo de valores e transições existe, mas ainda falta decidir quais exigem ação do Fiscal, lados contados, tratamento sem dupla contagem e estado no corte histórico. |
+| `getPendingServiceOrders` | **IMPLEMENTADO NO PROTÓTIPO ATUAL** | DEC-026: OS cliente com contrato direto na carteira atual e pendência `decisao_fiscal_p1` aberta/em tratamento; `COUNT(DISTINCT os.id)`. Histórico permanece `UNAVAILABLE`. |
 | `getCriticalItems` | **BLOQUEADO** | Fonte atual candidata: `contratos.contrato_item` + `contratos.vw_saldo_item` (`valor_contratado`, `valor_consumido`, `valor_saldo`) ou `bi.saldos_por_item`. Essas estruturas refletem estado atual, não nomes/valores de snapshot aprovados em DEC-007; faltam mapeamento semântico para `valor_vigente`/`saldo_a_executar` e histórico confiável. |
 
 
