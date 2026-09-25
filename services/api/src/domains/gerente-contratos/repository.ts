@@ -4,9 +4,10 @@ import { safeBigintId, type DbReader } from '../../shared/db/index';
 import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE } from './queries';
 
 export type ManagerContract = NonNullable<ManagerDashboardSummaryResponse['data']['contracts']>[number];
+export type ManagerActiveContract = ManagerContract & { expiresWithin120Days: boolean | null };
 interface IdentityRow { id: string | bigint; nome: string; ativo: boolean }
 interface ScopeRow { contrato_id: string | bigint }
-interface ContractRow { contract_id: string | bigint; contract_number: string | null; supplier_name: string | null; value: string | null; expiry_date: string | null }
+interface ContractRow { contract_id: string | bigint; contract_number: string | null; supplier_name: string | null; value: string | null; expiry_date: string | null; expires_within_120_days: boolean | null }
 export class PostgresManagerRepository {
   constructor(private readonly db: DbReader) {}
   async identity(userId: number) {
@@ -22,9 +23,9 @@ export class PostgresManagerRepository {
     if (requested.some((id) => !authorized.includes(id))) throw createApiError('FORBIDDEN_SCOPE');
     return requested.length ? [...requested] : authorized;
   }
-  async activeContracts(ids: readonly number[]): Promise<ManagerContract[]> {
+  async activeContracts(ids: readonly number[], dataReference: string): Promise<ManagerActiveContract[]> {
     if (!ids.length) return [];
-    const rows = await this.db.query<ContractRow>(GET_MANAGER_ACTIVE_CONTRACTS, [ids]);
+    const rows = await this.db.query<ContractRow>(GET_MANAGER_ACTIVE_CONTRACTS, [ids, dataReference]);
     return rows.map((row) => {
       let value: number | null = null;
       if (row.value !== null) {
@@ -33,8 +34,10 @@ export class PostgresManagerRepository {
         if (!Number.isFinite(value)) throw new RangeError('Unsafe money value');
       }
       if (row.expiry_date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(row.expiry_date)) throw new TypeError('Invalid expiry date');
+      if (row.expiry_date !== null && typeof row.expires_within_120_days !== 'boolean') throw new TypeError('Invalid expiry classification');
       return { contractId: safeBigintId(row.contract_id), contractNumber: row.contract_number,
-        supplierName: row.supplier_name, value, expiryDate: row.expiry_date };
+        supplierName: row.supplier_name, value, expiryDate: row.expiry_date,
+        expiresWithin120Days: row.expires_within_120_days };
     });
   }
 }

@@ -169,6 +169,7 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
       activeContracts: managerCoverageSchema,
       activePortfolioValue: managerCoverageSchema,
       expiringContracts: managerCoverageSchema,
+      renewalsWithin120Days: managerCoverageSchema,
     }),
   }),
   data: z.strictObject({
@@ -177,6 +178,7 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
       activeContracts: z.number().int().nonnegative().nullable(),
       activePortfolioValue: z.number().finite().nullable(),
       expiringContracts: z.number().int().nonnegative().nullable(),
+      renewalsWithin120Days: z.number().int().nonnegative().nullable(),
     }),
     contracts: z.array(managerContractSchema).nullable(),
     expiringContractList: z.array(managerContractSchema).nullable(),
@@ -187,8 +189,13 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
     ['activeContracts', response.data.cards.activeContracts],
     ['activePortfolioValue', response.data.cards.activePortfolioValue],
     ['expiringContracts', response.data.cards.expiringContracts],
+    ['renewalsWithin120Days', response.data.cards.renewalsWithin120Days],
     ['expiringContracts', response.data.expiringContractList],
   ] as const;
+  if (response.data.cards.expiringContracts !== response.data.cards.renewalsWithin120Days ||
+      response.meta.dataCoverage.expiringContracts !== response.meta.dataCoverage.renewalsWithin120Days) {
+    context.addIssue({ code: 'custom', path: ['data', 'cards', 'renewalsWithin120Days'], message: 'Indicadores de vencimento inconsistentes' });
+  }
   for (const [key, value] of pairs) {
     if ((value === null) !== (response.meta.dataCoverage[key] === 'UNAVAILABLE')) {
       context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', key], message: 'Cobertura inconsistente' });

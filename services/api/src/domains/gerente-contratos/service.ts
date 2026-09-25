@@ -26,19 +26,25 @@ export async function composeManagerSummary(userId: number, filters: ManagerFilt
   if (manager.userId !== userId) throw new Error('Identity mismatch');
   const current = filters.dataReferencia === dateInTimezone(now(), filters.timezone);
   // The current designation and contract record cannot reconstruct a past snapshot.
-  const contracts = current ? await repository.activeContracts(await repository.scope(userId, filters.contratoId)) : null;
+  const activeRows = current ? await repository.activeContracts(
+    await repository.scope(userId, filters.contratoId), filters.dataReferencia) : null;
+  const contracts = activeRows?.map(({ expiresWithin120Days: _within, ...contract }) => contract) ?? null;
   const activeContracts = contracts?.length ?? null;
   const activePortfolioValue = contracts === null || contracts.some((contract) => contract.value === null)
     ? null : sumDecimal(contracts.map((contract) => contract.value!));
-  // No approved window for "near expiry" on this endpoint.
+  const expiryAvailable = activeRows !== null && !activeRows.some((contract) => contract.expiryDate === null);
+  const expiringContractList = expiryAvailable ? activeRows.filter((contract) => contract.expiresWithin120Days === true)
+    .map(({ expiresWithin120Days: _within, ...contract }) => contract) : null;
+  const renewalsWithin120Days = expiringContractList?.length ?? null;
   return managerDashboardSummaryResponseSchema.parse({
     meta: { generatedAt: now().toISOString(), dataReference: filters.dataReferencia, timezone: filters.timezone,
       source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: filters.contratoId },
       dataCoverage: { portfolio: current ? 'AVAILABLE' : 'UNAVAILABLE',
         activeContracts: current ? 'AVAILABLE' : 'UNAVAILABLE',
         activePortfolioValue: activePortfolioValue === null ? 'UNAVAILABLE' : 'AVAILABLE',
-        expiringContracts: 'UNAVAILABLE' } },
-    data: { manager, cards: { activeContracts, activePortfolioValue, expiringContracts: null },
-      contracts, expiringContractList: null },
+        expiringContracts: expiryAvailable ? 'AVAILABLE' : 'UNAVAILABLE',
+        renewalsWithin120Days: expiryAvailable ? 'AVAILABLE' : 'UNAVAILABLE' } },
+    data: { manager, cards: { activeContracts, activePortfolioValue, expiringContracts: renewalsWithin120Days, renewalsWithin120Days },
+      contracts, expiringContractList },
   });
 }
