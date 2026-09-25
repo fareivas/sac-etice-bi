@@ -1,3 +1,5 @@
+import { FISCAL_PENDING_ORDER_PREDICATE } from '../../shared/db/fiscal-pending-order';
+
 export const GET_FISCAL_IDENTITY = `
 SELECT id, nome, ativo
 FROM comum.usuario
@@ -16,19 +18,11 @@ FROM contratos.contrato
 WHERE id = ANY($1::bigint[]) AND status = 'vigente'
 `;
 
-// DEC-026/027: direct, scoped client OS; EXISTS prevents pending-row multiplication.
-const ELIGIBLE_FISCAL_SERVICE_ORDERS = `
+export const ELIGIBLE_FISCAL_SERVICE_ORDERS = `
 FROM ordens.ordem_servico os
 JOIN contratos.contrato contrato ON contrato.id = os.contrato_id
 WHERE os.contrato_id = ANY($1::bigint[])
-  AND os.lado = 'cliente'
-  AND EXISTS (
-    SELECT 1 FROM comum.pendencia p
-    WHERE p.entidade_tipo = 'ordem_servico'
-      AND p.entidade_id = os.id
-      AND p.tipo = 'decisao_fiscal_p1'
-      AND p.status IN ('aberta', 'em_tratamento')
-  )
+  AND ${FISCAL_PENDING_ORDER_PREDICATE}
 `;
 
 export const COUNT_PENDING_FISCAL_SERVICE_ORDERS = `

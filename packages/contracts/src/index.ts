@@ -203,3 +203,46 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
   }
 });
 export type ManagerDashboardSummaryResponse = z.infer<typeof managerDashboardSummaryResponseSchema>;
+
+
+// Partial 7.2 contract: only measures backed by current physical sources are available.
+export const managerFiscalLoadResponseSchema = z.strictObject({
+  meta: z.strictObject({
+    generatedAt: dateTimeSchema,
+    dataReference: z.iso.date(),
+    timezone: z.string().min(1),
+    source: z.literal('SAC'),
+    merCoverage: z.literal('PROPOSTA'),
+    dataCoverage: z.strictObject({
+      inspectors: managerCoverageSchema,
+      activeContracts: managerCoverageSchema,
+      pendingOrders: managerCoverageSchema,
+      capacity: z.literal('UNAVAILABLE'),
+      weightedLoad: z.literal('UNAVAILABLE'),
+      criticality: z.literal('UNAVAILABLE'),
+      ranking: z.literal('UNAVAILABLE'),
+      overdueActions: z.literal('UNAVAILABLE'),
+    }),
+  }),
+  data: z.strictObject({
+    inspectors: z.array(z.strictObject({
+      userId: z.number().int().positive(),
+      name: z.string().nullable(),
+      activeContracts: z.number().int().nonnegative(),
+      pendingOrders: z.number().int().nonnegative(),
+      capacity: z.null(),
+      weightedLoad: z.null(),
+      criticality: z.null(),
+      ranking: z.null(),
+      overdueActions: z.null(),
+    })).nullable(),
+  }),
+}).superRefine((response, context) => {
+  if ((response.data.inspectors === null) !== (response.meta.dataCoverage.inspectors === 'UNAVAILABLE'))
+    context.addIssue({ code: 'custom', path: ['data', 'inspectors'], message: 'Cobertura inconsistente' });
+  const available = response.data.inspectors !== null;
+  for (const key of ['activeContracts', 'pendingOrders'] as const)
+    if ((response.meta.dataCoverage[key] === 'AVAILABLE') !== available)
+      context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', key], message: 'Cobertura inconsistente' });
+});
+export type ManagerFiscalLoadResponse = z.infer<typeof managerFiscalLoadResponseSchema>;

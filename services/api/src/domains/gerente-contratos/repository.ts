@@ -2,6 +2,7 @@ import type { ManagerDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { createApiError } from '../../shared/errors/index';
 import { safeBigintId, type DbReader } from '../../shared/db/index';
 import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE } from './queries';
+import { GET_MANAGER_FISCAL_LOAD } from './carga-queries';
 
 export type ManagerContract = NonNullable<ManagerDashboardSummaryResponse['data']['contracts']>[number];
 export type ManagerActiveContract = ManagerContract & { expiresWithin120Days: boolean | null };
@@ -22,6 +23,14 @@ export class PostgresManagerRepository {
     const authorized = [...new Set(rows.map((row) => safeBigintId(row.contrato_id)))];
     if (requested.some((id) => !authorized.includes(id))) throw createApiError('FORBIDDEN_SCOPE');
     return requested.length ? [...requested] : authorized;
+  }
+  async fiscalLoad(ids: readonly number[]) {
+    if (!ids.length) return [];
+    interface Row { user_id: string | bigint; name: string | null; active_contracts: string | bigint; pending_orders: string | bigint }
+    const rows = await this.db.query<Row>(GET_MANAGER_FISCAL_LOAD, [ids]);
+    return rows.map((row) => ({ userId: safeBigintId(row.user_id), name: row.name,
+      activeContracts: safeBigintId(row.active_contracts), pendingOrders: safeBigintId(row.pending_orders),
+      capacity: null, weightedLoad: null, criticality: null, ranking: null, overdueActions: null }));
   }
   async activeContracts(ids: readonly number[], dataReference: string): Promise<ManagerActiveContract[]> {
     if (!ids.length) return [];

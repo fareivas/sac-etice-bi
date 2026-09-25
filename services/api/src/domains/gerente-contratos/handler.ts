@@ -6,6 +6,7 @@ import { errorResponse, jsonResponse } from '../../shared/http/index';
 import { PostgresManagerRepository } from './repository';
 import { parseManagerQuery, ManagerQueryValidationError } from './schemas';
 import { composeManagerSummary } from './service';
+import { composeManagerFiscalLoad } from './carga-service';
 
 export type ManagerAuthentication = { status: 'UNAUTHENTICATED' } | {
   status: 'AUTHENTICATED'; principal: { userId: number }; canAccessManagerView: boolean;
@@ -59,7 +60,51 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context, callback
     return { statusCode: 501, headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: 'Dashboard ainda não implementado.' }) };
   }
-  const result = await createLocalManagerHandler(getDb(), process.env)(event, context, callback);
+  const local = event.rawPath === '/api/v1/gerentes-contrato/me/fiscais/carga'
+    ? createManagerFiscalLoadHandler({ authProvider: new LocalManagerAuthProvider(process.env),
+      repository: new PostgresManagerRepository(getDb()) })
+    : createLocalManagerHandler(getDb(), process.env);
+  const result = await local(event, context, callback);
   if (result === undefined) throw new Error('Manager handler returned no response');
+  return result;
+};
+
+
+export function createManagerFiscalLoadHandler(dependencies: {
+  authProvider: ManagerAuthProvider;
+  repository: Pick<PostgresManagerRepository, 'identity' | 'scope' | 'fiscalLoad'>;
+  now?: () => Date;
+}): APIGatewayProxyHandlerV2 {
+  return async (event) => {
+    const correlationId = event.requestContext?.requestId?.trim() || randomUUID();
+    try {
+      const auth = await dependencies.authProvider.authenticate(event);
+      if (auth.status === 'UNAUTHENTICATED') throw createApiError('UNAUTHENTICATED');
+      if (!auth.canAccessManagerView) throw createApiError('FORBIDDEN_SCOPE');
+      let filters;
+      try { filters = parseManagerQuery(event, (dependencies.now ?? (() => new Date()))()); }
+      catch (error) {
+        if (error instanceof ManagerQueryValidationError) throw new ApiError('INVALID_FILTER', { details: [{ field: error.field }] });
+        throw error;
+      }
+      return jsonResponse(await composeManagerFiscalLoad(auth.principal.userId, filters,
+        dependencies.repository, dependencies.now), 200);
+    } catch (error) {
+      return errorResponse(error instanceof ApiError ? error : createInternalError(error),
+        { correlationId, now: dependencies.now });
+    }
+  };
+}
+
+export const fiscalLoadHandler: APIGatewayProxyHandlerV2 = async (event, context, callback) => {
+  if (!['development', 'test'].includes(process.env.NODE_ENV ?? '') ||
+      process.env.LOCAL_MANAGER_DASHBOARD_ENABLED !== 'true') {
+    return { statusCode: 501, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'Dashboard ainda não implementado.' }) };
+  }
+  const local = createManagerFiscalLoadHandler({ authProvider: new LocalManagerAuthProvider(process.env),
+    repository: new PostgresManagerRepository(getDb()) });
+  const result = await local(event, context, callback);
+  if (result === undefined) throw new Error('Manager fiscal load handler returned no response');
   return result;
 };

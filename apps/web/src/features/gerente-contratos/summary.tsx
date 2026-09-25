@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { ManagerDashboardSummaryResponse } from '@sac-etice-bi/contracts';
-import { loadManagerSummary } from '../../lib/api';
+import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse } from '@sac-etice-bi/contracts';
+import { loadManagerSummary, loadManagerFiscalLoad } from '../../lib/api';
 
 type State = { status: 'loading' } | { status: 'error'; message: string } |
-  { status: 'success'; summary: ManagerDashboardSummaryResponse };
+  { status: 'success'; summary: ManagerDashboardSummaryResponse; load?: ManagerFiscalLoadResponse | null };
 const money = (value: number | null) => value === null ? 'Indisponível' :
   new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
 const count = (value: number | null) => value === null ? 'Indisponível' : String(value);
@@ -26,6 +26,9 @@ export function ManagerDashboardView({ state }: { state: State }) {
         </section>
         {summary.data.cards.activeContracts === 0 && <p className="empty-contracts" role="status">Nenhum contrato vigente na carteira.</p>}
         {summary.meta.dataCoverage.activePortfolioValue === 'UNAVAILABLE' && <p className="coverage-note" role="status">Valor total indisponível: há valor contratual ausente ou a fotografia histórica não pode ser reconstruída.</p>}
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Fiscais e distribuição da carteira</h2><p>Contratos vigentes designados e OS com decisão fiscal pendente.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
+          {state.status === 'success' && state.load?.data.inspectors?.length ? state.load.data.inspectors.map((fiscal) => <tr key={fiscal.userId}><td>{fiscal.name ?? `Fiscal ${fiscal.userId}`}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>) : <tr><td colSpan={4} className="table-empty">{state.status === 'success' && state.load?.data.inspectors?.length === 0 ? 'Nenhum fiscal designado' : 'Indisponível'}</td></tr>}
+        </tbody></table></div></section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Contratos vigentes da carteira</h2><p>Dados atuais dos contratos autorizados.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Valor atual</th><th>Fim da vigência</th></tr></thead><tbody>
           {summary.data.contracts?.length ? summary.data.contracts.map((contract) => <tr key={contract.contractId}><td>{contract.contractNumber ?? `#${contract.contractId}`}</td><td>{contract.supplierName ?? 'Indisponível'}</td><td>{money(contract.value)}</td><td>{contract.expiryDate ?? 'Indisponível'}</td></tr>) : <tr><td colSpan={4} className="table-empty">{summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente'}</td></tr>}
         </tbody></table></div></section>
@@ -38,7 +41,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
 }
 export function ManagerDashboard() {
   const [state, setState] = useState<State>({ status: 'loading' });
-  useEffect(() => { let active = true; loadManagerSummary().then((summary) => { if (active) setState({ status: 'success', summary }); })
+  useEffect(() => { let active = true; Promise.all([loadManagerSummary(), loadManagerFiscalLoad().catch(() => null)]).then(([summary, load]) => { if (active) setState({ status: 'success', summary, load }); })
     .catch((error: unknown) => { if (active) setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha na consulta' }); });
     return () => { active = false; }; }, []);
   return <ManagerDashboardView state={state} />;

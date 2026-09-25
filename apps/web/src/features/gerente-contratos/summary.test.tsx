@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ManagerDashboardSummaryResponse } from '@sac-etice-bi/contracts';
+import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse } from '@sac-etice-bi/contracts';
 import { ManagerDashboardView } from './summary';
 
 const base: ManagerDashboardSummaryResponse = {
@@ -42,4 +42,19 @@ it('renders unavailable when vigencia_fim cannot classify the portfolio', () => 
   const html = render(summary);
   expect(html).toContain('Indisponível');
   expect(html).not.toContain('Nenhum contrato na janela');
+});
+
+it('renders official fiscal load fields and unavailable capacity', () => {
+  const load: ManagerFiscalLoadResponse = {
+    meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25',
+      timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA',
+      dataCoverage: { inspectors: 'AVAILABLE', activeContracts: 'AVAILABLE', pendingOrders: 'AVAILABLE',
+        capacity: 'UNAVAILABLE', weightedLoad: 'UNAVAILABLE', criticality: 'UNAVAILABLE',
+        ranking: 'UNAVAILABLE', overdueActions: 'UNAVAILABLE' } },
+    data: { inspectors: [{ userId: 7, name: 'Fiscal Sete', activeContracts: 2, pendingOrders: 3,
+      capacity: null, weightedLoad: null, criticality: null, ranking: null, overdueActions: null }] },
+  };
+  const html = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, load }} />);
+  expect(html).toContain('Contratos vigentes');
+  expect(html).toContain('<td>Fiscal Sete</td><td>2</td><td>3</td><td>Indisponível</td>');
 });

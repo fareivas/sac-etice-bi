@@ -13,3 +13,10 @@ Se qualquer contrato vigente do recorte autorizado tiver `vigencia_fim NULL`, n�
 Se qualquer contrato ativo tiver `valor_total` nulo, o total é `null/UNAVAILABLE`; a contagem permanece disponível. **Decisão humana mínima:** definir se contratos ativos sem valor devem excluir-se de um total parcial, bloquear o total inteiro ou seguir outra regra. Até essa decisão, o total inteiro fica indisponível para evitar subcontagem silenciosa.
 
 `dataReferencia` passada não usa a designação atual, status, valor ou vigência atuais. A carteira e os indicadores dependentes dela ficam `null/UNAVAILABLE`. O nome e ID do usuário autenticado continuam disponíveis. Zero significa consulta atual válida sem contratos vigentes; `null` significa dado não apurável.
+
+
+## Carga de fiscais — slice parcial
+
+`GET /api/v1/gerentes-contrato/me/fiscais/carga` segue literalmente os nomes HTTP da especificação 7.2: `inspectors[].activeContracts` e `inspectors[].pendingOrders`. A apuração usa a fotografia atual da carteira autorizada por designação ativa de gestor. `activeContracts` conta `DISTINCT` contratos com `status = 'vigente'` e designação fiscal ativa. `pendingOrders` conta `DISTINCT` OS cliente vinculadas diretamente a contratos da carteira com designação fiscal ativa e pendência elegível segundo DEC-026. O predicado DEC-026 é compartilhado com o domínio Fiscal por módulo neutro. `responsavel_id` não atribui a OS ao fiscal.
+
+Para `dataReferencia` passada, a lista inteira fica `null/UNAVAILABLE`; a fotografia atual não reconstrói histórico. Capacidade, carga ponderada, criticidade, ranking e ações vencidas permanecem `null/UNAVAILABLE`. Os filtros `role`, `criticality`, `sort` e paginação ainda não têm semântica física aprovada neste slice. A rota de produção permanece 501.

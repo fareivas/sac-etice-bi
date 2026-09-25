@@ -63,6 +63,11 @@ Resources:
           Properties:
             Path: /api/v1/gerentes-contrato/me/dashboard/resumo
             Method: GET
+        FiscalLoad:
+          Type: HttpApi
+          Properties:
+            Path: /api/v1/gerentes-contrato/me/fiscais/carga
+            Method: GET
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
