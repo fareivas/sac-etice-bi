@@ -7,6 +7,8 @@ import { PostgresManagerRepository } from './repository';
 import { parseManagerQuery, ManagerQueryValidationError } from './schemas';
 import { composeManagerSummary } from './service';
 import { composeManagerFiscalLoad } from './carga-service';
+import { parseSupplierQuery } from './fornecedores-schemas';
+import { composeManagerSuppliers } from './fornecedores-service';
 
 export type ManagerAuthentication = { status: 'UNAUTHENTICATED' } | {
   status: 'AUTHENTICATED'; principal: { userId: number }; canAccessManagerView: boolean;
@@ -60,7 +62,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context, callback
     return { statusCode: 501, headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: 'Dashboard ainda não implementado.' }) };
   }
-  const local = event.rawPath === '/api/v1/gerentes-contrato/me/fiscais/carga'
+  const local = event.rawPath === '/api/v1/gestao-contratual/fornecedores/resumo'
+    ? createManagerSuppliersHandler({ authProvider: new LocalManagerAuthProvider(process.env),
+      repository: new PostgresManagerRepository(getDb()) })
+    : event.rawPath === '/api/v1/gerentes-contrato/me/fiscais/carga'
     ? createManagerFiscalLoadHandler({ authProvider: new LocalManagerAuthProvider(process.env),
       repository: new PostgresManagerRepository(getDb()) })
     : createLocalManagerHandler(getDb(), process.env);
@@ -108,3 +113,30 @@ export const fiscalLoadHandler: APIGatewayProxyHandlerV2 = async (event, context
   if (result === undefined) throw new Error('Manager fiscal load handler returned no response');
   return result;
 };
+
+
+export function createManagerSuppliersHandler(dependencies: {
+  authProvider: ManagerAuthProvider;
+  repository: Pick<PostgresManagerRepository, 'identity' | 'scope' | 'supplierContracts'>;
+  now?: () => Date;
+}): APIGatewayProxyHandlerV2 {
+  return async (event) => {
+    const correlationId = event.requestContext?.requestId?.trim() || randomUUID();
+    try {
+      const auth = await dependencies.authProvider.authenticate(event);
+      if (auth.status === 'UNAUTHENTICATED') throw createApiError('UNAUTHENTICATED');
+      if (!auth.canAccessManagerView) throw createApiError('FORBIDDEN_SCOPE');
+      let filters;
+      try { filters = parseSupplierQuery(event, (dependencies.now ?? (() => new Date()))()); }
+      catch (error) {
+        if (error instanceof ManagerQueryValidationError) throw new ApiError('INVALID_FILTER', { details: [{ field: error.field }] });
+        throw error;
+      }
+      return jsonResponse(await composeManagerSuppliers(auth.principal.userId, filters,
+        dependencies.repository, dependencies.now), 200);
+    } catch (error) {
+      return errorResponse(error instanceof ApiError ? error : createInternalError(error),
+        { correlationId, now: dependencies.now });
+    }
+  };
+}

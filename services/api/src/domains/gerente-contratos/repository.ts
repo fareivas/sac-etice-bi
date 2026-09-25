@@ -3,6 +3,7 @@ import { createApiError } from '../../shared/errors/index';
 import { safeBigintId, type DbReader } from '../../shared/db/index';
 import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE } from './queries';
 import { GET_MANAGER_FISCAL_LOAD } from './carga-queries';
+import { GET_MANAGER_SUPPLIER_CONTRACTS } from './fornecedores-queries';
 
 export type ManagerContract = NonNullable<ManagerDashboardSummaryResponse['data']['contracts']>[number];
 export type ManagerActiveContract = ManagerContract & { expiresWithin120Days: boolean | null };
@@ -23,6 +24,21 @@ export class PostgresManagerRepository {
     const authorized = [...new Set(rows.map((row) => safeBigintId(row.contrato_id)))];
     if (requested.some((id) => !authorized.includes(id))) throw createApiError('FORBIDDEN_SCOPE');
     return requested.length ? [...requested] : authorized;
+  }
+  async supplierContracts(ids: readonly number[]) {
+    if (!ids.length) return [];
+    interface Row { contract_id: string | bigint; supplier_id: string | bigint; name: string; status: string; value: string | null }
+    const rows = await this.db.query<Row>(GET_MANAGER_SUPPLIER_CONTRACTS, [ids]);
+    const seen = new Set<number>();
+    return rows.map((row) => {
+      const contractId = safeBigintId(row.contract_id);
+      if (seen.has(contractId)) return null;
+      seen.add(contractId);
+      if (typeof row.name !== 'string' || typeof row.status !== 'string' ||
+          (row.value !== null && !/^-?\d+(\.\d+)?$/.test(row.value))) throw new TypeError('Invalid supplier contract row');
+      return { contractId, supplierId: safeBigintId(row.supplier_id), name: row.name,
+        status: row.status, value: row.value };
+    }).filter((row): row is NonNullable<typeof row> => row !== null);
   }
   async fiscalLoad(ids: readonly number[]) {
     if (!ids.length) return [];

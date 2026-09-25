@@ -58,3 +58,20 @@ it('renders official fiscal load fields and unavailable capacity', () => {
   expect(html).toContain('Contratos vigentes');
   expect(html).toContain('<td>Fiscal Sete</td><td>2</td><td>3</td><td>Indisponível</td>');
 });
+
+it('renders factual supplier value and unavailable supplier indicators', () => {
+  const suppliers = {
+    meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25', timezone: 'America/Fortaleza',
+      source: 'SAC' as const, merCoverage: 'PROPOSTA' as const,
+      pagination: { page: 1, pageSize: 25, totalItems: 1 },
+      dataCoverage: { suppliers: 'AVAILABLE' as const, vigentValue: 'AVAILABLE' as const,
+        abcClass: 'UNAVAILABLE' as const, openFinancialAmount: 'UNAVAILABLE' as const,
+        openCriticalRisks: 'UNAVAILABLE' as const } },
+    data: { suppliers: [{ supplierId: 7, name: 'Fornecedor Real', vigentValue: 100,
+      abcClass: null, openFinancialAmount: null, openCriticalRisks: null }] },
+  };
+  const html = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, suppliers }} />);
+  expect(html).toContain('Fornecedores da carteira');
+  expect(html).toContain('<td>Fornecedor Real</td><td>100</td><td>Indisponível</td><td>Indisponível</td><td>Indisponível</td>');
+  expect(html).not.toContain('Curva ABC');
+});

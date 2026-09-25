@@ -246,3 +246,35 @@ export const managerFiscalLoadResponseSchema = z.strictObject({
       context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', key], message: 'Cobertura inconsistente' });
 });
 export type ManagerFiscalLoadResponse = z.infer<typeof managerFiscalLoadResponseSchema>;
+
+
+export const managerSuppliersResponseSchema = z.strictObject({
+  meta: z.strictObject({
+    generatedAt: dateTimeSchema,
+    dataReference: z.iso.date(),
+    timezone: z.string().min(1),
+    source: z.literal('SAC'),
+    merCoverage: z.literal('PROPOSTA'),
+    pagination: z.strictObject({ page: z.number().int().positive(), pageSize: z.number().int().min(1).max(100),
+      totalItems: z.number().int().nonnegative().nullable() }),
+    dataCoverage: z.strictObject({ suppliers: managerCoverageSchema, vigentValue: managerCoverageSchema,
+      abcClass: z.literal('UNAVAILABLE'), openFinancialAmount: z.literal('UNAVAILABLE'),
+      openCriticalRisks: z.literal('UNAVAILABLE') }),
+  }),
+  data: z.strictObject({ suppliers: z.array(z.strictObject({
+    supplierId: z.number().int().positive(), name: z.string(), vigentValue: z.number().finite().nullable(),
+    abcClass: z.null(), openFinancialAmount: z.null(), openCriticalRisks: z.null(),
+  })).nullable() }),
+}).superRefine((response, context) => {
+  const current = response.data.suppliers !== null;
+  if (current !== (response.meta.dataCoverage.suppliers === 'AVAILABLE') ||
+      current !== (response.meta.pagination.totalItems !== null))
+    context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', 'suppliers'], message: 'Cobertura inconsistente' });
+  const complete = current && response.data.suppliers!.every((item) => item.vigentValue !== null);
+  // Coverage is global; an unavailable total may be on another page.
+  if (!current && response.meta.dataCoverage.vigentValue !== 'UNAVAILABLE')
+    context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', 'vigentValue'], message: 'Histórico indisponível' });
+  if (response.meta.dataCoverage.vigentValue === 'AVAILABLE' && !complete)
+    context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', 'vigentValue'], message: 'Valor indisponível' });
+});
+export type ManagerSuppliersResponse = z.infer<typeof managerSuppliersResponseSchema>;

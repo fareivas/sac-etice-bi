@@ -68,6 +68,11 @@ Resources:
           Properties:
             Path: /api/v1/gerentes-contrato/me/fiscais/carga
             Method: GET
+        SuppliersSummary:
+          Type: HttpApi
+          Properties:
+            Path: /api/v1/gestao-contratual/fornecedores/resumo
+            Method: GET
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
