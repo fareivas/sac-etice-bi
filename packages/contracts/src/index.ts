@@ -146,3 +146,53 @@ export const fiscalDashboardSummaryResponseSchema = z.union([
 });
 
 export type FiscalDashboardSummaryResponse = z.infer<typeof fiscalDashboardSummaryResponseSchema>;
+
+export const managerCoverageSchema = z.enum(["AVAILABLE", "UNAVAILABLE"]);
+
+const managerContractSchema = z.strictObject({
+  contractId: z.number().int().positive(),
+  contractNumber: z.string().nullable(),
+  supplierName: z.string().nullable(),
+  value: z.number().finite().nullable(),
+  expiryDate: z.iso.date().nullable(),
+});
+export const managerDashboardSummaryResponseSchema = z.strictObject({
+  meta: z.strictObject({
+    generatedAt: dateTimeSchema,
+    dataReference: z.iso.date(),
+    timezone: z.string().min(1),
+    source: z.literal('SAC'),
+    merCoverage: z.literal('PROPOSTA'),
+    filtersApplied: z.strictObject({ contratoId: z.array(z.number().int().positive()) }),
+    dataCoverage: z.strictObject({
+      portfolio: managerCoverageSchema,
+      activeContracts: managerCoverageSchema,
+      activePortfolioValue: managerCoverageSchema,
+      expiringContracts: managerCoverageSchema,
+    }),
+  }),
+  data: z.strictObject({
+    manager: z.strictObject({ userId: z.number().int().positive(), name: z.string().nullable() }),
+    cards: z.strictObject({
+      activeContracts: z.number().int().nonnegative().nullable(),
+      activePortfolioValue: z.number().finite().nullable(),
+      expiringContracts: z.number().int().nonnegative().nullable(),
+    }),
+    contracts: z.array(managerContractSchema).nullable(),
+    expiringContractList: z.array(managerContractSchema).nullable(),
+  }),
+}).superRefine((response, context) => {
+  const pairs = [
+    ['portfolio', response.data.contracts],
+    ['activeContracts', response.data.cards.activeContracts],
+    ['activePortfolioValue', response.data.cards.activePortfolioValue],
+    ['expiringContracts', response.data.cards.expiringContracts],
+    ['expiringContracts', response.data.expiringContractList],
+  ] as const;
+  for (const [key, value] of pairs) {
+    if ((value === null) !== (response.meta.dataCoverage[key] === 'UNAVAILABLE')) {
+      context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', key], message: 'Cobertura inconsistente' });
+    }
+  }
+});
+export type ManagerDashboardSummaryResponse = z.infer<typeof managerDashboardSummaryResponseSchema>;

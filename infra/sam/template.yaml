@@ -45,11 +45,23 @@ Resources:
     Properties:
       CodeUri: ../../
       Handler: services/api/src/domains/gerente-contratos/handler.handler
+      Environment:
+        Variables:
+          NODE_ENV: production
+          LOCAL_MANAGER_DASHBOARD_ENABLED: 'false'
+          LOCAL_MANAGER_USER_ID: ''
+          LOCAL_MANAGER_CAN_ACCESS_VIEW: 'false'
+          SAC_DB_HOST: ''
+          SAC_DB_PORT: ''
+          SAC_DB_NAME: ''
+          SAC_DB_USER: ''
+          SAC_DB_PASSWORD: ''
+          SAC_DB_SSL: 'false'
       Events:
         Api:
           Type: HttpApi
           Properties:
-            Path: /api/gerente-contratos
+            Path: /api/v1/gerentes-contrato/me/dashboard/resumo
             Method: GET
     Metadata:
       BuildMethod: esbuild

@@ -3,5 +3,5 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  server: { proxy: { '/api/v1/fiscais/me/dashboard/resumo': 'http://127.0.0.1:3000' } },
+  server: { proxy: { '/api/v1': 'http://127.0.0.1:3000' } },
 });
