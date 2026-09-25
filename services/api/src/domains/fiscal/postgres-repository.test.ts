@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbReader } from '../../shared/db/index';
 import { ApiError } from '../../shared/errors/index';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS } from './queries';
 import { PostgresFiscalSummaryRepository } from './postgres-repository';
 
 function repository(rows: unknown[]) {
@@ -127,11 +127,47 @@ describe('PostgresFiscalSummaryRepository', () => {
     await expect(repo.getActiveContracts({ context: context(), scope })).resolves.toEqual({ coverage: 'AVAILABLE', value: total });
   });
 
-  it('reports blocked operations as unavailable without querying', async () => {
+  it('uses one scoped eligibility predicate for distinct count and queue', async () => {
+    const query = vi.fn().mockResolvedValueOnce([{ total: '2' }]).mockResolvedValueOnce([
+      { ordem_servico_id: '11', contrato_id: '184', contrato_numero: 'C-184' },
+      { ordem_servico_id: '11', contrato_id: '184', contrato_numero: 'C-184' },
+      { ordem_servico_id: '12', contrato_id: '184', contrato_numero: 'C-184' },
+    ]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
+    const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: null }] };
+    const scoped = { context: context([184]), scope };
+    await expect(repo.getPendingServiceOrders(scoped)).resolves.toEqual({ coverage: 'AVAILABLE', value: 2 });
+    await expect(repo.getPriorityQueue(scoped)).resolves.toEqual({ coverage: 'AVAILABLE', items: [
+      { type: 'SERVICE_ORDER', severity: null, contractId: 184, contractNumber: 'C-184', supplierName: null, title: null, dueAt: null },
+      { type: 'SERVICE_ORDER', severity: null, contractId: 184, contractNumber: 'C-184', supplierName: null, title: null, dueAt: null },
+    ] });
+    expect(query).toHaveBeenNthCalledWith(1, COUNT_PENDING_FISCAL_SERVICE_ORDERS, [[184]]);
+    expect(query).toHaveBeenNthCalledWith(2, GET_PENDING_FISCAL_SERVICE_ORDERS, [[184]]);
+    for (const sql of [COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS]) {
+      expect(sql).toContain("os.lado = 'cliente'");
+      expect(sql).toContain("p.tipo = 'decisao_fiscal_p1'");
+      expect(sql).toContain("p.status IN ('aberta', 'em_tratamento')");
+      expect(sql).toContain('os.contrato_id = ANY($1::bigint[])');
+      expect(sql).toContain('p.entidade_id = os.id');
+    }
+    expect(COUNT_PENDING_FISCAL_SERVICE_ORDERS).toContain('COUNT(DISTINCT os.id)');
+  });
+
+  it('returns zero and empty queue for current empty scope, unavailable for history', async () => {
+    const query = vi.fn();
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
+    const scope = { coverage: 'AVAILABLE' as const, contracts: [] };
+    await expect(repo.getPendingServiceOrders({ context: context(), scope })).resolves.toEqual({ coverage: 'AVAILABLE', value: 0 });
+    await expect(repo.getPriorityQueue({ context: context(), scope })).resolves.toEqual({ coverage: 'AVAILABLE', items: [] });
+    await expect(repo.getPendingServiceOrders({ context: context([], '2026-09-20'), scope })).resolves.toEqual({ coverage: 'UNAVAILABLE' });
+    await expect(repo.getPriorityQueue({ context: context([], '2026-09-20'), scope })).resolves.toEqual({ coverage: 'UNAVAILABLE' });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('reports remaining blocked operations as unavailable without querying', async () => {
     const { repository: repo } = repository([]);
-    const query = {} as Parameters<typeof repo.getPendingServiceOrders>[0];
-    for (const operation of [repo.getPendingServiceOrders(query), repo.getCriticalItems(query),
-      repo.getOverdueActions(query), repo.getPriorityQueue(query)]) {
+    const query = {} as Parameters<typeof repo.getCriticalItems>[0];
+    for (const operation of [repo.getCriticalItems(query), repo.getOverdueActions(query)]) {
       await expect(operation).resolves.toEqual({ coverage: 'UNAVAILABLE' });
     }
   });

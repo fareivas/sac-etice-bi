@@ -1,12 +1,13 @@
 import { createApiError, createInternalError } from '../../shared/errors/index';
 import { safeBigintId, type DbReader } from '../../shared/db/index';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS } from './queries';
 import { dateInTimezone } from './schemas';
 import type {
   FiscalAuthorizedScope,
   FiscalIdentity,
   FiscalIndicatorResult,
   FiscalPriorityQueueResult,
+  FiscalPriorityQueueItem,
   FiscalRepositoryContext,
   FiscalScopedRepositoryQuery,
   FiscalSummaryRepository,
@@ -14,6 +15,7 @@ import type {
 
 interface ScopeRow { contrato_id: string | bigint }
 interface CountRow { total: string | bigint }
+interface PendingOrderRow { ordem_servico_id: string | bigint; contrato_id: string | bigint; contrato_numero: string | null }
 
 interface IdentityRow {
   id: string | bigint;
@@ -64,8 +66,12 @@ export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository 
     return { coverage: 'AVAILABLE', value: total };
   }
 
-  async getPendingServiceOrders(_query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
-    return { coverage: 'UNAVAILABLE' };
+  async getPendingServiceOrders(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
+    if (!this.isCurrent(query.context)) return { coverage: 'UNAVAILABLE' };
+    const ids = query.scope.contracts.map((contract) => contract.contractId);
+    if (ids.length === 0) return { coverage: 'AVAILABLE', value: 0 };
+    const rows = await this.db.query<CountRow>(COUNT_PENDING_FISCAL_SERVICE_ORDERS, [ids]);
+    return { coverage: 'AVAILABLE', value: safeBigintId(rows[0]?.total) };
   }
 
   async getCriticalItems(_query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult> {
@@ -76,7 +82,20 @@ export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository 
     return { coverage: 'UNAVAILABLE' };
   }
 
-  async getPriorityQueue(_query: FiscalScopedRepositoryQuery): Promise<FiscalPriorityQueueResult> {
-    return { coverage: 'UNAVAILABLE' };
+  async getPriorityQueue(query: FiscalScopedRepositoryQuery): Promise<FiscalPriorityQueueResult> {
+    if (!this.isCurrent(query.context)) return { coverage: 'UNAVAILABLE' };
+    const ids = query.scope.contracts.map((contract) => contract.contractId);
+    if (ids.length === 0) return { coverage: 'AVAILABLE', items: [] };
+    const rows = await this.db.query<PendingOrderRow>(GET_PENDING_FISCAL_SERVICE_ORDERS, [ids]);
+    const seen = new Set<number>();
+    const items: FiscalPriorityQueueItem[] = [];
+    for (const row of rows) {
+      const orderId = safeBigintId(row.ordem_servico_id);
+      if (seen.has(orderId)) continue;
+      seen.add(orderId);
+      items.push({ type: 'SERVICE_ORDER', severity: null, contractId: safeBigintId(row.contrato_id),
+        contractNumber: row.contrato_numero, supplierName: null, title: null, dueAt: null });
+    }
+    return { coverage: 'AVAILABLE', items };
   }
 }

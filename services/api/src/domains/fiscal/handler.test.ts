@@ -8,7 +8,7 @@ import type { FiscalSummaryRepository, FiscalIndicatorResult } from './repositor
 import type { FiscalKpiSource, FiscalKpiResult } from './service';
 import { createFiscalDashboardHandler, handler } from './handler';
 import { createLocalFiscalDashboardHandler } from './handler';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS } from './queries';
 import type { DbReader } from '../../shared/db/index';
 
 const NOW = new Date('2026-09-23T12:00:00.000Z');
@@ -129,6 +129,8 @@ describe('Fiscal dashboard handler factory', () => {
       if (sql === GET_FISCAL_IDENTITY) return [{ id: '77', nome: 'Fiscal Real', ativo: true }];
       if (sql === GET_FISCAL_CONTRACT_SCOPE) return [{ contrato_id: '184' }];
       if (sql === COUNT_ACTIVE_FISCAL_CONTRACTS) return [{ total: '1' }];
+      if (sql === COUNT_PENDING_FISCAL_SERVICE_ORDERS) return [{ total: '0' }];
+      if (sql === GET_PENDING_FISCAL_SERVICE_ORDERS) return [];
       throw new Error('Unexpected SQL');
     });
     const local = createLocalFiscalDashboardHandler(
@@ -140,11 +142,11 @@ describe('Fiscal dashboard handler factory', () => {
     expect(response.statusCode).toBe(200);
     const body = bodyOf(response);
     expect(body.data.fiscal).toEqual({ userId: 77, name: 'Fiscal Real' });
-    expect(body.data.cards).toMatchObject({ activeContracts: 1, pendingServiceOrders: null,
+    expect(body.data.cards).toMatchObject({ activeContracts: 1, pendingServiceOrders: 0,
       criticalItems: null, overdueActions: null, externalViolations: null });
-    expect(body.meta.dataCoverage).toEqual({ activeContracts: 'AVAILABLE', pendingServiceOrders: 'UNAVAILABLE',
+    expect(body.meta.dataCoverage).toEqual({ activeContracts: 'AVAILABLE', pendingServiceOrders: 'AVAILABLE',
       criticalItems: 'UNAVAILABLE', overdueActions: 'UNAVAILABLE' });
-    expect(body.data.priorityQueue).toBeNull();
+    expect(body.data.priorityQueue).toEqual([]);
     if (external) expect(body.meta.sources[1]).toMatchObject({ system: 'KPIs', status: 'UNAVAILABLE', updatedAt: null });
     else expect(body.meta).toMatchObject({ source: 'SAC', merCoverage: 'PROPOSTA' });
   });
