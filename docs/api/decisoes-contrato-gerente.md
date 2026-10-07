@@ -27,3 +27,55 @@ Para `dataReferencia` passada, a lista inteira fica `null/UNAVAILABLE`; a fotogr
 `GET /api/v1/gestao-contratual/fornecedores/resumo` restringe fornecedores à carteira atual autorizada do gerente: designação ativa `gestor` → contrato → `contrato.fornecedor_id` → fornecedor. Não consulta a população global de fornecedores. `vigentValue` soma `valor_total` dos contratos distintos com `status = 'vigente'` por fornecedor, sem reconstrução por aditivos. Se qualquer contrato vigente do fornecedor tiver `valor_total NULL`, o valor do fornecedor é `null`; a cobertura global de `vigentValue` fica `UNAVAILABLE` se houver qualquer fornecedor com total incompleto. Uma carteira vazia consultada retorna `suppliers: []`, `totalItems: 0` e valor disponível. Dados de referência passados retornam `suppliers: null` e cobertura `UNAVAILABLE` sem aplicar designações ou valores atuais retroativamente.
 
 `abcClass`, `openFinancialAmount` e `openCriticalRisks` são `null/UNAVAILABLE`. Os filtros `unidadeId`, `abcClass` e `riskSeverity` são rejeitados com `INVALID_FILTER`, assim como parâmetros desconhecidos; não são ignorados. São aceitos `dataReferencia`, `timezone`, `page` (padrão 1), `pageSize` (padrão 25, máximo 100) e `sort` (`name` ou `vigentValue`, asc/desc). A ordenação padrão é `name:asc` com desempate por ID, sem semântica de ranking ABC. Paginação ocorre após o escopo e a agregação. `activeContracts`, participação percentual, financeiro vencido, classificação acumulada, ranking e score do exemplo demonstrativo não são publicados neste slice. Produção permanece 501.
+
+## DEC-GC-013 a DEC-GC-020 — Financeiro / aging (7.5)
+
+O MER atual possui fluxo financeiro operacional real por meio de
+`ordens.ciclo_faturamento`, `ordens.memoria_calculo`, `ordens.liquidacao`,
+`fornecedores.nota_fiscal` e estruturas relacionadas. Isso não equivale,
+porém, ao modelo de documento financeiro e aging exigido pelo endpoint 7.5.
+
+- `bi.pagamentos_kpis.valor_aguardando_pagamento` não é equivalente a
+  `summary.openAmount`.
+- `summary.openAmount` permanece `null` / `UNAVAILABLE`.
+- `summary.overdueAmount` permanece `null` / `UNAVAILABLE`.
+- `documents[].agingBucket`, `stalledStage` e `daysInStage` permanecem
+  indisponíveis.
+- Não inferir vencimento a partir de `data_emissao`, `competencia`,
+  `atualizado_em` ou idade do ciclo.
+- Não transformar nota fiscal ou ciclo de faturamento artificialmente no
+  `financialDocument` do contrato 7.5.
+- Ciclos pagos, valor aguardando pagamento e tempos observados são métricas
+  reais do SAC, mas não substituem automaticamente os campos contratados
+  pelo endpoint 7.5.
+- `agingBucket` não pode ser aplicado sem aging real.
+- `unidadeId` continua sem relação física aprovada.
+- `side` não deve ser inferido do fluxo de pagamento.
+- `supplierId` existe fisicamente, mas qualquer uso futuro deve respeitar
+  a carteira autorizada do gerente.
+- `dataReferencia` passada não deve reconstruir estado financeiro a partir
+  da fotografia atual.
+
+O endpoint 7.5 fica sem implementação funcional nesta fase.
+
+## DEC-GC-021 a DEC-GC-025 — Renovações (7.4)
+
+O MER atual permite determinar a vigência corrente do contrato, mas não
+representa o processo de renovação definido pelo endpoint 7.4.
+
+- `contratos.contrato.vigencia_fim` representa vencimento contratual, não
+  processo de renovação.
+- `summary.within180Days` não será preenchido contando simplesmente contratos
+  com vencimento nos próximos 180 dias.
+- O resumo do gerente já expõe separadamente o indicador factual aprovado de
+  contratos vigentes com vencimento nos próximos 120 dias.
+- `summary.overdueStages` e `summary.predictedGaps` permanecem `UNAVAILABLE`.
+- `processes[]` permanece `UNAVAILABLE`.
+- Não fabricar `processId`, `type`, `currentStage`, `stageDueDate`,
+  `officialExpectedCompletion`, `predictedCompletion` ou
+  `continuityGapDays` a partir de contrato ou aditivo.
+- `contratos.aditivo.nova_vigencia_fim` pode alterar a vigência corrente
+  quando refletida no contrato, mas não constitui por si só evidência de um
+  processo de renovação conforme o contrato 7.4.
+
+O endpoint 7.4 fica sem implementação funcional nesta fase.
