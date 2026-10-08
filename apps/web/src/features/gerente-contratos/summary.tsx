@@ -7,6 +7,36 @@ type State = { status: 'loading' } | { status: 'error'; message: string } |
 const money = (value: number | null) => value === null ? 'Indisponível' :
   new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
 const count = (value: number | null) => value === null ? 'Indisponível' : String(value);
+const currency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+const percentage = (value: number | null) => value === null ? 'Indisponível' : `${money(value)}%`;
+
+export function PortfolioFinancialChart({ balances }: { balances: NonNullable<ManagerDashboardSummaryResponse['data']['contractBalances']> }) {
+  const values = balances.flatMap(item => [item.contractedValue, item.consumedValue, item.balanceValue]);
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const scale = (value: number) => 200 + (value - min) / (max - min || 1) * 360;
+  const origin = scale(0);
+  const series = [
+    { key: 'contractedValue', label: 'Contratado', opacity: 1 },
+    { key: 'consumedValue', label: 'Consumido', opacity: 0.65 },
+    { key: 'balanceValue', label: 'Saldo', opacity: 0.35 },
+  ] as const;
+  return <div className="fiscal-table-wrap"><svg style={{ minWidth: 640, display: 'block' }} viewBox={`0 0 800 ${balances.length * 110 + 30}`} width="100%" role="img" aria-label="Distribuição financeira por contrato">
+    <title>Distribuição financeira por contrato: contratado, consumido e saldo em reais</title>
+    {balances.map((item, index) => <g key={item.contractId}>
+      <text x="8" y={index * 110 + 20} fontSize="14">{item.contractNumber ?? `#${item.contractId}`}</text>
+      {series.map((entry, row) => {
+        const value = item[entry.key];
+        const y = index * 110 + row * 28 + 30;
+        return <g key={entry.key}><title>{`${entry.label}: ${currency(value)}`}</title>
+          <text x="8" y={y + 15} fontSize="12">{entry.label}</text>
+          <rect x={Math.min(origin, scale(value))} y={y} width={Math.abs(scale(value) - origin)} height="18" fill="currentColor" opacity={entry.opacity} />
+          <text x="575" y={y + 15} fontSize="12">{currency(value)}</text>
+        </g>;
+      })}
+    </g>)}
+  </svg></div>;
+}
 export function ManagerDashboardView({ state }: { state: State }) {
   const summary = state.status === 'success' ? state.summary : null;
   return <main className="fiscal-dashboard manager-dashboard">
@@ -26,6 +56,23 @@ export function ManagerDashboardView({ state }: { state: State }) {
         </section>
         {summary.data.cards.activeContracts === 0 && <p className="empty-contracts" role="status">Nenhum contrato vigente na carteira.</p>}
         {summary.meta.dataCoverage.activePortfolioValue === 'UNAVAILABLE' && <p className="coverage-note" role="status">Valor total indisponível: há valor contratual ausente ou a fotografia histórica não pode ser reconstruída.</p>}
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Alertas contratuais</h2><p>Pendências abertas ou em tratamento dos contratos vigentes da carteira.</p></div>
+          <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Tipo</th><th>Estado</th><th>Descrição</th><th>Vencimento contratual</th></tr></thead><tbody>
+            {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts?.length ? summary.data.contractAlerts.map(alert => <tr key={alert.alertId}>
+              <td>{alert.contractNumber ?? `#${alert.contractId}`}</td><td>{alert.type ?? 'Indisponível'}</td><td>{alert.status}</td><td>{alert.description ?? 'Indisponível'}</td><td>{alert.expiryDate ?? 'Indisponível'}</td>
+            </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
+          </tbody></table></div>
+        </section>
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Saldos da carteira</h2><p>Valores da visão de saldo contratual.</p></div>
+          <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Valor contratado</th><th>Valor consumido</th><th>Saldo</th><th>Percentual disponível</th></tr></thead><tbody>
+            {summary.meta.dataCoverage.contractBalances === 'AVAILABLE' && summary.data.contractBalances?.length ? summary.data.contractBalances.map(item => <tr key={item.contractId}>
+              <td>{item.contractNumber ?? `#${item.contractId}`}</td><td>{currency(item.contractedValue)}</td><td>{currency(item.consumedValue)}</td><td>{currency(item.balanceValue)}</td><td>{percentage(item.balancePct)}</td>
+            </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' || summary.data.contractBalances === null ? 'Indisponível' : 'Nenhum saldo contratual no recorte'}</td></tr>}
+          </tbody></table></div>
+        </section>
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Distribuição financeira por contrato</h2><p>Contratado, consumido e saldo em reais, na mesma escala.</p></div>
+          {summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' || summary.data.contractBalances === null ? <div className="panel-unavailable" role="status">Indisponível</div> : summary.data.contractBalances.length === 0 ? <p className="table-empty">Nenhum saldo contratual no recorte</p> : <PortfolioFinancialChart balances={summary.data.contractBalances} />}
+        </section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Fiscais e distribuição da carteira</h2><p>Contratos vigentes designados e OS com decisão fiscal pendente.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
           {state.status === 'success' && state.load?.data.inspectors?.length ? state.load.data.inspectors.map((fiscal) => <tr key={fiscal.userId}><td>{fiscal.name ?? `Fiscal ${fiscal.userId}`}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>) : <tr><td colSpan={4} className="table-empty">{state.status === 'success' && state.load?.data.inspectors?.length === 0 ? 'Nenhum fiscal designado' : 'Indisponível'}</td></tr>}
         </tbody></table></div></section>

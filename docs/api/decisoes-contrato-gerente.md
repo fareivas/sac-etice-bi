@@ -91,3 +91,53 @@ funcional e a paginação continuam aplicadas pelo serviço depois da agregaçã
 sem alteração do contrato HTTP ou de regras funcionais. A regressão PostgreSQL
 é optativa (`SAC_DB_INTEGRATION_TEST=true`) e executa somente SELECT, sem fixtures
 persistentes ou mudanças no banco.
+
+## DEC-GC-026 — Alertas contratuais e saldos da carteira
+
+**Status:** APROVADA para este lote local, conforme pedido de enriquecimento do Gerente.
+
+O resumo acrescenta propriedades obrigatórias `data.contractAlerts` e
+`data.contractBalances` (`array | null`) e as respectivas chaves em
+`meta.dataCoverage` (`AVAILABLE | UNAVAILABLE`). Campos, filtros e indicadores
+anteriores permanecem com a mesma semântica.
+
+A carteira é resolvida pela designação ativa de `gestor` do usuário autenticado.
+`contratoId` somente restringe essa carteira; qualquer ID solicitado fora dela
+continua gerando `FORBIDDEN_SCOPE`. Ambas as consultas recebem os IDs autorizados
+como parâmetro e selecionam somente contratos com `status = 'vigente'`, sem
+exigir designação fiscal ou corrigir divergências entre status e vigência final.
+
+- Alertas: `comum.pendencia`, ligada por `entidade_tipo = 'contrato'` e
+  `entidade_id = contrato.id`. Todos os tipos são elegíveis com status `aberta`
+  ou `em_tratamento`; resolvidas e canceladas são excluídas. Não há JOIN com
+  decisões ou designações. Deduplicação por `pendencia.id`, ordenação
+  `p.criado_em DESC, p.id DESC`.
+- Cada alerta contém `alertId`, `contractId` (inteiros positivos seguros),
+  `contractNumber`, `type`, `description` (`string | null`), `status`
+  (`aberta | em_tratamento`), `expiryDate` (`YYYY-MM-DD | null`) e `createdAt`
+  (datetime ISO 8601 com offset ou `null`). `expiryDate` vem exclusivamente de
+  `contrato.vigencia_fim` e não representa prazo de ação.
+- Saldos: fonte exclusiva `contratos.vw_saldo_contrato`, por LEFT JOIN à carteira
+  vigente. Itens usam o mesmo schema financeiro do Fiscal: `contractId`,
+  `contractNumber`, `contractedValue`, `consumedValue`, `balanceValue`, `balancePct`.
+  Valores vêm de `valor_contratado`, `valor_consumido` e `valor_saldo` da view.
+  Percentual é saldo/contratado × 100 somente com contratado positivo e resultado
+  finito; caso contrário, `null`. Não se substitui saldo por `contrato.valor_total`.
+- Qualquer valor financeiro ausente, inválido, não finito ou acima da precisão
+  monetária segura torna a lista inteira `null/UNAVAILABLE`. Ausência de linha
+  na view é preservada pelo LEFT JOIN e segue essa mesma regra conservadora.
+- Fotografia atual consultável retorna listas/AVAILABLE, inclusive `[]` sem
+  registros ou com carteira vazia. Histórico não reconstruível retorna ambas
+  `null/UNAVAILABLE`, sem leitura da carteira atual. Falha SQL mantém HTTP 500
+  sanitizado; não é convertida em insuficiência de cobertura.
+
+A tela mantém as seções existentes e acrescenta Alertas contratuais, Saldos da
+carteira e distribuição financeira por contrato. O gráfico usa os mesmos valores
+reais da tabela em escala monetária comum, sem classificação de risco, percentuais
+inventados ou alteração da paleta. Listas vazias e indisponíveis são distintas.
+Não amplia aging financeiro, renovação formal, ranking, criticidade ou ações vencidas.
+
+Validação local posterior: conferir o gestor 4, seus dois contratos e quatro
+pendências não resolvidas, e os saldos totalizando R$ 612.156,00 conforme pedido.
+Essas expectativas não são fixtures permanentes. Integração PostgreSQL não foi
+repetida no sandbox após a indisponibilidade do ambiente constatada no lote anterior.

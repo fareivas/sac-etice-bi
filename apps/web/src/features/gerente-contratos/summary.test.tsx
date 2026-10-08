@@ -7,10 +7,10 @@ const base: ManagerDashboardSummaryResponse = {
   meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25', timezone: 'America/Fortaleza',
     source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: [] },
     dataCoverage: { portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE',
-      expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE' } },
+      expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE' } },
   data: { manager: { userId: 1, name: 'Gestora' },
     cards: { activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 },
-    contracts: [], expiringContractList: [] },
+    contracts: [], expiringContractList: [], contractAlerts: [], contractBalances: [] },
 };
 const render = (summary: ManagerDashboardSummaryResponse) =>
   renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary }} />);
@@ -74,4 +74,31 @@ it('renders factual supplier value and unavailable supplier indicators', () => {
   expect(html).toContain('Fornecedores da carteira');
   expect(html).toContain('<td>Fornecedor Real</td><td>100</td><td>Indisponível</td><td>Indisponível</td><td>Indisponível</td>');
   expect(html).not.toContain('Curva ABC');
+});
+
+it('renders real alerts, balance amounts and the financial chart while preserving existing sections', () => {
+  const summary: ManagerDashboardSummaryResponse = { ...base, data: { ...base.data,
+    contractAlerts: [{ alertId: 206, contractId: 41, contractNumber: 'CT-41', type: 'designacao_ausente', status: 'em_tratamento', description: 'Pendência de teste', expiryDate: '2026-10-20', createdAt: '2026-10-01T12:00:00Z' }],
+    contractBalances: [{ contractId: 41, contractNumber: 'CT-41', contractedValue: 200, consumedValue: 50, balanceValue: 150, balancePct: 75 }] } };
+  const html = render(summary).replaceAll('\u00a0', ' ');
+  for (const label of ['Alertas contratuais', 'designacao_ausente', 'em_tratamento', 'Pendência de teste', '2026-10-20', 'Saldos da carteira', 'R$ 200,00', 'R$ 50,00', 'R$ 150,00', '75%', 'Fiscais e distribuição da carteira', 'Fornecedores da carteira', 'Contratos vigentes da carteira']) expect(html).toContain(label);
+  expect(html).toContain('aria-label="Distribuição financeira por contrato"');
+  expect(html).toContain('<rect');
+  expect(html).not.toContain('Classificação de risco');
+});
+
+it('distinguishes empty lists from unavailable coverage and omits the chart in both cases', () => {
+  const empty = render(base);
+  expect(empty).toContain('Nenhum alerta contratual no recorte');
+  expect(empty).toContain('Nenhum saldo contratual no recorte');
+  expect(empty).not.toContain('<svg');
+  const unavailable: ManagerDashboardSummaryResponse = { ...base,
+    meta: { ...base.meta, dataCoverage: { ...base.meta.dataCoverage, contractAlerts: 'UNAVAILABLE', contractBalances: 'UNAVAILABLE' } },
+    data: { ...base.data, contractAlerts: null, contractBalances: null } };
+  const html = render(unavailable);
+  expect(html).toMatch(/Alertas contratuais[\s\S]*?Indisponível[\s\S]*?<\/section>/);
+  expect(html).toMatch(/Saldos da carteira[\s\S]*?Indisponível[\s\S]*?<\/section>/);
+  expect(html).not.toContain('Nenhum alerta contratual');
+  expect(html).not.toContain('Nenhum saldo contratual');
+  expect(html).not.toContain('<svg');
 });

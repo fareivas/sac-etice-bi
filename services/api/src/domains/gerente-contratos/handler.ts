@@ -28,7 +28,7 @@ export class LocalManagerAuthProvider implements ManagerAuthProvider {
 }
 export function createManagerHandler(dependencies: {
   authProvider: ManagerAuthProvider;
-  repository: Pick<PostgresManagerRepository, 'identity' | 'scope' | 'activeContracts'>;
+  repository: Pick<PostgresManagerRepository, 'identity' | 'scope' | 'activeContracts' | 'contractAlerts' | 'contractBalances'>;
   now?: () => Date;
 }): APIGatewayProxyHandlerV2 {
   return async (event) => {

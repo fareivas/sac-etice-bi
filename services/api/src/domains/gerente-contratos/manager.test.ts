@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbReader } from '../../shared/db/index';
-import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE } from './queries';
+import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE, GET_MANAGER_CONTRACT_ALERTS, GET_MANAGER_CONTRACT_BALANCES } from './queries';
 import { PostgresManagerRepository } from './repository';
 import { composeManagerSummary } from './service';
 import { parseManagerQuery } from './schemas';
@@ -24,6 +24,8 @@ function fixture(designations: { userId: number; contractId: string; role: strin
         return { contract_id: c.id, contract_number: c.numero, supplier_name: 'Fornecedor', value: c.valor_total, expiry_date: c.vigencia_fim,
           expires_within_120_days: c.vigencia_fim === null ? null : c.vigencia_fim >= reference && c.vigencia_fim <= lastDay.toISOString().slice(0, 10) };
       });
+    if (sql === GET_MANAGER_CONTRACT_ALERTS) return [];
+    if (sql === GET_MANAGER_CONTRACT_BALANCES) return contracts.filter(c => (values![0] as number[]).includes(Number(c.id)) && c.status === 'vigente').map(c => ({ contract_id: c.id, contract_number: c.numero, contracted_value: c.valor_total, consumed_value: '0', balance_value: c.valor_total }));
     throw new Error('Unexpected SQL');
   });
   return { repo: new PostgresManagerRepository({ query } as DbReader), query };
@@ -37,7 +39,7 @@ describe('manager current portfolio', () => {
     expect(result.data.cards).toEqual({ activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 });
     expect(result.data.expiringContractList).toEqual([]);
     expect(result.data.contracts).toEqual([]);
-    expect(result.meta.dataCoverage).toEqual({ portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE' });
+    expect(result.meta.dataCoverage).toEqual({ portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE' });
     expect(query).not.toHaveBeenCalledWith(GET_MANAGER_ACTIVE_CONTRACTS, expect.anything());
   });
   it('counts one and multiple distinct active contracts, excluding all inactive statuses and fiscal-only/inactive designations', async () => {

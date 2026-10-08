@@ -197,6 +197,12 @@ const managerContractSchema = z.strictObject({
   value: z.number().finite().nullable(),
   expiryDate: z.iso.date().nullable(),
 });
+export const managerContractAlertSchema = fiscalContractAlertSchema.extend({
+  type: z.string().nullable(),
+  status: z.enum(['aberta', 'em_tratamento']),
+});
+// Same financial shape as Fiscal; authorization remains in each domain.
+export const managerContractBalanceSchema = fiscalContractBalanceSchema;
 export const managerDashboardSummaryResponseSchema = z.strictObject({
   meta: z.strictObject({
     generatedAt: dateTimeSchema,
@@ -211,6 +217,8 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
       activePortfolioValue: managerCoverageSchema,
       expiringContracts: managerCoverageSchema,
       renewalsWithin120Days: managerCoverageSchema,
+      contractAlerts: managerCoverageSchema,
+      contractBalances: managerCoverageSchema,
     }),
   }),
   data: z.strictObject({
@@ -223,9 +231,13 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
     }),
     contracts: z.array(managerContractSchema).nullable(),
     expiringContractList: z.array(managerContractSchema).nullable(),
+    contractAlerts: z.array(managerContractAlertSchema).nullable(),
+    contractBalances: z.array(managerContractBalanceSchema).nullable(),
   }),
 }).superRefine((response, context) => {
   const pairs = [
+    ['contractAlerts', response.data.contractAlerts],
+    ['contractBalances', response.data.contractBalances],
     ['portfolio', response.data.contracts],
     ['activeContracts', response.data.cards.activeContracts],
     ['activePortfolioValue', response.data.cards.activePortfolioValue],
