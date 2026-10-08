@@ -256,6 +256,18 @@ const registrationCompletenessSchema = z.strictObject({
     vigencia_fim: preventiveCountSchema,
   }),
 });
+const contractRiskStatusSchema = z.enum(['CRITICAL', 'ATTENTION', 'OK', 'UNAVAILABLE']);
+const contractRiskRowSchema = z.strictObject({
+  contractId: z.number().int().positive(),
+  contractNumber: z.string().nullable(),
+  supplierName: z.string().nullable(),
+  saldo: z.strictObject({ status: contractRiskStatusSchema, partialCoverage: z.boolean() }),
+  vigencia: contractRiskStatusSchema,
+  sla: z.literal('UNAVAILABLE'),
+  medicao: z.literal('UNAVAILABLE'),
+  pagamento: z.literal('UNAVAILABLE'),
+  indice: z.literal('UNAVAILABLE'),
+});
 export const managerDashboardSummaryResponseSchema = z.strictObject({
   meta: z.strictObject({
     generatedAt: dateTimeSchema,
@@ -275,6 +287,7 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
       itemBalances: managerCoverageSchema,
       renewalDecisionsD90: managerCoverageSchema,
       registrationCompleteness: managerCoverageSchema,
+      contractRiskMatrix: managerCoverageSchema,
     }),
   }),
   data: z.strictObject({
@@ -294,6 +307,7 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
       renewalDecisionsD90: renewalDecisionsD90Schema.nullable(),
       registrationCompleteness: registrationCompletenessSchema.nullable(),
     }),
+    contractRiskMatrix: z.array(contractRiskRowSchema).nullable(),
   }),
 }).superRefine((response, context) => {
   const pairs = [
@@ -312,6 +326,28 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
   }
   if (response.meta.dataCoverage.itemBalances !== response.data.itemBalances.coverage) {
     context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', 'itemBalances'], message: 'Cobertura inconsistente' });
+  }
+  const matrix = response.data.contractRiskMatrix;
+  if ((matrix === null) !== (response.meta.dataCoverage.contractRiskMatrix === 'UNAVAILABLE') ||
+      (matrix === null) !== (response.data.contracts === null)) {
+    context.addIssue({ code: 'custom', path: ['data', 'contractRiskMatrix'], message: 'Matriz e cobertura inconsistentes' });
+  }
+  if (matrix !== null && response.data.contracts !== null) {
+    const contractsById = new Map(response.data.contracts.map(contract => [contract.contractId, contract]));
+    const seen = new Set<number>();
+    if (matrix.length !== contractsById.size) {
+      context.addIssue({ code: 'custom', path: ['data', 'contractRiskMatrix'], message: 'Matriz incompleta' });
+    }
+    for (const row of matrix) {
+      const contract = contractsById.get(row.contractId);
+      if (seen.has(row.contractId) || !contract || row.contractNumber !== contract.contractNumber ||
+          row.supplierName !== contract.supplierName ||
+          (response.data.itemBalances.coverage === 'UNAVAILABLE' &&
+            (row.saldo.status !== 'UNAVAILABLE' || row.saldo.partialCoverage))) {
+        context.addIssue({ code: 'custom', path: ['data', 'contractRiskMatrix'], message: 'Linha da matriz inconsistente' });
+      }
+      seen.add(row.contractId);
+    }
   }
   const quality = response.data.preventiveQuality;
   for (const key of ['renewalDecisionsD90', 'registrationCompleteness'] as const) {

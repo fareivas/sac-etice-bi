@@ -26,6 +26,11 @@ function QualityRing({ label, value }: { label: string; value: number | null }) 
   </div>;
 }
 
+const riskLabels = { CRITICAL: 'Crítico', ATTENTION: 'Atenção', OK: 'OK', UNAVAILABLE: 'Indisponível' } as const;
+function RiskTag({ status }: { status: keyof typeof riskLabels }) {
+  return <span className={`manager-risk-tag manager-risk-${status.toLowerCase()}`}>{riskLabels[status]}</span>;
+}
+
 export function PortfolioFinancialChart({ balances }: { balances: NonNullable<ManagerDashboardSummaryResponse['data']['contractBalances']> }) {
   const values = balances.flatMap(item => [item.contractedValue, item.consumedValue, item.balanceValue]);
   const min = Math.min(0, ...values);
@@ -144,6 +149,20 @@ export function ManagerDashboardView({ state }: { state: State }) {
             </article>
           </div>
           <p className="source-note">Preenchimento cadastral indica presença dos campos; intenção de prorrogar não significa prorrogação concluída.</p>
+        </section>
+        <section className="fiscal-panel manager-risk-panel"><div className="panel-heading"><h2>Matriz Contrato × Dimensão de Risco</h2><p>Classificação por itens contratuais e prazo até o fim da vigência. Demais dimensões aguardam fonte aprovada.</p></div>
+          {summary.meta.dataCoverage.contractRiskMatrix === 'UNAVAILABLE' || summary.data.contractRiskMatrix === null
+            ? <div className="panel-unavailable" role="status">Matriz indisponível para esta referência.</div>
+            : summary.data.contractRiskMatrix.length === 0
+              ? <p className="table-empty" role="status">Nenhum contrato vigente na carteira.</p>
+              : <div className="fiscal-table-wrap"><table className="manager-risk-table"><caption className="visually-hidden">Risco por contrato e dimensão</caption><thead><tr>
+                <th scope="col">Contrato</th><th scope="col">Saldo</th><th scope="col">Vigência</th><th scope="col">SLA</th><th scope="col">Medição</th><th scope="col">Pagamento</th><th scope="col">Índice</th>
+              </tr></thead><tbody>{summary.data.contractRiskMatrix.map(row => <tr key={row.contractId}>
+                <th scope="row">{row.contractNumber ?? `Contrato ID ${row.contractId}`}<small>{row.supplierName ?? 'Fornecedor indisponível'}</small></th>
+                <td><RiskTag status={row.saldo.status} />{row.saldo.partialCoverage && <small>Cobertura parcial: há itens não verificáveis</small>}</td>
+                <td><RiskTag status={row.vigencia} /></td><td><RiskTag status={row.sla} /></td>
+                <td><RiskTag status={row.medicao} /></td><td><RiskTag status={row.pagamento} /></td><td><RiskTag status={row.indice} /></td>
+              </tr>)}</tbody></table></div>}
         </section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Alertas contratuais</h2><p>Pendências abertas ou em tratamento dos contratos vigentes da carteira.</p></div>
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Tipo</th><th>Estado</th><th>Descrição</th><th>Vencimento contratual</th></tr></thead><tbody>

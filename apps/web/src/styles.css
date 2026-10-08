@@ -116,6 +116,15 @@ button, input, select { font: inherit; }
 .manager-quality-grid dl > div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border-soft); padding-bottom: 6px; font-size: .85rem; }
 .manager-quality-grid dt { color: var(--text-secondary); }
 .manager-quality-grid dd { margin: 0; font-weight: 700; white-space: nowrap; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.manager-risk-table { min-width: 760px; }
+.manager-risk-table th[scope="row"] { text-align: left; font-size: .8rem; }
+.manager-risk-table th[scope="row"] small, .manager-risk-table td small { display: block; margin-top: 5px; color: var(--text-secondary); font-weight: 400; line-height: 1.35; }
+.manager-risk-tag { display: inline-block; padding: 5px 9px; border-radius: 999px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
+.manager-risk-critical { color: #8b292f; background: #fae9e9; }
+.manager-risk-attention { color: #765515; background: #fff3d6; }
+.manager-risk-ok { color: #126449; background: #e0f2e9; }
+.manager-risk-unavailable { color: var(--text-secondary); background: var(--surface-table-head); border: 1px solid var(--border-default); }
 @media (max-width: 700px) { .manager-quality-grid { grid-template-columns: 1fr; } }
 @media (max-width: 420px) { .manager-quality-visual { gap: 12px; padding: 18px 10px; } .manager-quality-ring { width: min(100%, 150px); } }
 .manager-fiscal-chart-wrap { margin: 12px 0 18px; }

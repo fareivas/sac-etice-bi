@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DbReader } from '../../shared/db/index';
 import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE, GET_MANAGER_CONTRACT_ALERTS, GET_MANAGER_CONTRACT_BALANCES, GET_MANAGER_PREVENTIVE_QUALITY } from './queries';
 import { PostgresManagerRepository } from './repository';
-import { composeManagerSummary } from './service';
+import { composeManagerSummary, EXPIRY_RISK_DAYS } from './service';
 import { parseManagerQuery } from './schemas';
 import { createManagerHandler } from './handler';
 import { GET_CURRENT_ITEM_BALANCES } from '../../shared/item-balance-query';
@@ -43,13 +43,56 @@ function fixture(designations: { userId: number; contractId: string; role: strin
 const assignment = (userId: number, contractId: string, role = 'gestor', active = true) => ({ userId, contractId, role, active });
 
 describe('manager current portfolio', () => {
+  it('uses the approved inclusive expiry bands and leaves missing expiry unavailable', async () => {
+    expect(EXPIRY_RISK_DAYS).toEqual({ critical: 30, attention: 120 });
+    const dates = ['2026-09-24', '2026-09-25', '2026-10-25', '2026-10-26',
+      '2026-12-24', '2026-12-25', '2027-01-23', '2027-01-24', null];
+    const { repo } = fixture(dates.map((_, i) => assignment(1, String(i + 1))),
+      dates.map((date, i) => contract(String(i + 1), '10', 'vigente', date)));
+    const result = await composeManagerSummary(1, filters, repo, now);
+    expect(result.data.contractRiskMatrix?.map(row => row.vigencia)).toEqual([
+      'CRITICAL', 'CRITICAL', 'CRITICAL', 'ATTENTION', 'ATTENTION',
+      'ATTENTION', 'ATTENTION', 'OK', 'UNAVAILABLE',
+    ]);
+    expect(result.data.contractRiskMatrix?.every(row => row.saldo.status === 'UNAVAILABLE' &&
+      !row.saldo.partialCoverage && row.sla === 'UNAVAILABLE' && row.medicao === 'UNAVAILABLE' &&
+      row.pagamento === 'UNAVAILABLE' && row.indice === 'UNAVAILABLE')).toBe(true);
+  });
+  it('consolidates existing item bands by priority and preserves partial coverage', async () => {
+    const ids = ['1', '2', '3', '4', '5'];
+    const { repo, query } = fixture(ids.map(id => assignment(1, id)), ids.map(id => contract(id, '100')));
+    const original = query.getMockImplementation()!;
+    const item = (contractId: string, itemId: string, consumed: string | null) => ({
+      contract_id: contractId, contract_number: `CT-${contractId}`, supplier_name: 'Fornecedor',
+      item_id: itemId, sequence: Number(itemId), specification: 'Serviço', unit: 'un',
+      quantity_contracted: '1', quantity_consumed: '0', quantity_measured: '0', quantity_balance: '1',
+      value_contracted: consumed === null ? null : '100', value_consumed: consumed,
+      value_measured: '0', value_balance: consumed === null ? null : String(100 - Number(consumed)),
+      verification_status: null,
+    });
+    query.mockImplementation(async (sql, values) => sql === GET_CURRENT_ITEM_BALANCES ? [
+      item('1', '11', '90'), item('1', '12', '40'), item('1', '13', null),
+      item('2', '21', '50'), item('2', '22', '0'),
+      item('3', '31', '0'), item('4', '41', null),
+    ] : original(sql, values));
+    const result = await composeManagerSummary(1, filters, repo, now);
+    expect(result.data.contractRiskMatrix?.map(row => row.saldo)).toEqual([
+      { status: 'CRITICAL', partialCoverage: true },
+      { status: 'ATTENTION', partialCoverage: false },
+      { status: 'OK', partialCoverage: false },
+      { status: 'UNAVAILABLE', partialCoverage: true },
+      { status: 'UNAVAILABLE', partialCoverage: false },
+    ]);
+    expect(query).toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, [[1, 2, 3, 4, 5]]);
+  });
   it('returns available zero for a manager with no portfolio', async () => {
     const { repo, query } = fixture([], []);
     const result = await composeManagerSummary(1, filters, repo, now);
     expect(result.data.cards).toEqual({ activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 });
     expect(result.data.expiringContractList).toEqual([]);
     expect(result.data.contracts).toEqual([]);
-    expect(result.meta.dataCoverage).toEqual({ portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE', renewalDecisionsD90: 'AVAILABLE', registrationCompleteness: 'AVAILABLE' });
+    expect(result.meta.dataCoverage).toEqual({ portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE', renewalDecisionsD90: 'AVAILABLE', registrationCompleteness: 'AVAILABLE', contractRiskMatrix: 'AVAILABLE' });
+    expect(result.data.contractRiskMatrix).toEqual([]);
     expect(result.data.preventiveQuality).toMatchObject({ renewalDecisionsD90: { eligibleContracts: 0, percentage: null },
       registrationCompleteness: { activeContracts: 0, percentage: null } });
     expect(query).not.toHaveBeenCalledWith(GET_MANAGER_PREVENTIVE_QUALITY, expect.anything());
@@ -71,10 +114,12 @@ describe('manager current portfolio', () => {
     expect(one.data.cards.activePortfolioValue).toBe(10.5);
     expect(one.data.cards.renewalsWithin120Days).toBe(1);
     expect(one.data.expiringContractList?.map((c) => c.contractId)).toEqual([1]);
+    expect(one.data.contractRiskMatrix?.map((row) => row.contractId)).toEqual([1]);
   });
   it('isolates managers and rejects a contract outside the current authorized scope', async () => {
     const { repo, query } = fixture([assignment(1, '1'), assignment(2, '2')], [contract('1', '10'), contract('2', '20')]);
     expect((await composeManagerSummary(1, filters, repo, now)).data.contracts?.map((c) => c.contractId)).toEqual([1]);
+    expect((await composeManagerSummary(1, filters, repo, now)).data.contractRiskMatrix?.map((row) => row.contractId)).toEqual([1]);
     expect((await composeManagerSummary(2, filters, repo, now)).data.contracts?.map((c) => c.contractId)).toEqual([2]);
     query.mockClear();
     await expect(composeManagerSummary(1, { ...filters, contratoId: [2] }, repo, now)).rejects.toMatchObject({ code: 'FORBIDDEN_SCOPE' });
@@ -177,6 +222,9 @@ describe('manager current portfolio', () => {
     expect(result.data.itemBalances.itens[0]).toMatchObject({ faixa: 'critico', valueMeasuredBalance: 80,
       statusVerificacao: 'pendente' });
     expect(result.data.itemBalances.itens[1].valueContracted).toBeNull();
+    expect(result.data.contractRiskMatrix?.map(row => row.saldo)).toEqual([
+      { status: 'CRITICAL', partialCoverage: false }, { status: 'UNAVAILABLE', partialCoverage: true },
+    ]);
     expect(GET_CURRENT_ITEM_BALANCES).toContain('c.id = ANY($1::bigint[])');
     expect(GET_CURRENT_ITEM_BALANCES).toContain("c.status = 'vigente'");
     expect(GET_CURRENT_ITEM_BALANCES).toContain('ORDER BY c.id, s.seq, s.contrato_item_id');
@@ -189,6 +237,8 @@ describe('manager current portfolio', () => {
     const historical = await composeManagerSummary(1, { ...filters, dataReferencia: '2026-09-24' }, repo, now);
     expect(historical.data.itemBalances).toEqual({ coverage: 'UNAVAILABLE' });
     expect(historical.meta.dataCoverage.itemBalances).toBe('UNAVAILABLE');
+    expect(historical.data.contractRiskMatrix).toBeNull();
+    expect(historical.meta.dataCoverage.contractRiskMatrix).toBe('UNAVAILABLE');
     expect(query).not.toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, expect.anything());
     const original = query.getMockImplementation()!;
     query.mockImplementation(async (sql, values) => {

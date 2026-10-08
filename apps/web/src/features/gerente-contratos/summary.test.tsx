@@ -12,10 +12,10 @@ const base: ManagerDashboardSummaryResponse = {
   meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25', timezone: 'America/Fortaleza',
     source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: [] },
     dataCoverage: { portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE',
-      expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE', renewalDecisionsD90: 'AVAILABLE', registrationCompleteness: 'AVAILABLE' } },
+      expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE', renewalDecisionsD90: 'AVAILABLE', registrationCompleteness: 'AVAILABLE', contractRiskMatrix: 'AVAILABLE' } },
   data: { manager: { userId: 1, name: 'Gestora' },
     cards: { activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 },
-    contracts: [], expiringContractList: [], contractAlerts: [], contractBalances: [],
+    contracts: [], expiringContractList: [], contractAlerts: [], contractBalances: [], contractRiskMatrix: [],
     preventiveQuality: { renewalDecisionsD90: { eligibleContracts: 0, decidedContracts: 0, extendContracts: 0,
       nonRenewalContracts: 0, undecidedContracts: 0, percentage: null },
       registrationCompleteness: { activeContracts: 0, completeContracts: 0, percentage: null,
@@ -35,6 +35,32 @@ it('renders available zero and an empty expiry list', () => {
   expect(html).toContain('Vencimento nos próximos 120 dias');
   expect(html).toContain('Nenhum contrato na janela');
   expect(html).toContain('>0</strong>');
+});
+it('renders the contract risk matrix with distinct states and partial balance coverage', () => {
+  const summary = structuredClone(base);
+  summary.data.contractRiskMatrix = [{ contractId: 7, contractNumber: 'CT-7', supplierName: 'Fornecedor X',
+    saldo: { status: 'CRITICAL', partialCoverage: true }, vigencia: 'ATTENTION',
+    sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' },
+  { contractId: 8, contractNumber: null, supplierName: null,
+    saldo: { status: 'OK', partialCoverage: false }, vigencia: 'UNAVAILABLE',
+    sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
+  const host = document.createElement('div');
+  host.innerHTML = render(summary);
+  const panel = host.querySelector('.manager-risk-panel')!;
+  expect(panel.querySelectorAll('thead th')).toHaveLength(7);
+  expect([...panel.querySelectorAll('tbody tr')]).toHaveLength(2);
+  expect(panel.textContent).toContain('CT-7');
+  expect(panel.textContent).toContain('Fornecedor X');
+  expect(panel.textContent).toContain('Cobertura parcial: há itens não verificáveis');
+  expect(panel.textContent).toContain('Contrato ID 8');
+  for (const label of ['Crítico', 'Atenção', 'OK', 'Indisponível']) expect(panel.textContent).toContain(label);
+  expect(panel.querySelectorAll('button, a')).toHaveLength(0);
+  expect(host.innerHTML.indexOf('Matriz Contrato × Dimensão de Risco')).toBeLessThan(host.innerHTML.indexOf('Alertas contratuais'));
+  const unavailable = structuredClone(base);
+  unavailable.meta.dataCoverage.contractRiskMatrix = 'UNAVAILABLE';
+  unavailable.data.contractRiskMatrix = null;
+  expect(render(unavailable)).toContain('Matriz indisponível para esta referência.');
+  expect(render(unavailable)).not.toContain('Risco por contrato e dimensão');
 });
 it('renders the actual count and summary list without renewal claims', () => {
   const summary: ManagerDashboardSummaryResponse = { ...base,

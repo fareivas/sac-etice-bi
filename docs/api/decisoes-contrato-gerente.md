@@ -233,3 +233,35 @@ Falha SQL conserva HTTP 500 sanitizado. Percentuais são calculados sem
 arredondamento intermediário e formatados apenas na tela. Ações no prazo,
 medições, previsibilidade e radar de cinco dimensões permanecem sem
 métricas aprovadas.
+
+## DEC-GC-031 — Matriz Contrato × Dimensão de Risco
+
+**Status:** APROVADA para a carteira atual do gerente.
+
+O resumo gerencial inclui `data.contractRiskMatrix` e
+`meta.dataCoverage.contractRiskMatrix`, sem consulta adicional. Há uma linha
+por contrato vigente autorizado em `data.contracts`, com o mesmo ID, número e
+fornecedor. O filtro `contratoId` mantém o escopo autorizado. Carteira vazia
+gera matriz `[]/AVAILABLE`; fotografia histórica não reconstruível gera
+`null/UNAVAILABLE`.
+
+**Saldo:** usa exclusivamente as faixas dos itens já compostos em
+`data.itemBalances.itens`, sem recalcular percentuais. A precedência por
+contrato é `critico > atencao > adequado`, mapeada para `CRITICAL`,
+`ATTENTION` e `OK`. A presença de qualquer item `nao_verificavel` marca
+`partialCoverage: true`, inclusive quando outro item permite classificação.
+Sem item verificável, o estado é `UNAVAILABLE`; contrato sem itens tem
+`partialCoverage: false`. Saldo contratual agregado não classifica risco.
+
+**Vigência:** usa somente `contracts[].expiryDate` e `meta.dataReference`.
+Por decisão funcional do GC-031, vencimento na data de referência, anterior
+ou até D+30 inclusive é `CRITICAL`; D+31 a D+120 inclusive é `ATTENTION`;
+a partir de D+121 é `OK`. Data ausente é `UNAVAILABLE`. Essa classificação expressa
+somente proximidade do vencimento e não presume ação vencida, renovação ou
+atraso operacional. Os limites ficam centralizados no serviço e são testados
+nas bordas.
+
+**SLA, Medição, Pagamento e Índice:** cada célula é `UNAVAILABLE`. Não há
+pontuação, ponderação, ranking ou inferência a partir da ausência de alertas.
+SLA e demais KPIs técnicos dependem do Projeto de KPIs. A interface mostra
+etiquetas textuais para os estados e explicita cobertura parcial de Saldo.

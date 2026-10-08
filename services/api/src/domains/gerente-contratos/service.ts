@@ -45,6 +45,41 @@ function composePreventiveQuality(rows: readonly PreventiveQualityRow[]) {
   };
 }
 
+export const EXPIRY_RISK_DAYS = { critical: 30, attention: 120 } as const;
+
+function expiryRisk(expiryDate: string | null, reference: string): 'CRITICAL' | 'ATTENTION' | 'OK' | 'UNAVAILABLE' {
+  if (expiryDate === null) return 'UNAVAILABLE';
+  const days = (Date.parse(`${expiryDate}T00:00:00Z`) - Date.parse(`${reference}T00:00:00Z`)) / 86_400_000;
+  return days <= EXPIRY_RISK_DAYS.critical ? 'CRITICAL' :
+    days <= EXPIRY_RISK_DAYS.attention ? 'ATTENTION' : 'OK';
+}
+
+function composeContractRiskMatrix(
+  contracts: NonNullable<ManagerDashboardSummaryResponse['data']['contracts']>,
+  itemBalances: ManagerDashboardSummaryResponse['data']['itemBalances'], reference: string,
+): NonNullable<ManagerDashboardSummaryResponse['data']['contractRiskMatrix']> {
+  const itemsByContract = new Map<number, Extract<typeof itemBalances, { coverage: 'AVAILABLE' }>['itens']>();
+  if (itemBalances.coverage === 'AVAILABLE') {
+    for (const item of itemBalances.itens) {
+      const items = itemsByContract.get(item.contractId) ?? [];
+      items.push(item);
+      itemsByContract.set(item.contractId, items);
+    }
+  }
+  return contracts.map(contract => {
+    const items = itemsByContract.get(contract.contractId) ?? [];
+    const partialCoverage = items.some(item => item.faixa === 'nao_verificavel');
+    const saldo = itemBalances.coverage === 'UNAVAILABLE' ? 'UNAVAILABLE' :
+      items.some(item => item.faixa === 'critico') ? 'CRITICAL' :
+      items.some(item => item.faixa === 'atencao') ? 'ATTENTION' :
+      items.some(item => item.faixa === 'adequado') ? 'OK' : 'UNAVAILABLE';
+    return { contractId: contract.contractId, contractNumber: contract.contractNumber,
+      supplierName: contract.supplierName, saldo: { status: saldo, partialCoverage },
+      vigencia: expiryRisk(contract.expiryDate, reference),
+      sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' };
+  });
+}
+
 export async function composeManagerSummary(userId: number, filters: ManagerFilters,
   repository: Pick<PostgresManagerRepository, 'identity' | 'scope' | 'activeContracts' | 'contractAlerts' | 'contractBalances' | 'itemBalances' | 'preventiveQuality'>,
   now: () => Date = () => new Date()): Promise<ManagerDashboardSummaryResponse> {
@@ -63,6 +98,7 @@ export async function composeManagerSummary(userId: number, filters: ManagerFilt
     ? { renewalDecisionsD90: null, registrationCompleteness: null }
     : composePreventiveQuality(preventiveRows);
   const contracts = activeRows?.map(({ expiresWithin120Days: _within, ...contract }) => contract) ?? null;
+  const contractRiskMatrix = contracts === null ? null : composeContractRiskMatrix(contracts, itemBalances, filters.dataReferencia);
   const activeContracts = contracts?.length ?? null;
   const activePortfolioValue = contracts === null || contracts.some((contract) => contract.value === null)
     ? null : sumDecimal(contracts.map((contract) => contract.value!));
@@ -78,11 +114,12 @@ export async function composeManagerSummary(userId: number, filters: ManagerFilt
         itemBalances: itemBalances.coverage,
         renewalDecisionsD90: preventiveRows === null ? 'UNAVAILABLE' : 'AVAILABLE',
         registrationCompleteness: preventiveRows === null ? 'UNAVAILABLE' : 'AVAILABLE',
+        contractRiskMatrix: contractRiskMatrix === null ? 'UNAVAILABLE' : 'AVAILABLE',
         activeContracts: current ? 'AVAILABLE' : 'UNAVAILABLE',
         activePortfolioValue: activePortfolioValue === null ? 'UNAVAILABLE' : 'AVAILABLE',
         expiringContracts: expiryAvailable ? 'AVAILABLE' : 'UNAVAILABLE',
         renewalsWithin120Days: expiryAvailable ? 'AVAILABLE' : 'UNAVAILABLE' } },
     data: { manager, cards: { activeContracts, activePortfolioValue, expiringContracts: renewalsWithin120Days, renewalsWithin120Days },
-      contracts, expiringContractList, contractAlerts, contractBalances, itemBalances, preventiveQuality },
+      contracts, expiringContractList, contractAlerts, contractBalances, itemBalances, preventiveQuality, contractRiskMatrix },
   });
 }
