@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbReader } from '../../shared/db/index';
-import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE, GET_MANAGER_CONTRACT_ALERTS, GET_MANAGER_CONTRACT_BALANCES } from './queries';
+import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE, GET_MANAGER_CONTRACT_ALERTS, GET_MANAGER_CONTRACT_BALANCES, GET_MANAGER_PREVENTIVE_QUALITY } from './queries';
 import { PostgresManagerRepository } from './repository';
 import { composeManagerSummary } from './service';
 import { parseManagerQuery } from './schemas';
@@ -27,6 +27,14 @@ function fixture(designations: { userId: number; contractId: string; role: strin
       });
     if (sql === GET_MANAGER_CONTRACT_ALERTS) return [];
     if (sql === GET_MANAGER_CONTRACT_BALANCES) return contracts.filter(c => (values![0] as number[]).includes(Number(c.id)) && c.status === 'vigente').map(c => ({ contract_id: c.id, contract_number: c.numero, contracted_value: c.valor_total, consumed_value: '0', balance_value: c.valor_total }));
+    if (sql === GET_MANAGER_PREVENTIVE_QUALITY) return contracts.filter(c => (values![0] as number[]).includes(Number(c.id)) && c.status === 'vigente').map(c => {
+      const reference = values![1] as string;
+      const limit = new Date(`${reference}T00:00:00Z`);
+      limit.setUTCDate(limit.getUTCDate() + 90);
+      return { contract_id: c.id, objeto: 'Objeto', valor_total: c.valor_total,
+        data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01', vigencia_fim: c.vigencia_fim,
+        eligible_d90: c.vigencia_fim === null ? null : c.vigencia_fim >= reference && c.vigencia_fim <= limit.toISOString().slice(0, 10), intencao: null };
+    });
     if (sql === GET_CURRENT_ITEM_BALANCES) return [];
     throw new Error('Unexpected SQL');
   });
@@ -41,7 +49,10 @@ describe('manager current portfolio', () => {
     expect(result.data.cards).toEqual({ activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 });
     expect(result.data.expiringContractList).toEqual([]);
     expect(result.data.contracts).toEqual([]);
-    expect(result.meta.dataCoverage).toEqual({ portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE' });
+    expect(result.meta.dataCoverage).toEqual({ portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE', renewalDecisionsD90: 'AVAILABLE', registrationCompleteness: 'AVAILABLE' });
+    expect(result.data.preventiveQuality).toMatchObject({ renewalDecisionsD90: { eligibleContracts: 0, percentage: null },
+      registrationCompleteness: { activeContracts: 0, percentage: null } });
+    expect(query).not.toHaveBeenCalledWith(GET_MANAGER_PREVENTIVE_QUALITY, expect.anything());
     expect(result.data.itemBalances).toMatchObject({ coverage: 'AVAILABLE', itens: [], agregados: { itemCount: 0, totalContratado: 0 } });
     expect(query).not.toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, expect.anything());
     expect(query).not.toHaveBeenCalledWith(GET_MANAGER_ACTIVE_CONTRACTS, expect.anything());
@@ -62,10 +73,12 @@ describe('manager current portfolio', () => {
     expect(one.data.expiringContractList?.map((c) => c.contractId)).toEqual([1]);
   });
   it('isolates managers and rejects a contract outside the current authorized scope', async () => {
-    const { repo } = fixture([assignment(1, '1'), assignment(2, '2')], [contract('1', '10'), contract('2', '20')]);
+    const { repo, query } = fixture([assignment(1, '1'), assignment(2, '2')], [contract('1', '10'), contract('2', '20')]);
     expect((await composeManagerSummary(1, filters, repo, now)).data.contracts?.map((c) => c.contractId)).toEqual([1]);
     expect((await composeManagerSummary(2, filters, repo, now)).data.contracts?.map((c) => c.contractId)).toEqual([2]);
+    query.mockClear();
     await expect(composeManagerSummary(1, { ...filters, contratoId: [2] }, repo, now)).rejects.toMatchObject({ code: 'FORBIDDEN_SCOPE' });
+    expect(query).not.toHaveBeenCalledWith(GET_MANAGER_PREVENTIVE_QUALITY, expect.anything());
   });
   it('uses inclusive 0 and 120 day boundaries, excluding expired and day 121', async () => {
     const dates = ['2026-09-25', '2026-09-26', '2027-01-22', '2027-01-23', '2027-01-24', '2026-09-24'];
@@ -188,5 +201,77 @@ describe('manager current portfolio', () => {
     const response = await handler({ rawQueryString: '', requestContext: { requestId: 'test' } } as any, {} as any, () => {});
     expect(response).toMatchObject({ statusCode: 500 });
     expect((response as { body: string }).body).not.toContain('private SQL detail');
+  });
+  it('counts D0 and D+90 decisions and five independent registration gaps in the authorized portfolio', async () => {
+    const ids = ['1', '2', '3', '4', '5', '6'];
+    const { repo, query } = fixture(ids.map(id => assignment(1, id)), ids.map(id => contract(id, id === '3' ? null : '0')));
+    const original = query.getMockImplementation()!;
+    const rows = [
+      { contract_id: '1', objeto: 'Objeto', valor_total: '0', data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01', vigencia_fim: '2026-09-25', eligible_d90: true, intencao: 'prorrogar' },
+      { contract_id: '2', objeto: '  ', valor_total: '0', data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01', vigencia_fim: '2026-12-24', eligible_d90: true, intencao: 'nao_renovar' },
+      { contract_id: '3', objeto: 'Objeto', valor_total: null, data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01', vigencia_fim: '2026-10-01', eligible_d90: true, intencao: 'ciente' },
+      { contract_id: '4', objeto: 'Objeto', valor_total: '0', data_assinatura: null, vigencia_inicio: '2026-01-01', vigencia_fim: '2026-09-24', eligible_d90: false, intencao: null },
+      { contract_id: '5', objeto: 'Objeto', valor_total: '0', data_assinatura: '2026-01-01', vigencia_inicio: null, vigencia_fim: '2026-12-25', eligible_d90: false, intencao: null },
+      { contract_id: '6', objeto: 'Objeto', valor_total: '0', data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01', vigencia_fim: null, eligible_d90: null, intencao: null },
+    ];
+    query.mockImplementation(async (sql, values) => sql === GET_MANAGER_PREVENTIVE_QUALITY ? rows : original(sql, values));
+    const result = await composeManagerSummary(1, filters, repo, now);
+    expect(query).toHaveBeenCalledWith(GET_MANAGER_PREVENTIVE_QUALITY, [[1, 2, 3, 4, 5, 6], '2026-09-25']);
+    expect(result.data.preventiveQuality.renewalDecisionsD90).toEqual({ eligibleContracts: 3, decidedContracts: 2,
+      extendContracts: 1, nonRenewalContracts: 1, undecidedContracts: 1, percentage: 2 / 3 * 100 });
+    expect(result.data.preventiveQuality.registrationCompleteness).toEqual({ activeContracts: 6, completeContracts: 1,
+      percentage: 1 / 6 * 100, missingByField: { objeto: 1, valor_total: 1, data_assinatura: 1,
+        vigencia_inicio: 1, vigencia_fim: 1 } });
+    expect(GET_MANAGER_PREVENTIVE_QUALITY).toContain('c.id = ANY($1::bigint[])');
+    expect(GET_MANAGER_PREVENTIVE_QUALITY).toContain("c.status = 'vigente'");
+    expect(GET_MANAGER_PREVENTIVE_QUALITY).toContain('i.vigencia_fim = c.vigencia_fim::date');
+    expect(GET_MANAGER_PREVENTIVE_QUALITY).toContain('BETWEEN $2::date AND ($2::date + 90)');
+    expect(GET_MANAGER_PREVENTIVE_QUALITY).not.toContain('expires_within_120_days');
+  });
+  it('does not count an intention for the previous validity date and keeps zero denominators available', async () => {
+    const { repo, query } = fixture([assignment(1, '1')], [contract('1', '0', 'vigente', '2026-10-01')]);
+    const original = query.getMockImplementation()!;
+    const qualityRow = { contract_id: '1',
+      objeto: 'Objeto', valor_total: '0', data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01',
+      vigencia_fim: '2026-10-01', eligible_d90: true, intencao: null };
+    // A intenção registrada para a vigência anterior não aparece no LEFT JOIN pela vigência atual.
+    query.mockImplementation(async (sql, values) => sql === GET_MANAGER_PREVENTIVE_QUALITY ? [qualityRow] : original(sql, values));
+    const result = await composeManagerSummary(1, filters, repo, now);
+    expect(result.data.preventiveQuality.renewalDecisionsD90).toMatchObject({ eligibleContracts: 1,
+      decidedContracts: 0, undecidedContracts: 1, percentage: 0 });
+    expect(result.data.preventiveQuality.registrationCompleteness).toMatchObject({ completeContracts: 1, percentage: 100 });
+    query.mockImplementation(async (sql, values) => sql === GET_MANAGER_PREVENTIVE_QUALITY
+      ? [{ ...qualityRow, vigencia_fim: '2027-01-01', eligible_d90: false }] : original(sql, values));
+    const withoutEligible = await composeManagerSummary(1, filters, repo, now);
+    expect(withoutEligible.data.preventiveQuality.renewalDecisionsD90).toMatchObject({ eligibleContracts: 0, percentage: null });
+    const past = await composeManagerSummary(1, { ...filters, dataReferencia: '2026-09-24' }, repo, now);
+    expect(past.data.preventiveQuality).toEqual({ renewalDecisionsD90: null, registrationCompleteness: null });
+    expect(past.meta.dataCoverage).toMatchObject({ renewalDecisionsD90: 'UNAVAILABLE', registrationCompleteness: 'UNAVAILABLE' });
+  });
+  it('sanitizes a preventive-quality SQL failure rather than returning zero', async () => {
+    const { repo, query } = fixture([assignment(1, '1')], [contract('1', '100')]);
+    const original = query.getMockImplementation()!;
+    query.mockImplementation(async (sql, values) => {
+      if (sql === GET_MANAGER_PREVENTIVE_QUALITY) throw new Error('private SQL detail');
+      return original(sql, values);
+    });
+    const handler = createManagerHandler({ authProvider: { authenticate: async () =>
+      ({ status: 'AUTHENTICATED', principal: { userId: 1 }, canAccessManagerView: true }) }, repository: repo, now });
+    const response = await handler({ rawQueryString: '', requestContext: { requestId: 'test' } } as any, {} as any, () => {});
+    expect(response).toMatchObject({ statusCode: 500 });
+    expect((response as { body: string }).body).not.toContain('private SQL detail');
+  });
+  it('validates physical preventive rows and avoids SQL for an empty authorized scope', async () => {
+    const query = vi.fn().mockResolvedValue([{ contract_id: '9007199254740992', objeto: 'Objeto',
+      valor_total: '0', data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01',
+      vigencia_fim: '2026-10-01', eligible_d90: true, intencao: null }]);
+    const repo = new PostgresManagerRepository({ query } as DbReader);
+    await expect(repo.preventiveQuality([], filters.dataReferencia)).resolves.toEqual([]);
+    expect(query).not.toHaveBeenCalled();
+    await expect(repo.preventiveQuality([1], filters.dataReferencia)).rejects.toThrow();
+    query.mockResolvedValue([{ contract_id: '1', objeto: 'Objeto', valor_total: 'invalid',
+      data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01', vigencia_fim: '2026-10-01',
+      eligible_d90: true, intencao: null }]);
+    await expect(repo.preventiveQuality([1], filters.dataReferencia)).rejects.toThrow('Invalid preventive quality row');
   });
 });

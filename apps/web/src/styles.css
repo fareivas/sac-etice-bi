@@ -97,6 +97,15 @@ button, input, select { font: inherit; }
 }
 
 .manager-kpis { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.manager-quality-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.manager-quality-grid article { min-width: 0; padding: 16px; background: var(--surface-subtle); border: 1px solid var(--border-soft); border-radius: 8px; }
+.manager-quality-grid h3 { margin: 0 0 10px; font-size: .9rem; }
+.manager-quality-grid strong { display: block; color: var(--color-accent); font-size: 1.25rem; margin-bottom: 12px; }
+.manager-quality-grid dl { margin: 0; display: grid; gap: 7px; }
+.manager-quality-grid dl > div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border-soft); padding-bottom: 6px; }
+.manager-quality-grid dt { color: var(--text-secondary); }
+.manager-quality-grid dd { margin: 0; font-weight: 700; }
+@media (max-width: 700px) { .manager-quality-grid { grid-template-columns: 1fr; } }
 .manager-fiscal-chart-wrap { margin: 12px 0 18px; }
 .manager-fiscal-chart-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-bottom: 8px; color: var(--text-secondary); font-size: .8rem; }
 .manager-fiscal-chart-legend span { display: inline-flex; align-items: center; gap: 7px; }

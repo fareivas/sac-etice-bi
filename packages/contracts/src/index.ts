@@ -240,6 +240,22 @@ export const managerContractAlertSchema = fiscalContractAlertSchema.extend({
 });
 // Same financial shape as Fiscal; authorization remains in each domain.
 export const managerContractBalanceSchema = fiscalContractBalanceSchema;
+const preventiveCountSchema = z.number().int().nonnegative().safe();
+const preventivePercentageSchema = z.number().finite().min(0).max(100).nullable();
+const renewalDecisionsD90Schema = z.strictObject({
+  eligibleContracts: preventiveCountSchema, decidedContracts: preventiveCountSchema,
+  extendContracts: preventiveCountSchema, nonRenewalContracts: preventiveCountSchema,
+  undecidedContracts: preventiveCountSchema, percentage: preventivePercentageSchema,
+});
+const registrationCompletenessSchema = z.strictObject({
+  activeContracts: preventiveCountSchema, completeContracts: preventiveCountSchema,
+  percentage: preventivePercentageSchema,
+  missingByField: z.strictObject({
+    objeto: preventiveCountSchema, valor_total: preventiveCountSchema,
+    data_assinatura: preventiveCountSchema, vigencia_inicio: preventiveCountSchema,
+    vigencia_fim: preventiveCountSchema,
+  }),
+});
 export const managerDashboardSummaryResponseSchema = z.strictObject({
   meta: z.strictObject({
     generatedAt: dateTimeSchema,
@@ -257,6 +273,8 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
       contractAlerts: managerCoverageSchema,
       contractBalances: managerCoverageSchema,
       itemBalances: managerCoverageSchema,
+      renewalDecisionsD90: managerCoverageSchema,
+      registrationCompleteness: managerCoverageSchema,
     }),
   }),
   data: z.strictObject({
@@ -272,6 +290,10 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
     contractAlerts: z.array(managerContractAlertSchema).nullable(),
     contractBalances: z.array(managerContractBalanceSchema).nullable(),
     itemBalances: fiscalItemBalancesSchema,
+    preventiveQuality: z.strictObject({
+      renewalDecisionsD90: renewalDecisionsD90Schema.nullable(),
+      registrationCompleteness: registrationCompletenessSchema.nullable(),
+    }),
   }),
 }).superRefine((response, context) => {
   const pairs = [
@@ -290,6 +312,36 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
   }
   if (response.meta.dataCoverage.itemBalances !== response.data.itemBalances.coverage) {
     context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', 'itemBalances'], message: 'Cobertura inconsistente' });
+  }
+  const quality = response.data.preventiveQuality;
+  for (const key of ['renewalDecisionsD90', 'registrationCompleteness'] as const) {
+    if ((quality[key] === null) !== (response.meta.dataCoverage[key] === 'UNAVAILABLE')) {
+      context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', key], message: 'Cobertura inconsistente' });
+    }
+  }
+  const decisions = quality.renewalDecisionsD90;
+  if (decisions !== null) {
+    const denominator = decisions.eligibleContracts;
+    const expected = denominator === 0 ? null : decisions.decidedContracts / denominator * 100;
+    if (decisions.decidedContracts !== decisions.extendContracts + decisions.nonRenewalContracts ||
+        denominator !== decisions.decidedContracts + decisions.undecidedContracts ||
+        (expected === null ? decisions.percentage !== null
+          : decisions.percentage === null || Math.abs(decisions.percentage - expected) > 1e-9)) {
+      context.addIssue({ code: 'custom', path: ['data', 'preventiveQuality', 'renewalDecisionsD90'], message: 'Contagens ou percentual inconsistentes' });
+    }
+  }
+  const registration = quality.registrationCompleteness;
+  if (registration !== null) {
+    const denominator = registration.activeContracts;
+    const expected = denominator === 0 ? null : registration.completeContracts / denominator * 100;
+    const missing = Object.values(registration.missingByField);
+    const incomplete = denominator - registration.completeContracts;
+    if (registration.completeContracts > denominator ||
+        missing.some(value => value > incomplete) || missing.reduce((sum, value) => sum + value, 0) < incomplete ||
+        (expected === null ? registration.percentage !== null
+          : registration.percentage === null || Math.abs(registration.percentage - expected) > 1e-9)) {
+      context.addIssue({ code: 'custom', path: ['data', 'preventiveQuality', 'registrationCompleteness'], message: 'Contagens ou percentual inconsistentes' });
+    }
   }
   for (const [key, value] of pairs) {
     if ((value === null) !== (response.meta.dataCoverage[key] === 'UNAVAILABLE')) {

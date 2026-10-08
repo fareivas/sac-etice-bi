@@ -29,3 +29,17 @@ FROM contratos.contrato c
 LEFT JOIN contratos.vw_saldo_contrato s ON s.contrato_id = c.id
 WHERE c.id = ANY($1::bigint[]) AND c.status = 'vigente'
 ORDER BY c.id`;
+
+export const GET_MANAGER_PREVENTIVE_QUALITY = `
+SELECT c.id::text AS contract_id, c.objeto AS objeto,
+       c.valor_total::text AS valor_total,
+       c.data_assinatura::date::text AS data_assinatura,
+       c.vigencia_inicio::date::text AS vigencia_inicio,
+       c.vigencia_fim::date::text AS vigencia_fim,
+       c.vigencia_fim::date BETWEEN $2::date AND ($2::date + 90) AS eligible_d90,
+       i.intencao AS intencao
+FROM contratos.contrato c
+LEFT JOIN contratos.intencao_vigencia i
+  ON i.contrato_id = c.id AND i.vigencia_fim = c.vigencia_fim::date
+WHERE c.id = ANY($1::bigint[]) AND c.status = 'vigente'
+ORDER BY c.id`;

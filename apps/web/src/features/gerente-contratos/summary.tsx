@@ -99,6 +99,33 @@ export function ManagerDashboardView({ state }: { state: State }) {
         </section>
         {summary.data.cards.activeContracts === 0 && <p className="empty-contracts" role="status">Nenhum contrato vigente na carteira.</p>}
         {summary.meta.dataCoverage.activePortfolioValue === 'UNAVAILABLE' && <p className="coverage-note" role="status">Valor total indisponível: há valor contratual ausente ou a fotografia histórica não pode ser reconstruída.</p>}
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Qualidade Preventiva da Gestão</h2><p>Decisões de vigência na janela D-90 e preenchimento cadastral dos contratos vigentes.</p></div>
+          <div className="manager-quality-grid">
+            <article><h3>Decisões de vigência D-90</h3>
+              {summary.meta.dataCoverage.renewalDecisionsD90 === 'UNAVAILABLE' || summary.data.preventiveQuality.renewalDecisionsD90 === null
+                ? <p role="status">Fonte indisponível para esta referência.</p>
+                : <><strong>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts === 0 ? 'Sem população elegível' : percentage(summary.data.preventiveQuality.renewalDecisionsD90.percentage)}</strong>
+                  <dl><div><dt>Elegíveis</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts}</dd></div>
+                    <div><dt>Decididos</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.decidedContracts}</dd></div>
+                    <div><dt>Prorrogar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.extendContracts}</dd></div>
+                    <div><dt>Não renovar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.nonRenewalContracts}</dd></div>
+                    <div><dt>Sem decisão</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.undecidedContracts}</dd></div></dl></>}
+            </article>
+            <article><h3>Preenchimento cadastral</h3>
+              {summary.meta.dataCoverage.registrationCompleteness === 'UNAVAILABLE' || summary.data.preventiveQuality.registrationCompleteness === null
+                ? <p role="status">Fonte indisponível para esta referência.</p>
+                : <><strong>{summary.data.preventiveQuality.registrationCompleteness.activeContracts === 0 ? 'Sem contratos vigentes' : percentage(summary.data.preventiveQuality.registrationCompleteness.percentage)}</strong>
+                  <dl><div><dt>Completos</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.completeContracts}</dd></div>
+                    <div><dt>Vigentes</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.activeContracts}</dd></div>
+                    <div><dt>Sem objeto</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.objeto}</dd></div>
+                    <div><dt>Sem valor total</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.valor_total}</dd></div>
+                    <div><dt>Sem data de assinatura</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.data_assinatura}</dd></div>
+                    <div><dt>Sem início da vigência</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.vigencia_inicio}</dd></div>
+                    <div><dt>Sem fim da vigência</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.vigencia_fim}</dd></div></dl></>}
+            </article>
+          </div>
+          <p className="source-note">Preenchimento cadastral indica presença dos campos; intenção de prorrogar não significa prorrogação concluída.</p>
+        </section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Alertas contratuais</h2><p>Pendências abertas ou em tratamento dos contratos vigentes da carteira.</p></div>
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Tipo</th><th>Estado</th><th>Descrição</th><th>Vencimento contratual</th></tr></thead><tbody>
             {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts?.length ? summary.data.contractAlerts.map(alert => <tr key={alert.alertId}>

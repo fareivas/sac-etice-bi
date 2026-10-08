@@ -304,8 +304,8 @@ describe('manager contractual alerts and balances', () => {
   const alert = { alertId: 206, contractId: 41, contractNumber: null, type: 'outro_tipo', status: 'em_tratamento', description: null, expiryDate: null, createdAt: '2026-10-01T12:00:00Z' };
   const balance = { contractId: 41, contractNumber: null, contractedValue: 200, consumedValue: 50, balanceValue: 150, balancePct: 75 };
   const response = {
-    meta: { generatedAt: '2026-10-08T12:00:00Z', dataReference: '2026-10-08', timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: [] }, dataCoverage: { portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE' } },
-    data: { manager: { userId: 17, name: null }, cards: { activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 }, contracts: [], expiringContractList: [], contractAlerts: [alert], contractBalances: [balance], itemBalances: { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: .6, limiar_critico: .1 }, resumo: { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 }, agregados: { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0, itemCount: 0, completeValueRows: 0, contractedValueRows: 0, committedBalanceRows: 0, measuredBalanceRows: 0 }, itens: [] } },
+    meta: { generatedAt: '2026-10-08T12:00:00Z', dataReference: '2026-10-08', timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: [] }, dataCoverage: { portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE', renewalDecisionsD90: 'AVAILABLE', registrationCompleteness: 'AVAILABLE' } },
+    data: { manager: { userId: 17, name: null }, cards: { activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 }, contracts: [], expiringContractList: [], contractAlerts: [alert], contractBalances: [balance], preventiveQuality: { renewalDecisionsD90: { eligibleContracts: 0, decidedContracts: 0, extendContracts: 0, nonRenewalContracts: 0, undecidedContracts: 0, percentage: null }, registrationCompleteness: { activeContracts: 0, completeContracts: 0, percentage: null, missingByField: { objeto: 0, valor_total: 0, data_assinatura: 0, vigencia_inicio: 0, vigencia_fim: 0 } } }, itemBalances: { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: .6, limiar_critico: .1 }, resumo: { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 }, agregados: { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0, itemCount: 0, completeValueRows: 0, contractedValueRows: 0, committedBalanceRows: 0, measuredBalanceRows: 0 }, itens: [] } },
   };
   it('accepts approved shapes and rejects invalid dates, resolved status, unsafe IDs and financial values', () => {
     expect(managerDashboardSummaryResponseSchema.safeParse(response).success).toBe(true);
@@ -339,5 +339,39 @@ describe('manager contractual alerts and balances', () => {
     withItem.data.itemBalances.agregados.itemCount = 1;
     withItem.data.itemBalances.resumo.adequado = 1;
     expect(managerDashboardSummaryResponseSchema.safeParse(withItem).success).toBe(true);
+  });
+  it('validates preventive counts, percentages, zero denominators and independent coverage', () => {
+    const available = { ...response, data: { ...response.data, preventiveQuality: {
+      renewalDecisionsD90: { eligibleContracts: 3, decidedContracts: 2, extendContracts: 1,
+        nonRenewalContracts: 1, undecidedContracts: 1, percentage: 2 / 3 * 100 },
+      registrationCompleteness: { activeContracts: 3, completeContracts: 1, percentage: 1 / 3 * 100,
+        missingByField: { objeto: 1, valor_total: 1, data_assinatura: 0, vigencia_inicio: 0, vigencia_fim: 0 } },
+    } } };
+    expect(managerDashboardSummaryResponseSchema.safeParse(available).success).toBe(true);
+    expect(managerDashboardSummaryResponseSchema.safeParse({ ...available, data: { ...available.data,
+      preventiveQuality: { ...available.data.preventiveQuality, renewalDecisionsD90: null } } }).success).toBe(false);
+    const oneUnavailable = { ...available, meta: { ...available.meta, dataCoverage: {
+      ...available.meta.dataCoverage, renewalDecisionsD90: 'UNAVAILABLE' } }, data: { ...available.data,
+      preventiveQuality: { ...available.data.preventiveQuality, renewalDecisionsD90: null } } };
+    expect(managerDashboardSummaryResponseSchema.safeParse(oneUnavailable).success).toBe(true);
+    for (const invalid of [
+      { ...available.data.preventiveQuality.renewalDecisionsD90, decidedContracts: 3 },
+      { ...available.data.preventiveQuality.renewalDecisionsD90, undecidedContracts: 0 },
+      { ...available.data.preventiveQuality.renewalDecisionsD90, percentage: 67 },
+      { ...available.data.preventiveQuality.renewalDecisionsD90, percentage: 101 },
+      { ...available.data.preventiveQuality.renewalDecisionsD90, eligibleContracts: 0, decidedContracts: 0,
+        extendContracts: 0, nonRenewalContracts: 0, undecidedContracts: 0, percentage: 0 },
+    ]) expect(managerDashboardSummaryResponseSchema.safeParse({ ...available, data: { ...available.data,
+      preventiveQuality: { ...available.data.preventiveQuality, renewalDecisionsD90: invalid } } }).success).toBe(false);
+    for (const invalid of [
+      { ...available.data.preventiveQuality.registrationCompleteness, completeContracts: 4 },
+      { ...available.data.preventiveQuality.registrationCompleteness, percentage: 33 },
+      { ...available.data.preventiveQuality.registrationCompleteness,
+        missingByField: { ...available.data.preventiveQuality.registrationCompleteness.missingByField, objeto: 3 } },
+      { ...available.data.preventiveQuality.registrationCompleteness, activeContracts: 0,
+        completeContracts: 0, percentage: 0, missingByField: { objeto: 0, valor_total: 0,
+          data_assinatura: 0, vigencia_inicio: 0, vigencia_fim: 0 } },
+    ]) expect(managerDashboardSummaryResponseSchema.safeParse({ ...available, data: { ...available.data,
+      preventiveQuality: { ...available.data.preventiveQuality, registrationCompleteness: invalid } } }).success).toBe(false);
   });
 });

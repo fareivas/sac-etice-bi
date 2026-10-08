@@ -12,10 +12,14 @@ const base: ManagerDashboardSummaryResponse = {
   meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25', timezone: 'America/Fortaleza',
     source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: [] },
     dataCoverage: { portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE',
-      expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE' } },
+      expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE', renewalDecisionsD90: 'AVAILABLE', registrationCompleteness: 'AVAILABLE' } },
   data: { manager: { userId: 1, name: 'Gestora' },
     cards: { activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 },
     contracts: [], expiringContractList: [], contractAlerts: [], contractBalances: [],
+    preventiveQuality: { renewalDecisionsD90: { eligibleContracts: 0, decidedContracts: 0, extendContracts: 0,
+      nonRenewalContracts: 0, undecidedContracts: 0, percentage: null },
+      registrationCompleteness: { activeContracts: 0, completeContracts: 0, percentage: null,
+        missingByField: { objeto: 0, valor_total: 0, data_assinatura: 0, vigencia_inicio: 0, vigencia_fim: 0 } } },
     itemBalances: { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: .6, limiar_critico: .1 },
       resumo: { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 },
       agregados: { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0, itemCount: 0, completeValueRows: 0,
@@ -203,6 +207,43 @@ it('distinguishes empty lists from unavailable coverage and omits the chart in b
   expect(html).not.toContain('Nenhum alerta contratual');
   expect(html).not.toContain('Nenhum saldo contratual');
   expect(html).not.toContain('<svg');
+});
+
+it('renders preventive quality values without rounding the API counts or treating intention as completion', () => {
+  const summary = structuredClone(base);
+  summary.data.preventiveQuality = {
+    renewalDecisionsD90: { eligibleContracts: 3, decidedContracts: 2, extendContracts: 1,
+      nonRenewalContracts: 1, undecidedContracts: 1, percentage: 2 / 3 * 100 },
+    registrationCompleteness: { activeContracts: 3, completeContracts: 1, percentage: 1 / 3 * 100,
+      missingByField: { objeto: 1, valor_total: 1, data_assinatura: 1, vigencia_inicio: 0, vigencia_fim: 0 } },
+  };
+  const html = render(summary).replaceAll('\u00a0', ' ');
+  const section = html.match(/Qualidade Preventiva da Gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  expect(section).toContain('66,67%');
+  expect(section).toContain('33,33%');
+  for (const label of ['Elegíveis', 'Decididos', 'Prorrogar', 'Não renovar', 'Sem decisão',
+    'Completos', 'Vigentes', 'Sem objeto', 'Sem valor total', 'Sem data de assinatura',
+    'Sem início da vigência', 'Sem fim da vigência']) expect(section).toContain(label);
+  expect(section).toContain('intenção de prorrogar não significa prorrogação concluída');
+  expect(html.indexOf('Qualidade Preventiva da Gestão')).toBeLessThan(html.indexOf('Alertas contratuais'));
+  expect(html).toContain('Gestão dos Saldos dos Itens Contratuais');
+});
+
+it('distinguishes empty populations, independent unavailable coverage and main loading error', () => {
+  const empty = render(base);
+  expect(empty).toContain('Sem população elegível');
+  expect(empty).toContain('Sem contratos vigentes');
+  const unavailable = structuredClone(base);
+  unavailable.meta.dataCoverage.renewalDecisionsD90 = 'UNAVAILABLE';
+  unavailable.data.preventiveQuality.renewalDecisionsD90 = null;
+  const html = render(unavailable);
+  const section = html.match(/Qualidade Preventiva da Gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  expect(section).toContain('Fonte indisponível para esta referência');
+  expect(section).toContain('Sem contratos vigentes');
+  expect(section).not.toContain('Sem população elegível');
+  const loadingError = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'error', message: 'HTTP 500' }} />);
+  expect(loadingError).toContain('Erro ao carregar o resumo');
+  expect(loadingError).not.toContain('Qualidade Preventiva da Gestão');
 });
 
 function item(id: number, contractId: number, supplierName: string | null, faixa: 'adequado' | 'critico' | 'nao_verificavel', overrides: Record<string, unknown> = {}) {

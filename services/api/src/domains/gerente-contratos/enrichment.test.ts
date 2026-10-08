@@ -4,6 +4,7 @@ import { PostgresManagerRepository } from './repository';
 import { composeManagerSummary } from './service';
 import { createManagerHandler } from './handler';
 import { GET_MANAGER_CONTRACT_ALERTS, GET_MANAGER_CONTRACT_BALANCES, GET_MANAGER_SCOPE, GET_MANAGER_IDENTITY, GET_MANAGER_ACTIVE_CONTRACTS } from './queries';
+import { GET_MANAGER_PREVENTIVE_QUALITY } from './queries';
 import { GET_CURRENT_ITEM_BALANCES } from '../../shared/item-balance-query';
 
 const now = () => new Date('2026-10-08T12:00:00Z');
@@ -18,6 +19,9 @@ function fixture() {
     if (sql === GET_MANAGER_ACTIVE_CONTRACTS) return [{ contract_id: '41', contract_number: 'CT-41', supplier_name: null, value: '999', expiry_date: '2026-10-20', expires_within_120_days: true }];
     if (sql === GET_MANAGER_CONTRACT_ALERTS) return alerts.filter(a => (values![0] as number[]).includes(Number(a.contract_id)) && ['aberta', 'em_tratamento'].includes(a.status));
     if (sql === GET_MANAGER_CONTRACT_BALANCES) return [balance()];
+    if (sql === GET_MANAGER_PREVENTIVE_QUALITY) return [{ contract_id: '41', objeto: 'Objeto', valor_total: '999',
+      data_assinatura: '2026-01-01', vigencia_inicio: '2026-01-01', vigencia_fim: '2026-10-20',
+      eligible_d90: true, intencao: null }];
     if (sql === GET_CURRENT_ITEM_BALANCES) return [];
     throw new Error('Unexpected SQL');
   });

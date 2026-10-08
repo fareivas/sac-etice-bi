@@ -195,3 +195,41 @@ derruba o resumo principal. Durante a carga conjunta permanece o estado de
 carregamento. Capacidade, carga ponderada, criticidade, ranking, ações
 concluídas no prazo, ações vencidas e recomendações de intervenção seguem
 indisponíveis; não há cálculo de sobrecarga.
+
+## DEC-GC-029 — Qualidade Preventiva da Gestão
+
+**Status:** APROVADA para o resumo gerencial atual.
+
+`GET /api/v1/gerentes-contrato/me/dashboard/resumo` inclui
+`data.preventiveQuality.renewalDecisionsD90` e
+`data.preventiveQuality.registrationCompleteness`, cada um com cobertura
+independente em `meta.dataCoverage`. A população é limitada aos contratos
+`vigente` da carteira resolvida por designação ativa de `gestor`; o filtro
+`contratoId` somente restringe esse escopo e IDs externos geram
+`FORBIDDEN_SCOPE`.
+
+**Decisões D-90:** contratos com `vigencia_fim` entre `dataReferencia` e
+`dataReferencia + 90 dias`, inclusive. A fonte da decisão é
+`contratos.intencao_vigencia`, vinculada por `contrato_id` e pela mesma
+`vigencia_fim` corrente. Apenas `prorrogar` e `nao_renovar` contam como
+decididos; `ciente` e ausência de intenção não contam. `decidedContracts`
+é a soma dessas duas intenções, `undecidedContracts` é elegíveis menos
+decididos, e `percentage` é decididos/elegíveis × 100. Denominador zero
+produz percentual `null`. Intenção de prorrogar não comprova prorrogação.
+
+**Preenchimento cadastral:** todos os contratos vigentes do recorte.
+`completeContracts` exige `objeto` não vazio após trim, `valor_total`
+não nulo (zero é preenchido), `data_assinatura`, `vigencia_inicio` e
+`vigencia_fim` não nulos. `missingByField` conta as ausências de cada
+campo, e `percentage` é completos/vigentes × 100, ou `null` se a
+população for vazia. Isso mede presença cadastral, não conformidade ou
+validade do conteúdo.
+
+Para a data atual, carteira vazia gera contagens zero e percentuais `null`
+com cobertura `AVAILABLE`. Contrato sem fim de vigência entra no
+preenchimento e fica fora do D-90. Data histórica não reconstruível gera
+ambos os indicadores `null/UNAVAILABLE`, sem consultar fotografia atual.
+Falha SQL conserva HTTP 500 sanitizado. Percentuais são calculados sem
+arredondamento intermediário e formatados apenas na tela. Ações no prazo,
+medições, previsibilidade e radar de cinco dimensões permanecem sem
+métricas aprovadas.

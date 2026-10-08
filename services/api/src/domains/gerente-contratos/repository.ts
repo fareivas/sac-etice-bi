@@ -1,7 +1,7 @@
 import type { ManagerDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { createApiError } from '../../shared/errors/index';
 import { safeBigintId, type DbReader } from '../../shared/db/index';
-import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE, GET_MANAGER_CONTRACT_ALERTS, GET_MANAGER_CONTRACT_BALANCES } from './queries';
+import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE, GET_MANAGER_CONTRACT_ALERTS, GET_MANAGER_CONTRACT_BALANCES, GET_MANAGER_PREVENTIVE_QUALITY } from './queries';
 import { GET_MANAGER_FISCAL_LOAD } from './carga-queries';
 import { GET_MANAGER_SUPPLIER_CONTRACTS } from './fornecedores-queries';
 import { readCurrentItemBalances } from '../../shared/item-balance-reader';
@@ -18,6 +18,16 @@ function moneyValue(raw: string | null): number | null {
 interface IdentityRow { id: string | bigint; nome: string; ativo: boolean }
 interface ScopeRow { contrato_id: string | bigint }
 interface ContractRow { contract_id: string | bigint; contract_number: string | null; supplier_name: string | null; value: string | null; expiry_date: string | null; expires_within_120_days: boolean | null }
+export interface PreventiveQualityRow {
+  contractId: number; objeto: string | null; valorTotal: string | null;
+  dataAssinatura: string | null; vigenciaInicio: string | null; vigenciaFim: string | null;
+  eligibleD90: boolean; intencao: string | null;
+}
+interface PreventiveQualityDbRow {
+  contract_id: string | bigint; objeto: string | null; valor_total: string | null;
+  data_assinatura: string | null; vigencia_inicio: string | null; vigencia_fim: string | null;
+  eligible_d90: boolean | null; intencao: string | null;
+}
 export class PostgresManagerRepository {
   constructor(private readonly db: DbReader) {}
   async identity(userId: number) {
@@ -35,6 +45,24 @@ export class PostgresManagerRepository {
   }
   async itemBalances(ids: readonly number[]): Promise<RawBalanceItem[]> {
     return readCurrentItemBalances(this.db, ids);
+  }
+  async preventiveQuality(ids: readonly number[], dataReference: string): Promise<PreventiveQualityRow[]> {
+    if (!ids.length) return [];
+    const rows = await this.db.query<PreventiveQualityDbRow>(GET_MANAGER_PREVENTIVE_QUALITY, [ids, dataReference]);
+    return rows.map(row => {
+      if ((typeof row.objeto !== 'string' && row.objeto !== null) ||
+          (typeof row.eligible_d90 !== 'boolean' && !(row.vigencia_fim === null && row.eligible_d90 === null)) ||
+          (typeof row.intencao !== 'string' && row.intencao !== null) ||
+          (row.valor_total !== null && (typeof row.valor_total !== 'string' || !/^-?\d+(?:\.\d+)?$/.test(row.valor_total))) ||
+          [row.data_assinatura, row.vigencia_inicio, row.vigencia_fim].some(value =>
+            value !== null && (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)))) {
+        throw new TypeError('Invalid preventive quality row');
+      }
+      return { contractId: safeBigintId(row.contract_id), objeto: row.objeto,
+        valorTotal: row.valor_total, dataAssinatura: row.data_assinatura,
+        vigenciaInicio: row.vigencia_inicio, vigenciaFim: row.vigencia_fim,
+        eligibleD90: row.eligible_d90 === true, intencao: row.intencao };
+    });
   }
   async supplierContracts(ids: readonly number[]) {
     if (!ids.length) return [];
