@@ -197,7 +197,7 @@ it('distinguishes empty lists from unavailable coverage and omits the chart in b
   const empty = render(base);
   expect(empty).toContain('Nenhum alerta contratual no recorte');
   expect(empty).toContain('Nenhum saldo contratual no recorte');
-  expect(empty).not.toContain('<svg');
+  expect(empty.match(/Distribuição financeira por contrato[\s\S]*?<\/section>/)?.[0]).not.toContain('<svg');
   const unavailable: ManagerDashboardSummaryResponse = { ...base,
     meta: { ...base.meta, dataCoverage: { ...base.meta.dataCoverage, contractAlerts: 'UNAVAILABLE', contractBalances: 'UNAVAILABLE' } },
     data: { ...base.data, contractAlerts: null, contractBalances: null } };
@@ -206,7 +206,7 @@ it('distinguishes empty lists from unavailable coverage and omits the chart in b
   expect(html).toMatch(/Saldos da carteira[\s\S]*?Indisponível[\s\S]*?<\/section>/);
   expect(html).not.toContain('Nenhum alerta contratual');
   expect(html).not.toContain('Nenhum saldo contratual');
-  expect(html).not.toContain('<svg');
+  expect(html.match(/Distribuição financeira por contrato[\s\S]*?<\/section>/)?.[0]).not.toContain('<svg');
 });
 
 it('renders preventive quality values without rounding the API counts or treating intention as completion', () => {
@@ -218,14 +218,29 @@ it('renders preventive quality values without rounding the API counts or treatin
       missingByField: { objeto: 1, valor_total: 1, data_assinatura: 1, vigencia_inicio: 0, vigencia_fim: 0 } },
   };
   const html = render(summary).replaceAll('\u00a0', ' ');
-  const section = html.match(/Qualidade Preventiva da Gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const section = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
   expect(section).toContain('66,67%');
   expect(section).toContain('33,33%');
-  for (const label of ['Elegíveis', 'Decididos', 'Prorrogar', 'Não renovar', 'Sem decisão',
-    'Completos', 'Vigentes', 'Sem objeto', 'Sem valor total', 'Sem data de assinatura',
+  expect(section).toContain('Mede a disciplina operacional antes da materialização dos riscos.');
+  expect(section).toContain('data-quality-ring="Dados completos"');
+  expect(section).toContain('data-quality-ring="Decisões D-90"');
+  expect(section.indexOf('data-quality-ring="Dados completos"')).toBeLessThan(section.indexOf('data-quality-ring="Decisões D-90"'));
+  const detailCards = section.match(/<div class="manager-quality-grid">([\s\S]*?)<\/div><p class="source-note">/)?.[1] ?? '';
+  expect(detailCards.indexOf('<h3>Dados completos</h3>')).toBeLessThan(detailCards.indexOf('<h3>Decisões D-90</h3>'));
+  expect(detailCards).not.toMatch(/\d+(?:,\d+)?%/);
+  expect(section.match(/66,67%/g)).toHaveLength(1);
+  expect(section.match(/33,33%/g)).toHaveLength(1);
+  expect(section.match(/manager-quality-ring-progress/g)).toHaveLength(2);
+  const arcs = [...section.matchAll(/stroke-dasharray="([\d.]+) ([\d.]+)"/g)];
+  expect(arcs).toHaveLength(2);
+  expect(Number(arcs[0][1]) / Number(arcs[0][2])).toBeCloseTo(1 / 3);
+  expect(Number(arcs[1][1]) / Number(arcs[1][2])).toBeCloseTo(2 / 3);
+  for (const label of ['Contratos elegíveis', 'Contratos decididos', 'Intenções de prorrogar', 'Intenções de não renovar', 'Contratos sem decisão',
+    'Contratos completos', 'Contratos vigentes', 'Sem objeto', 'Sem valor total', 'Sem data de assinatura',
     'Sem início da vigência', 'Sem fim da vigência']) expect(section).toContain(label);
+  for (const value of ['>3</dd>', '>2</dd>', '>1</dd>', '>0</dd>']) expect(section).toContain(value);
   expect(section).toContain('intenção de prorrogar não significa prorrogação concluída');
-  expect(html.indexOf('Qualidade Preventiva da Gestão')).toBeLessThan(html.indexOf('Alertas contratuais'));
+  expect(html.indexOf('Qualidade preventiva da gestão')).toBeLessThan(html.indexOf('Alertas contratuais'));
   expect(html).toContain('Gestão dos Saldos dos Itens Contratuais');
 });
 
@@ -233,17 +248,21 @@ it('distinguishes empty populations, independent unavailable coverage and main l
   const empty = render(base);
   expect(empty).toContain('Sem população elegível');
   expect(empty).toContain('Sem contratos vigentes');
+  expect(empty).not.toContain('manager-quality-ring-progress');
+  expect(empty).not.toContain('>0%</strong>');
   const unavailable = structuredClone(base);
   unavailable.meta.dataCoverage.renewalDecisionsD90 = 'UNAVAILABLE';
   unavailable.data.preventiveQuality.renewalDecisionsD90 = null;
   const html = render(unavailable);
-  const section = html.match(/Qualidade Preventiva da Gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const section = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
   expect(section).toContain('Fonte indisponível para esta referência');
   expect(section).toContain('Sem contratos vigentes');
   expect(section).not.toContain('Sem população elegível');
+  expect(section).not.toContain('manager-quality-ring-progress');
+  expect(section).not.toContain('0%');
   const loadingError = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'error', message: 'HTTP 500' }} />);
   expect(loadingError).toContain('Erro ao carregar o resumo');
-  expect(loadingError).not.toContain('Qualidade Preventiva da Gestão');
+  expect(loadingError).not.toContain('Qualidade preventiva da gestão');
 });
 
 function item(id: number, contractId: number, supplierName: string | null, faixa: 'adequado' | 'critico' | 'nao_verificavel', overrides: Record<string, unknown> = {}) {

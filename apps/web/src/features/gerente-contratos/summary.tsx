@@ -13,6 +13,19 @@ const count = (value: number | null) => value === null ? 'Indisponível' : Strin
 const currency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const percentage = (value: number | null) => value === null ? 'Indisponível' : `${money(value)}%`;
 
+function QualityRing({ label, value }: { label: string; value: number | null }) {
+  const circumference = 2 * Math.PI * 42;
+  return <div className="manager-quality-ring">
+    <svg viewBox="0 0 120 120" aria-hidden="true" focusable="false" data-quality-ring={label}>
+      <circle className="manager-quality-ring-track" cx="60" cy="60" r="42" />
+      {value !== null && <circle className="manager-quality-ring-progress" cx="60" cy="60" r="42"
+        strokeDasharray={`${circumference * value / 100} ${circumference}`} />}
+    </svg>
+    <span className="manager-quality-ring-label">{label}</span>
+    <strong>{value === null ? '—' : percentage(value)}</strong>
+  </div>;
+}
+
 export function PortfolioFinancialChart({ balances }: { balances: NonNullable<ManagerDashboardSummaryResponse['data']['contractBalances']> }) {
   const values = balances.flatMap(item => [item.contractedValue, item.consumedValue, item.balanceValue]);
   const min = Math.min(0, ...values);
@@ -99,29 +112,35 @@ export function ManagerDashboardView({ state }: { state: State }) {
         </section>
         {summary.data.cards.activeContracts === 0 && <p className="empty-contracts" role="status">Nenhum contrato vigente na carteira.</p>}
         {summary.meta.dataCoverage.activePortfolioValue === 'UNAVAILABLE' && <p className="coverage-note" role="status">Valor total indisponível: há valor contratual ausente ou a fotografia histórica não pode ser reconstruída.</p>}
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Qualidade Preventiva da Gestão</h2><p>Decisões de vigência na janela D-90 e preenchimento cadastral dos contratos vigentes.</p></div>
+        <section className="fiscal-panel manager-quality-panel"><div className="panel-heading"><h2>Qualidade preventiva da gestão</h2><p>Mede a disciplina operacional antes da materialização dos riscos.</p></div>
+          <div className="manager-quality-visual">
+            <QualityRing label="Dados completos" value={summary.meta.dataCoverage.registrationCompleteness === 'AVAILABLE'
+              ? summary.data.preventiveQuality.registrationCompleteness?.percentage ?? null : null} />
+            <QualityRing label="Decisões D-90" value={summary.meta.dataCoverage.renewalDecisionsD90 === 'AVAILABLE'
+              ? summary.data.preventiveQuality.renewalDecisionsD90?.percentage ?? null : null} />
+          </div>
           <div className="manager-quality-grid">
-            <article><h3>Decisões de vigência D-90</h3>
-              {summary.meta.dataCoverage.renewalDecisionsD90 === 'UNAVAILABLE' || summary.data.preventiveQuality.renewalDecisionsD90 === null
-                ? <p role="status">Fonte indisponível para esta referência.</p>
-                : <><strong>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts === 0 ? 'Sem população elegível' : percentage(summary.data.preventiveQuality.renewalDecisionsD90.percentage)}</strong>
-                  <dl><div><dt>Elegíveis</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts}</dd></div>
-                    <div><dt>Decididos</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.decidedContracts}</dd></div>
-                    <div><dt>Prorrogar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.extendContracts}</dd></div>
-                    <div><dt>Não renovar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.nonRenewalContracts}</dd></div>
-                    <div><dt>Sem decisão</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.undecidedContracts}</dd></div></dl></>}
-            </article>
-            <article><h3>Preenchimento cadastral</h3>
+            <article><h3>Dados completos</h3>
               {summary.meta.dataCoverage.registrationCompleteness === 'UNAVAILABLE' || summary.data.preventiveQuality.registrationCompleteness === null
                 ? <p role="status">Fonte indisponível para esta referência.</p>
-                : <><strong>{summary.data.preventiveQuality.registrationCompleteness.activeContracts === 0 ? 'Sem contratos vigentes' : percentage(summary.data.preventiveQuality.registrationCompleteness.percentage)}</strong>
-                  <dl><div><dt>Completos</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.completeContracts}</dd></div>
-                    <div><dt>Vigentes</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.activeContracts}</dd></div>
+                : <>{summary.data.preventiveQuality.registrationCompleteness.activeContracts === 0 && <p role="status">Sem contratos vigentes</p>}
+                  <dl><div><dt>Contratos vigentes</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.activeContracts}</dd></div>
+                    <div><dt>Contratos completos</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.completeContracts}</dd></div>
                     <div><dt>Sem objeto</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.objeto}</dd></div>
                     <div><dt>Sem valor total</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.valor_total}</dd></div>
                     <div><dt>Sem data de assinatura</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.data_assinatura}</dd></div>
                     <div><dt>Sem início da vigência</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.vigencia_inicio}</dd></div>
                     <div><dt>Sem fim da vigência</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.vigencia_fim}</dd></div></dl></>}
+            </article>
+            <article><h3>Decisões D-90</h3>
+              {summary.meta.dataCoverage.renewalDecisionsD90 === 'UNAVAILABLE' || summary.data.preventiveQuality.renewalDecisionsD90 === null
+                ? <p role="status">Fonte indisponível para esta referência.</p>
+                : <>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts === 0 && <p role="status">Sem população elegível</p>}
+                  <dl><div><dt>Contratos elegíveis</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts}</dd></div>
+                    <div><dt>Contratos decididos</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.decidedContracts}</dd></div>
+                    <div><dt>Intenções de prorrogar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.extendContracts}</dd></div>
+                    <div><dt>Intenções de não renovar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.nonRenewalContracts}</dd></div>
+                    <div><dt>Contratos sem decisão</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.undecidedContracts}</dd></div></dl></>}
             </article>
           </div>
           <p className="source-note">Preenchimento cadastral indica presença dos campos; intenção de prorrogar não significa prorrogação concluída.</p>
