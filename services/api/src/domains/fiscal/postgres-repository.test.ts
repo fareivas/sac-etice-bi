@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbReader } from '../../shared/db/index';
 import { ApiError } from '../../shared/errors/index';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES } from './queries';
 import { PostgresFiscalSummaryRepository } from './postgres-repository';
 
 function repository(rows: unknown[]) {
@@ -170,5 +170,52 @@ describe('PostgresFiscalSummaryRepository', () => {
     for (const operation of [repo.getCriticalItems(query), repo.getOverdueActions(query)]) {
       await expect(operation).resolves.toEqual({ coverage: 'UNAVAILABLE' });
     }
+  });
+});
+
+describe('Fiscal current contracts and balances', () => {
+  const now = () => new Date('2026-10-08T12:00:00Z');
+  const context = { authenticatedUserId: 17, filters: { dataReferencia: '2026-10-08', timezone: 'America/Fortaleza', unidadeId: null, contratoId: [23], includeExternal: false } };
+  const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 23, integrationUuid: null }] };
+  const request = { context, scope };
+
+  it('maps current contract and nullable supplier from the already restricted scope', async () => {
+    const query = vi.fn().mockResolvedValue([{ contract_id: '23', contract_number: 'CT-EXEMPLO', supplier_name: null, value: '75000.00', expiry_date: '2027-01-20' }]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, now);
+    await expect(repo.getContracts(request)).resolves.toEqual({ coverage: 'AVAILABLE', items: [{ contractId: 23, contractNumber: 'CT-EXEMPLO', supplierName: null, value: 75000, expiryDate: '2027-01-20' }] });
+    expect(query).toHaveBeenCalledWith(GET_CURRENT_FISCAL_CONTRACTS, [[23]]);
+    expect(GET_CURRENT_FISCAL_CONTRACTS).toContain("c.status = 'vigente'");
+    expect(GET_CURRENT_FISCAL_CONTRACTS).toContain('LEFT JOIN fornecedores.fornecedor');
+  });
+
+  it.each([
+    ['75000', '0', '75000', 100],
+    ['75000', '15000', '60000', 80],
+    ['0', '0', '0', null],
+    ['-1', '0', '-1', null],
+  ])('maps view amounts %s/%s/%s and safely computes percentage', async (contracted, consumed, balance, percent) => {
+    const query = vi.fn().mockResolvedValue([{ contract_id: '23', contract_number: 'CT-EXEMPLO', contracted_value: contracted, consumed_value: consumed, balance_value: balance }]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, now);
+    await expect(repo.getContractBalances(request)).resolves.toEqual({ coverage: 'AVAILABLE', items: [{ contractId: 23, contractNumber: 'CT-EXEMPLO', contractedValue: Number(contracted), consumedValue: Number(consumed), balanceValue: Number(balance), balancePct: percent }] });
+    expect(query).toHaveBeenCalledWith(GET_CURRENT_FISCAL_CONTRACT_BALANCES, [[23]]);
+    expect(GET_CURRENT_FISCAL_CONTRACT_BALANCES).toContain('LEFT JOIN contratos.vw_saldo_contrato');
+    expect(GET_CURRENT_FISCAL_CONTRACT_BALANCES).not.toContain('COALESCE');
+    expect(GET_CURRENT_FISCAL_CONTRACT_BALANCES).not.toContain('valor_total');
+  });
+
+  it.each([null, 'NaN', 'Infinity', '', '9007199254740992'])('does not turn missing/invalid balance %s into zero', async value => {
+    const query = vi.fn().mockResolvedValue([{ contract_id: '23', contract_number: 'CT-EXEMPLO', contracted_value: value, consumed_value: '0', balance_value: '0' }]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, now);
+    await expect(repo.getContractBalances(request)).resolves.toEqual({ coverage: 'UNAVAILABLE' });
+  });
+
+  it('returns valid empty arrays and does not query for empty scope or past reference', async () => {
+    const query = vi.fn();
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, now);
+    for (const method of [repo.getContracts.bind(repo), repo.getContractBalances.bind(repo)]) {
+      await expect(method({ context, scope: { coverage: 'AVAILABLE', contracts: [] } })).resolves.toEqual({ coverage: 'AVAILABLE', items: [] });
+      await expect(method({ ...request, context: { ...context, filters: { ...context.filters, dataReferencia: '2026-10-07' } } })).resolves.toEqual({ coverage: 'UNAVAILABLE' });
+    }
+    expect(query).not.toHaveBeenCalled();
   });
 });

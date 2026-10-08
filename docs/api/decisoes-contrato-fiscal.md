@@ -2,7 +2,7 @@
 
 **Endpoint:** `GET /api/v1/fiscais/me/dashboard/resumo`.
 
-**Objetivo:** registrar as decisões de contrato aprovadas para que o planejamento e a implementação não dependam do histórico da conversa. Lacunas de origem física permanecem explícitas; nenhuma delas autoriza uma regra por heurística. As DEC-024 a DEC-031 complementam as decisões anteriores sem alterar o schema HTTP consolidado na DEC-023.
+**Objetivo:** registrar as decisões de contrato aprovadas para que o planejamento e a implementação não dependam do histórico da conversa. Lacunas de origem física permanecem explícitas; nenhuma delas autoriza uma regra por heurística. As DEC-024 a DEC-031 complementam as decisões anteriores; DEC-032 e DEC-033 estendem o schema HTTP consolidado na DEC-023.
 
 **Documentos-base:**
 
@@ -407,3 +407,44 @@ O contrato consolidado da DEC-023 representa os cards SAC `pendingServiceOrders`
 - Definir e modelar a entidade, os estados e os eventos de plano de ação exigidos pela DEC-030.
 - Definir a política concreta de autorização para abrir a visão Fiscal, sem confundi-la com a carteira da DEC-024 (DEC-031).
 - Fechar o schema estrito dos descritores de `meta.sources` além do que está demonstrado na especificação de endpoints.
+
+## DEC-033 — Contratos atuais e saldo consolidado no resumo Fiscal
+
+**Status:** APROVADA para este lote local do protótipo, conforme pedido de enriquecimento do Dashboard Fiscal.
+
+Esta extensão acrescenta ao HTTP 200, sem mudar filtros, autenticação ou campos
+anteriores, `data.contracts` e `data.contractBalances`, propriedades obrigatórias
+`array | null`. `meta.dataCoverage` passa a conter também `contracts` e
+`contractBalances`, cada uma com `AVAILABLE | UNAVAILABLE`. A restrição anterior
+a exatamente quatro chaves da DEC-014/023 é ampliada por esta decisão.
+
+- `contracts[]`: `contractId` (inteiro positivo seguro), `contractNumber` e
+  `supplierName` (`string | null`), `value` (`number | null`), `expiryDate`
+  (`YYYY-MM-DD | null`). A seleção reutiliza os IDs da carteira autorizada por
+  `contratos.designacao` (`usuario_id`, `papel = 'fiscal'`, `ativo = true`), após
+  validação/restrição de `contratoId`, e retorna contratos com `status = 'vigente'`.
+  Número, valor atual e fim da vigência vêm de `contratos.contrato`; fornecedor
+  vem do vínculo direto `contrato.fornecedor_id` com
+  `fornecedores.fornecedor.razao_social`, por LEFT JOIN, sem fallback de nome.
+- `contractBalances[]`: `contractId`, `contractNumber`, `contractedValue`,
+  `consumedValue`, `balanceValue`, `balancePct`. Os três valores financeiros vêm
+  exclusivamente de `contratos.vw_saldo_contrato.valor_contratado`,
+  `valor_consumido` e `valor_saldo`, ligada por `contrato_id` à mesma carteira
+  vigente. `balancePct = balanceValue / contractedValue * 100` somente com
+  `contractedValue > 0` e resultado finito; nos demais casos, é `null`.
+- Consulta válida sem contratos vigentes retorna `[]/AVAILABLE` nas duas listas.
+  Uma linha ausente na view ou valor financeiro ausente/inválido/inseguro em
+  qualquer contrato torna **toda** a lista de saldos `null/UNAVAILABLE`. Não há
+  cobertura `PARTIAL`, zero inventado nem substituição por `contrato.valor_total`.
+  Um percentual matematicamente indefinido pode ser `null` com valores
+  financeiros disponíveis e cobertura da lista `AVAILABLE`.
+- Para data passada, ambas as listas são `null/UNAVAILABLE`, seguindo DEC-024/028;
+  nenhuma fotografia atual é usada para reconstruir histórico.
+- Falha de consulta continua erro interno segundo o tratamento existente;
+  indisponibilidade de cobertura não mascara falhas de SQL.
+
+Não são aprovadas regras por item, saúde agregada, classificação por faixa,
+alertas de `vigencia_vencendo`, SLA externo ou novas inferências de execução.
+`criticalItems` e `overdueActions` continuam `null/UNAVAILABLE`; distribuição,
+saúde e saldos por item permanecem indisponíveis. A fila e OS pendentes mantêm
+DEC-026/027/032. O fornecedor destas listas não altera a semântica da fila.

@@ -36,3 +36,25 @@ SELECT DISTINCT os.id::text AS ordem_servico_id, contrato.id::text AS contrato_i
 ${ELIGIBLE_FISCAL_SERVICE_ORDERS}
 ORDER BY ordem_servico_id
 `;
+
+// Scope IDs have already been authorized and restricted by contratoId.
+export const GET_CURRENT_FISCAL_CONTRACTS = `
+SELECT c.id::text AS contract_id, c.numero AS contract_number,
+       f.razao_social AS supplier_name, c.valor_total::text AS value,
+       c.vigencia_fim::date::text AS expiry_date
+FROM contratos.contrato c
+LEFT JOIN fornecedores.fornecedor f ON f.id = c.fornecedor_id
+WHERE c.id = ANY($1::bigint[]) AND c.status = 'vigente'
+ORDER BY c.id
+`;
+
+export const GET_CURRENT_FISCAL_CONTRACT_BALANCES = `
+SELECT c.id::text AS contract_id, c.numero AS contract_number,
+       s.valor_contratado::text AS contracted_value,
+       s.valor_consumido::text AS consumed_value,
+       s.valor_saldo::text AS balance_value
+FROM contratos.contrato c
+LEFT JOIN contratos.vw_saldo_contrato s ON s.contrato_id = c.id
+WHERE c.id = ANY($1::bigint[]) AND c.status = 'vigente'
+ORDER BY c.id
+`;

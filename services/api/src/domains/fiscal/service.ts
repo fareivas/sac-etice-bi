@@ -85,8 +85,8 @@ export async function composeFiscalDashboardSummary(
   }
 
   const unavailable: FiscalIndicatorResult = { coverage: 'UNAVAILABLE' };
-  const [active, pending, critical, overdue, priorityQueue, external] = scope.coverage === 'UNAVAILABLE'
-    ? [unavailable, unavailable, unavailable, unavailable, { coverage: 'UNAVAILABLE' as const },
+  const [active, pending, critical, overdue, priorityQueue, contracts, contractBalances, external] = scope.coverage === 'UNAVAILABLE'
+    ? [unavailable, unavailable, unavailable, unavailable, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const },
       input.filters.includeExternal ? { status: 'UNAVAILABLE' as const, externalViolations: null, updatedAt: null } : null] as const
     : await (async () => {
       const query: FiscalScopedRepositoryQuery = { context, scope };
@@ -96,6 +96,8 @@ export async function composeFiscalDashboardSummary(
         dependencies.repository.getCriticalItems(query).then(checkedIndicator),
         dependencies.repository.getOverdueActions(query).then(checkedIndicator),
         dependencies.repository.getPriorityQueue(query),
+        dependencies.repository.getContracts(query),
+        dependencies.repository.getContractBalances(query),
         input.filters.includeExternal
           ? dependencies.kpiSource.getExternalViolations(
             scope.contracts.flatMap((contract) => contract.integrationUuid === null
@@ -117,6 +119,8 @@ export async function composeFiscalDashboardSummary(
     pendingServiceOrders: cardCoverage(pending),
     criticalItems: cardCoverage(critical),
     overdueActions: cardCoverage(overdue),
+    contracts: contracts.coverage,
+    contractBalances: contractBalances.coverage,
   };
   const filtersApplied = {
     unidadeId: input.filters.unidadeId,
@@ -149,6 +153,8 @@ export async function composeFiscalDashboardSummary(
           externalViolations: external!.externalViolations,
         },
         priorityQueue: priorityQueue.coverage === 'AVAILABLE' ? [...priorityQueue.items] : null,
+        contracts: contracts.coverage === 'AVAILABLE' ? [...contracts.items] : null,
+        contractBalances: contractBalances.coverage === 'AVAILABLE' ? [...contractBalances.items] : null,
       },
     }
     : {
@@ -168,6 +174,8 @@ export async function composeFiscalDashboardSummary(
           externalViolations: null,
         },
         priorityQueue: priorityQueue.coverage === 'AVAILABLE' ? [...priorityQueue.items] : null,
+        contracts: contracts.coverage === 'AVAILABLE' ? [...contracts.items] : null,
+        contractBalances: contractBalances.coverage === 'AVAILABLE' ? [...contractBalances.items] : null,
       },
     };
 

@@ -40,6 +40,12 @@ export type FiscalPriorityQueueResult =
   | { coverage: 'AVAILABLE'; items: readonly FiscalPriorityQueueItem[] }
   | { coverage: 'UNAVAILABLE' };
 
+export type FiscalListResult<T> =
+  | { coverage: 'AVAILABLE'; items: readonly T[] }
+  | { coverage: 'UNAVAILABLE' };
+export type FiscalContractsResult = FiscalListResult<NonNullable<FiscalDashboardSummaryResponse['data']['contracts']>[number]>;
+export type FiscalContractBalancesResult = FiscalListResult<NonNullable<FiscalDashboardSummaryResponse['data']['contractBalances']>[number]>;
+
 /**
  * Port for future SAC reads. Implementations must not substitute current state
  * for an unreconstructable dataReference. Query/data failures should reject;
@@ -58,6 +64,8 @@ export interface FiscalSummaryRepository {
   ): Promise<FiscalAuthorizedScope>;
 
   /** For each card: on valid empty scope return 0/AVAILABLE when apurable, else UNAVAILABLE. */
+  getContracts(query: FiscalScopedRepositoryQuery): Promise<FiscalContractsResult>;
+  getContractBalances(query: FiscalScopedRepositoryQuery): Promise<FiscalContractBalancesResult>;
   getActiveContracts(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;
   getPendingServiceOrders(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;
   getCriticalItems(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;

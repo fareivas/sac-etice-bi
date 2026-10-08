@@ -72,6 +72,7 @@ const mixedResponse = {
       pendingServiceOrders: 'AVAILABLE',
       criticalItems: 'AVAILABLE',
       overdueActions: 'AVAILABLE',
+      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE',
     },
     filtersApplied: { unidadeId: 4, contratoId: [184, 205], includeExternal: true },
   },
@@ -84,6 +85,7 @@ const mixedResponse = {
       overdueActions: 0,
       externalViolations: 3,
     },
+    contracts: [], contractBalances: [],
     priorityQueue: [{
       type: 'SERVICE_ORDER',
       severity: 'ALTA',
@@ -108,6 +110,7 @@ const sacResponse = {
       pendingServiceOrders: 'AVAILABLE',
       criticalItems: 'AVAILABLE',
       overdueActions: 'AVAILABLE',
+      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE',
     },
     filtersApplied: { unidadeId: null, contratoId: [], includeExternal: false },
   },
@@ -120,7 +123,7 @@ const sacResponse = {
       overdueActions: 0,
       externalViolations: null,
     },
-    priorityQueue: [],
+    priorityQueue: [], contracts: [], contractBalances: [],
   },
 };
 
@@ -251,4 +254,35 @@ describe('fiscalDashboardSummaryResponseSchema', () => {
     (openDescriptor.meta.sources[1] as Record<string, unknown>).providerDetail = 'externo';
     expect(fiscalDashboardSummaryResponseSchema.safeParse(openDescriptor).success).toBe(true);
   });
+});
+
+it('validates Fiscal contracts and balances, including nullable supplier and undefined percentage', () => {
+  const input = {
+    ...sacResponse,
+    data: { ...sacResponse.data,
+      contracts: [{ contractId: 23, contractNumber: 'CT-EXEMPLO', supplierName: null, value: 75000, expiryDate: null }],
+      contractBalances: [{ contractId: 23, contractNumber: null, contractedValue: 0, consumedValue: 0, balanceValue: 0, balancePct: null }],
+    },
+  };
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(input).success).toBe(true);
+  const invalid = structuredClone(input);
+  invalid.data.contractBalances[0].balanceValue = Infinity;
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(invalid).success).toBe(false);
+  const badDate = structuredClone(input);
+  badDate.data.contracts[0].expiryDate = 'not-a-date' as never;
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(badDate).success).toBe(false);
+});
+
+it('requires Fiscal lists and matching coverage for null versus available arrays', () => {
+  const input = structuredClone(sacResponse) as Record<string, any>;
+  input.data.contractBalances = null;
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(input).success).toBe(false);
+  input.meta.dataCoverage.contractBalances = 'UNAVAILABLE';
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(input).success).toBe(true);
+  input.data.contracts = null;
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(input).success).toBe(false);
+  input.meta.dataCoverage.contracts = 'UNAVAILABLE';
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(input).success).toBe(true);
+  delete input.data.contracts;
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(input).success).toBe(false);
 });

@@ -41,6 +41,8 @@ const fiscalDataCoverageSchema = z.strictObject({
   pendingServiceOrders: z.enum(['AVAILABLE', 'UNAVAILABLE']),
   criticalItems: z.enum(['AVAILABLE', 'UNAVAILABLE']),
   overdueActions: z.enum(['AVAILABLE', 'UNAVAILABLE']),
+  contracts: z.enum(['AVAILABLE', 'UNAVAILABLE']),
+  contractBalances: z.enum(['AVAILABLE', 'UNAVAILABLE']),
 });
 
 const fiscalFiltersAppliedSchema = z.strictObject({
@@ -98,6 +100,25 @@ const fiscalPriorityQueueItemSchema = z.strictObject({
   dueAt: sourceDateTimeSchema.nullable(),
 });
 
+export const fiscalContractSchema = z.strictObject({
+  contractId: z.number().int().positive().safe(),
+  contractNumber: z.string().nullable(),
+  supplierName: z.string().nullable(),
+  value: z.number().finite().nullable(),
+  expiryDate: z.iso.date().nullable(),
+});
+
+export const fiscalContractBalanceSchema = z.strictObject({
+  contractId: z.number().int().positive().safe(),
+  contractNumber: z.string().nullable(),
+  contractedValue: z.number().finite(),
+  consumedValue: z.number().finite(),
+  balanceValue: z.number().finite(),
+  balancePct: z.number().finite().nullable(),
+});
+export type FiscalContract = z.infer<typeof fiscalContractSchema>;
+export type FiscalContractBalance = z.infer<typeof fiscalContractBalanceSchema>;
+
 const fiscalDataSchema = z.strictObject({
   fiscal: z.strictObject({
     userId: z.number().int(),
@@ -111,6 +132,8 @@ const fiscalDataSchema = z.strictObject({
     externalViolations: z.number().int().nullable(),
   }),
   priorityQueue: z.array(fiscalPriorityQueueItemSchema).nullable(),
+  contracts: z.array(fiscalContractSchema).nullable(),
+  contractBalances: z.array(fiscalContractBalanceSchema).nullable(),
 });
 
 export const fiscalDashboardSummaryResponseSchema = z.union([
@@ -132,6 +155,12 @@ export const fiscalDashboardSummaryResponseSchema = z.union([
         path: ['data', 'cards', card],
         message: 'Card e dataCoverage inconsistentes',
       });
+    }
+  }
+
+  for (const key of ['contracts', 'contractBalances'] as const) {
+    if ((response.data[key] === null) !== (response.meta.dataCoverage[key] === 'UNAVAILABLE')) {
+      context.addIssue({ code: 'custom', path: ['data', key], message: 'Lista e dataCoverage inconsistentes' });
     }
   }
 

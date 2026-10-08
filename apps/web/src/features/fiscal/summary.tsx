@@ -26,6 +26,11 @@ export function queueLabel(queue: FiscalDashboardSummaryResponse['data']['priori
   return `${queue.length} ocorrência${queue.length === 1 ? '' : 's'}`;
 }
 
+const money = (value: number | null) => value === null ? 'Indisponível' :
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+const percentage = (value: number | null) => value === null ? 'Indisponível' :
+  `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value)}%`;
+
 function Panel({ title, subtitle, children, className = '' }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
   return <section className={`fiscal-panel ${className}`}><div className="panel-heading"><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{children}</section>;
 }
@@ -64,12 +69,27 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
           })}
         </section>
         {summary.data.cards.activeContracts === 0 && <p className="empty-contracts" role="status">Nenhum contrato ativo na data de referência.</p>}
+        <Panel title="Contratos fiscalizados" subtitle="Contratos vigentes da carteira autorizada atual.">
+          <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Valor atual</th><th>Fim da vigência</th></tr></thead><tbody>
+            {summary.data.contracts?.length ? summary.data.contracts.map(contract => <tr key={contract.contractId}>
+              <td>{contract.contractNumber ?? 'Indisponível'}</td><td>{contract.supplierName ?? 'Indisponível'}</td>
+              <td>{money(contract.value)}</td><td>{contract.expiryDate ?? 'Indisponível'}</td>
+            </tr>) : <tr><td colSpan={4} className="table-empty">{summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente na carteira'}</td></tr>}
+          </tbody></table></div>
+        </Panel>
         <div className="fiscal-grid-two">
           <Panel title="Minha fila de ação" subtitle="Ordens de serviço da carteira autorizada."><div className="fiscal-table-wrap"><table><thead><tr><th>Prior.</th><th>Contrato / empresa</th><th>Problema</th><th>Impacto</th><th>Prazo</th><th>Ação recomendada</th></tr></thead><tbody>{queue?.length ? queue.map((item, index) => <tr key={`${item.contractId ?? 'sem-contrato'}-${index}`}><td>{item.severity ?? 'Indisponível'}</td><td><b>{item.contractNumber ?? 'Indisponível'}</b><br />{item.supplierName ?? 'Indisponível'}</td><td>{item.title ?? 'Indisponível'}</td><td>Indisponível</td><td>{item.dueAt ?? 'Indisponível'}</td><td>Indisponível</td></tr>) : <tr><td colSpan={6} className="table-empty">{queueLabel(queue ?? null)}</td></tr>}</tbody></table></div></Panel>
           <Panel title="Saúde da carteira" subtitle="Indicadores operacionais da carteira."><Unavailable /></Panel>
         </div>
         <div className="fiscal-grid-two">
-          <Panel title="Saldo consolidado por contrato" subtitle="Percentual financeiro ainda disponível."><Unavailable /></Panel>
+          <Panel title="Saldo consolidado por contrato" subtitle="Percentual financeiro ainda disponível.">
+            <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Valor contratado</th><th>Valor consumido</th><th>Saldo</th><th>% saldo</th></tr></thead><tbody>
+              {summary.data.contractBalances?.length ? summary.data.contractBalances.map(balance => <tr key={balance.contractId}>
+                <td>{balance.contractNumber ?? 'Indisponível'}</td><td>{money(balance.contractedValue)}</td>
+                <td>{money(balance.consumedValue)}</td><td>{money(balance.balanceValue)}</td><td>{percentage(balance.balancePct)}</td>
+              </tr>) : <tr><td colSpan={5} className="table-empty">{summary.data.contractBalances === null ? 'Indisponível' : 'Nenhum contrato vigente na carteira'}</td></tr>}
+            </tbody></table></div>
+          </Panel>
           <Panel title="Distribuição dos itens por faixa" subtitle="Classificação dos saldos contratuais."><Unavailable /></Panel>
         </div>
         <Panel title="Gestão dos Saldos dos Itens Contratuais" subtitle="Total contratado, execução acumulada, saldo e ação do fiscal." className="fiscal-saldos">
