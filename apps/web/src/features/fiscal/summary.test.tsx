@@ -1,7 +1,12 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { countLabel, FiscalDashboardView, queueLabel } from './summary';
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 function summary(activeContracts: number, queue: FiscalDashboardSummaryResponse['data']['priorityQueue'] = null): FiscalDashboardSummaryResponse {
   return {
@@ -178,4 +183,284 @@ it('uses backend measured balances and shows coverage per aggregate', () => {
   expect(html).not.toContain('Saldo medido incompleto');
   expect(html).toContain('R$ 30,01');
   expect(html).toContain('Saldo comprometido dos itens</span><strong>Indisponível</strong>');
+});
+
+function item(itemId: number, contractId: number, supplierName: string | null, faixa: 'adequado' | 'atencao' | 'critico' | 'nao_verificavel', overrides: Record<string, unknown> = {}) {
+  return { contractId, contractNumber: `CT-${contractId}`, supplierName, itemId, sequence: itemId,
+    specification: `Item ${itemId}`, unit: 'un', quantityContracted: 1, quantityConsumed: 0,
+    quantityMeasured: 0, quantityBalance: 1, valueContracted: 100, valueConsumed: 0,
+    valueMeasured: 0, valueBalance: 100, valueMeasuredBalance: 100, quantityMeasuredBalance: 1,
+    pctSaldo: 1, pctSaldoMedido: 1, faixa, statusVerificacao: null, blockedAt: null, blockReason: null,
+    ...overrides } as NonNullable<FiscalDashboardSummaryResponse['data']['itemBalances']> extends infer B
+      ? B extends { coverage: 'AVAILABLE'; itens: (infer I)[] } ? I : never : never;
+}
+
+function withItems(items: ReturnType<typeof item>[]): FiscalDashboardSummaryResponse {
+  const data = summary(2, []);
+  data.data.itemBalances = { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: .6, limiar_critico: .1 },
+    resumo: { adequado: 2, atencao: 0, critico: 1, nao_verificavel: 1 },
+    agregados: { totalContratado: null, saldoComprometido: null, saldoMedido: null, itemCount: items.length,
+      completeValueRows: 2, contractedValueRows: items.filter(i => i.valueContracted !== null).length,
+      committedBalanceRows: items.filter(i => i.valueBalance !== null).length,
+      measuredBalanceRows: items.filter(i => i.valueMeasuredBalance !== null).length }, itens: items };
+  data.data.contractBalances = [{ contractId: 1, contractNumber: 'CT-1', contractedValue: 999, consumedValue: 0, balanceValue: 999, balancePct: 100 }];
+  return data;
+}
+
+function mount(data: FiscalDashboardSummaryResponse) {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const update = (next: FiscalDashboardSummaryResponse) => act(() => root.render(<FiscalDashboardView state={{ status: 'success', summary: next }} includeExternal={false} onIncludeExternalChange={() => {}} />));
+  update(data);
+  const select = (label: string, value: string) => {
+    const control = [...host.querySelectorAll('label')].find(node => node.textContent?.startsWith(label))?.querySelector('select');
+    if (!control) throw new Error(`Select ausente: ${label}`);
+    act(() => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+  const search = (value: string) => {
+    const control = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(control, value);
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+  const clear = () => act(() => { host.querySelector<HTMLButtonElement>('.saldo-filter-meta button')!.click(); });
+  const section = (title: string) => [...host.querySelectorAll('section.fiscal-panel')].find(node => node.querySelector('h2')?.textContent === title)?.textContent ?? '';
+  const selected = (label: string) => [...host.querySelectorAll('label')].find(node => node.textContent?.startsWith(label))?.querySelector('select')?.value;
+  const query = () => host.querySelector<HTMLInputElement>('input[type="search"]')?.value;
+  return { host, update, select, search, clear, section, selected, query, unmount: () => { act(() => root.unmount()); host.remove(); } };
+}
+
+const sampleItems = () => [
+  item(1, 1, 'Árvore', 'adequado', { specification: 'Serviço de rede', valueContracted: 100, valueBalance: 70, valueMeasuredBalance: 80 }),
+  item(2, 2, 'Zeta', 'critico', { specification: 'Fibra óptica', valueContracted: 200, valueBalance: 10, valueMeasuredBalance: 30 }),
+  item(3, 3, 'Árvore', 'nao_verificavel', { contractNumber: 'CT-2', specification: null, valueContracted: null, valueBalance: null, valueMeasuredBalance: null }),
+  item(4, 4, null, 'adequado', { contractNumber: null, specification: null, valueContracted: 50, valueBalance: 40, valueMeasuredBalance: 45 }),
+];
+
+describe('filtros interativos dos saldos', () => {
+  it('mostra quatro controles, fornecedores distintos e contratos separados por ID', () => {
+    const view = mount(withItems(sampleItems()));
+    try {
+      for (const label of ['Fornecedor', 'Contrato', 'Faixa', 'Busca textual']) expect(view.host.textContent).toContain(label);
+      const selects = view.host.querySelectorAll<HTMLSelectElement>('.saldo-filters select');
+      expect([...selects[0].options].map(o => o.textContent)).toEqual(['Todos os fornecedores', 'Árvore', 'Zeta']);
+      expect([...selects[1].options].map(o => o.value)).toEqual(['', '1', '2', '3', '4']);
+      expect(selects[1].options[2].textContent).toContain('ID 2');
+      expect(selects[1].options[3].textContent).toContain('ID 3');
+      expect(selects[1].options[4].textContent).toContain('Contrato ID 4');
+    } finally { view.unmount(); }
+  });
+
+  it('filtra fornecedor, contrato e faixa isoladamente e limpa cada um', () => {
+    const view = mount(withItems(sampleItems()));
+    try {
+      view.select('Fornecedor', 'Zeta');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 4 itens encontrados');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Fibra óptica');
+      view.select('Fornecedor', '');
+      view.select('Contrato', '3');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 4 itens encontrados');
+      view.select('Contrato', '');
+      view.select('Faixa', 'critico');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 4 itens encontrados');
+      view.select('Faixa', '');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('4 de 4 itens encontrados');
+    } finally { view.unmount(); }
+  });
+
+  it('combina filtros, busca sem caixa ou acento e recompõe totais e distribuição', () => {
+    const view = mount(withItems(sampleItems()));
+    try {
+      view.search('FIBRA OPTICA');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 4 itens encontrados');
+      view.search('');
+      view.search('CT-2');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('2 de 4 itens encontrados');
+      view.search('ARVORE');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('2 de 4 itens encontrados');
+      view.search('1');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 4 itens encontrados');
+      view.search('');
+      view.select('Fornecedor', 'Árvore');
+      view.select('Contrato', '1');
+      view.select('Faixa', 'adequado');
+      const filtered = view.section('Gestão dos Saldos dos Itens Contratuais');
+      expect(filtered).toContain('1 de 4 itens encontrados');
+      expect(filtered).toContain('R$ 100,00');
+      expect(filtered).toContain('R$ 70,00');
+      expect(filtered).toContain('R$ 80,00');
+      expect(view.section('Distribuição dos itens por faixa')).toContain('Adequado: 1 · Atenção: 0 · Crítico: 0');
+      expect(view.section('Saldo consolidado por contrato')).toContain('R$ 999,00');
+      expect(view.host.textContent).toContain('Contratos sob fiscalização');
+      view.clear();
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('4 de 4 itens encontrados');
+    } finally { view.unmount(); }
+  });
+
+  it('distingue ausência de resultados, fonte indisponível e carteira sem itens', () => {
+    const view = mount(withItems(sampleItems()));
+    try {
+      view.select('Fornecedor', 'Zeta');
+      view.select('Faixa', 'adequado');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item encontrado com os filtros atuais.');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('R$ 0,00');
+      const unavailable = withItems([]);
+      unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+      view.update(unavailable);
+      expect(view.host.querySelectorAll('.saldo-filters select')).toHaveLength(0);
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Fonte de saldos por item indisponível');
+      view.update(withItems([]));
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item contratual cadastrado na carteira.');
+      expect(view.host.querySelector<HTMLSelectElement>('.saldo-filters select')!.value).toBe('');
+    } finally { view.unmount(); }
+  });
+
+  it('preserva nulos e informa cobertura incompleta no recorte', () => {
+    const view = mount(withItems(sampleItems()));
+    try {
+      view.select('Fornecedor', 'Árvore');
+      const section = view.section('Gestão dos Saldos dos Itens Contratuais');
+      expect(section).toContain('2 de 4 itens encontrados');
+      expect(section).toContain('Total contratado dos itensIndisponível');
+      expect(section).toContain('Saldo comprometido incompleto: 1 de 2');
+      expect(section).toContain('Saldo medido incompleto: 1 de 2');
+      expect(view.section('Distribuição dos itens por faixa')).toContain('Não verificável: 1');
+      view.search('SEM ESPECIFICACAO');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item encontrado');
+    } finally { view.unmount(); }
+  });
+});
+
+describe('atualizações dos filtros e agregados', () => {
+  it('usa os agregados da API quando um filtro ativo seleciona a lista inteira, sem descartar duplicatas', () => {
+    const data = withItems([
+      item(1, 1, 'Árvore', 'adequado', { valueContracted: 10.005 }),
+      item(2, 1, 'Árvore', 'adequado', { valueContracted: 20.005 }),
+    ]);
+    if (data.data.itemBalances?.coverage !== 'AVAILABLE') throw new Error('fixture inválida');
+    data.data.itemBalances.agregados = { ...data.data.itemBalances.agregados,
+      totalContratado: 30.01, saldoComprometido: 200, saldoMedido: 200,
+      contractedValueRows: 2, committedBalanceRows: 2, measuredBalanceRows: 2 };
+    const view = mount(data);
+    try {
+      view.select('Fornecedor', 'Árvore');
+      view.select('Contrato', '1');
+      view.search('ARVORE');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('2 de 2 itens encontrados');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Total contratado dos itensR$ 30,01');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Saldo comprometido dos itensR$ 200,00');
+      expect(view.section('Distribuição dos itens por faixa')).toContain('Adequado: 2');
+    } finally { view.unmount(); }
+  });
+
+  it('recalcula apenas o subconjunto e mantém nulos; o recorte vazio vale zero', () => {
+    const data = withItems(sampleItems());
+    if (data.data.itemBalances?.coverage !== 'AVAILABLE') throw new Error('fixture inválida');
+    data.data.itemBalances.agregados = { ...data.data.itemBalances.agregados,
+      totalContratado: 999, saldoComprometido: 999, saldoMedido: 999 };
+    const view = mount(data);
+    try {
+      view.select('Contrato', '1');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Total contratado dos itensR$ 100,00');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Saldo comprometido dos itensR$ 70,00');
+      view.select('Contrato', '3');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Total contratado dos itensIndisponível');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Total contratado incompleto: 0 de 1');
+      view.select('Faixa', 'adequado');
+      const empty = view.section('Gestão dos Saldos dos Itens Contratuais');
+      expect(empty).toContain('0 de 4 itens encontrados');
+      expect(empty).toContain('Total contratado dos itensR$ 0,00');
+      expect(empty).toContain('Saldo comprometido dos itensR$ 0,00');
+      expect(empty).toContain('Saldo medido dos itensR$ 0,00');
+    } finally { view.unmount(); }
+  });
+
+  it('preserva filtros com novos objetos equivalentes e novos itens na mesma carteira', () => {
+    const base = withItems(sampleItems());
+    const view = mount(base);
+    try {
+      view.select('Fornecedor', 'Árvore');
+      view.select('Contrato', '1');
+      view.select('Faixa', 'adequado');
+      view.search('SERVICO');
+      view.update(structuredClone(base));
+      expect(view.selected('Fornecedor')).toBe('Árvore');
+      expect(view.selected('Contrato')).toBe('1');
+      expect(view.selected('Faixa')).toBe('adequado');
+      expect(view.query()).toBe('SERVICO');
+      const more = withItems([...sampleItems(), item(5, 1, 'Árvore', 'adequado', { specification: 'Serviço novo' })]);
+      view.update(more);
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('2 de 5 itens encontrados');
+      expect(view.selected('Fornecedor')).toBe('Árvore');
+      expect(view.selected('Contrato')).toBe('1');
+      expect(view.selected('Faixa')).toBe('adequado');
+      expect(view.query()).toBe('SERVICO');
+    } finally { view.unmount(); }
+  });
+
+  it('invalida fornecedor e contrato ausentes sem apagar faixa ou busca', () => {
+    const view = mount(withItems(sampleItems()));
+    try {
+      view.select('Fornecedor', 'Zeta');
+      view.select('Contrato', '2');
+      view.select('Faixa', 'critico');
+      view.search('FIBRA');
+      view.update(withItems([item(8, 8, 'Outro', 'critico', { specification: 'Fibra nova' })]));
+      expect(view.selected('Fornecedor')).toBe('');
+      expect(view.selected('Contrato')).toBe('');
+      expect(view.selected('Faixa')).toBe('critico');
+      expect(view.query()).toBe('FIBRA');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 1 itens encontrados');
+      view.update(withItems(sampleItems()));
+      expect(view.selected('Fornecedor')).toBe('');
+      expect(view.selected('Contrato')).toBe('');
+    } finally { view.unmount(); }
+  });
+
+  it('limpa filtros ao trocar fiscal ou recorte autorizado, sem limpar ao alternar fonte externa', () => {
+    const base = withItems(sampleItems());
+    const view = mount(base);
+    try {
+      view.select('Fornecedor', 'Árvore');
+      view.search('SERVICO');
+      const external = structuredClone(base);
+      external.meta.filtersApplied.includeExternal = true;
+      view.update(external);
+      expect(view.selected('Fornecedor')).toBe('Árvore');
+      expect(view.query()).toBe('SERVICO');
+      const otherFiscal = structuredClone(base);
+      otherFiscal.data.fiscal.userId = 88;
+      view.update(otherFiscal);
+      expect(view.selected('Fornecedor')).toBe('');
+      expect(view.query()).toBe('');
+      view.select('Contrato', '1');
+      const otherScope = structuredClone(otherFiscal);
+      otherScope.meta.filtersApplied.contratoId = [1];
+      view.update(otherScope);
+      expect(view.selected('Contrato')).toBe('');
+    } finally { view.unmount(); }
+  });
+
+  it('esconde dados e controles durante UNAVAILABLE e restaura seleções válidas no retorno', () => {
+    const base = withItems(sampleItems());
+    const view = mount(base);
+    try {
+      view.select('Fornecedor', 'Árvore');
+      view.select('Faixa', 'adequado');
+      view.search('SERVICO');
+      const unavailable = structuredClone(base);
+      unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+      view.update(unavailable);
+      expect(view.host.querySelectorAll('.saldo-filters select')).toHaveLength(0);
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).not.toContain('Serviço de rede');
+      expect(view.section('Distribuição dos itens por faixa')).toContain('Indisponível');
+      view.update(structuredClone(base));
+      expect(view.selected('Fornecedor')).toBe('Árvore');
+      expect(view.selected('Faixa')).toBe('adequado');
+      expect(view.query()).toBe('SERVICO');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 4 itens encontrados');
+    } finally { view.unmount(); }
+  });
 });
