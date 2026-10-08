@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbReader } from '../../shared/db/index';
 import { ApiError } from '../../shared/errors/index';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES, GET_CURRENT_FISCAL_ITEM_BALANCES } from './queries';
 import { PostgresFiscalSummaryRepository } from './postgres-repository';
 
 function repository(rows: unknown[]) {
@@ -49,6 +49,20 @@ describe('PostgresFiscalSummaryRepository', () => {
     filters: { dataReferencia: date, timezone: 'America/Fortaleza', unidadeId, contratoId: ids, includeExternal: false },
   });
   const current = () => new Date('2026-09-22T01:00:00Z');
+
+  it('queries item balances only with the already authorized contract IDs', async () => {
+    const query = vi.fn().mockResolvedValue([]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
+    const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: null }] };
+    await expect(repo.getItemBalances({ context: context(), scope })).resolves.toEqual({ coverage: 'AVAILABLE', items: [] });
+    expect(query).toHaveBeenCalledWith(GET_CURRENT_FISCAL_ITEM_BALANCES, [[184]]);
+    expect(GET_CURRENT_FISCAL_ITEM_BALANCES).toContain('c.id = ANY($1::bigint[])');
+    expect(GET_CURRENT_FISCAL_ITEM_BALANCES).toContain("c.status = 'vigente'");
+    expect(GET_CURRENT_FISCAL_ITEM_BALANCES).toContain('FROM bi.saldos_por_item');
+    query.mockClear();
+    await expect(repo.getItemBalances({ context: context([], '2026-09-20'), scope })).resolves.toEqual({ coverage: 'UNAVAILABLE' });
+    expect(query).not.toHaveBeenCalled();
+  });
 
   it('resolves distinct current contracts with safe IDs and null integration UUID', async () => {
     const query = vi.fn().mockResolvedValue([{ contrato_id: '184' }, { contrato_id: 205n }, { contrato_id: '184' }]);

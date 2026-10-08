@@ -130,6 +130,42 @@ export const fiscalContractAlertSchema = z.strictObject({
 });
 export type FiscalContractAlert = z.infer<typeof fiscalContractAlertSchema>;
 
+const fiscalItemBalanceSchema = z.strictObject({
+  contractId: z.number().int().positive().safe(), contractNumber: z.string().nullable(),
+  supplierName: z.string().nullable(), itemId: z.number().int().positive().safe(),
+  sequence: z.number().int().nullable(), specification: z.string().nullable(), unit: z.string().nullable(),
+  quantityContracted: z.number().finite().nullable(), quantityConsumed: z.number().finite().nullable(),
+  quantityMeasured: z.number().finite().nullable(), quantityBalance: z.number().finite().nullable(),
+  valueContracted: z.number().finite().nullable(), valueConsumed: z.number().finite().nullable(),
+  valueMeasured: z.number().finite().nullable(), valueBalance: z.number().finite().nullable(),
+  valueMeasuredBalance: z.number().finite().nullable(), quantityMeasuredBalance: z.number().finite().nullable(),
+  pctSaldo: z.number().finite().nullable(), pctSaldoMedido: z.number().finite().nullable(),
+  faixa: z.enum(['adequado', 'atencao', 'critico', 'nao_verificavel']),
+  statusVerificacao: z.string().nullable(), blockedAt: sourceDateTimeSchema.nullable(),
+  blockReason: z.string().nullable(),
+});
+export type FiscalItemBalance = z.infer<typeof fiscalItemBalanceSchema>;
+
+export const fiscalItemBalancesSchema = z.discriminatedUnion('coverage', [
+  z.strictObject({ coverage: z.literal('UNAVAILABLE') }),
+  z.strictObject({
+    coverage: z.literal('AVAILABLE'),
+    criterio: z.strictObject({
+      base: z.enum(['comprometido', 'medido']), dimensao: z.enum(['valor', 'quantidade']),
+      limiar_atencao: z.number().min(0).max(1), limiar_critico: z.number().min(0).max(1),
+    }),
+    resumo: z.strictObject({ adequado: z.number().int().nonnegative(), atencao: z.number().int().nonnegative(),
+      critico: z.number().int().nonnegative(), nao_verificavel: z.number().int().nonnegative() }),
+    agregados: z.strictObject({ totalContratado: z.number().finite().nullable(),
+      saldoComprometido: z.number().finite().nullable(), saldoMedido: z.number().finite().nullable(),
+      itemCount: z.number().int().nonnegative(), completeValueRows: z.number().int().nonnegative(),
+      contractedValueRows: z.number().int().nonnegative(), committedBalanceRows: z.number().int().nonnegative(),
+      measuredBalanceRows: z.number().int().nonnegative() }),
+    itens: z.array(fiscalItemBalanceSchema),
+  }),
+]);
+export type FiscalItemBalances = z.infer<typeof fiscalItemBalancesSchema>;
+
 const fiscalDataSchema = z.strictObject({
   fiscal: z.strictObject({
     userId: z.number().int(),
@@ -146,6 +182,7 @@ const fiscalDataSchema = z.strictObject({
   contracts: z.array(fiscalContractSchema).nullable(),
   contractBalances: z.array(fiscalContractBalanceSchema).nullable(),
   contractAlerts: z.array(fiscalContractAlertSchema).nullable(),
+  itemBalances: fiscalItemBalancesSchema.optional(),
 });
 
 export const fiscalDashboardSummaryResponseSchema = z.union([

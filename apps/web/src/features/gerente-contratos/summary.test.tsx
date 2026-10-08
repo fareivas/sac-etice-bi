@@ -18,6 +18,7 @@ const render = (summary: ManagerDashboardSummaryResponse) =>
 it('renders available zero and an empty expiry list', () => {
   const html = render(base);
   expect(html).toContain('Gestora');
+  expect(html).toContain('25/09/2026');
   expect(html).toContain('Vencimento nos próximos 120 dias');
   expect(html).toContain('Nenhum contrato na janela');
   expect(html).toContain('>0</strong>');
@@ -30,8 +31,18 @@ it('renders the actual count and summary list without renewal claims', () => {
   const html = render(summary);
   expect(html).toContain('CT-17');
   expect(html).toContain('Fornecedor X');
-  expect(html).toContain('2027-01-23');
+  expect(html).toContain('23/01/2027');
   expect(html).not.toContain('Renovação iniciada');
+});
+
+it('formats contract and alert expiry dates while keeping unavailable values distinct', () => {
+  const summary: ManagerDashboardSummaryResponse = { ...base, data: { ...base.data,
+    contracts: [{ contractId: 2, contractNumber: 'CT-2', supplierName: null, value: 100, expiryDate: '2026-12-31' }],
+    contractAlerts: [{ alertId: 1, contractId: 2, contractNumber: 'CT-2', type: null, status: 'aberta',
+      description: null, expiryDate: null, createdAt: null }] } };
+  const html = render(summary);
+  expect(html).toContain('31/12/2026');
+  expect(html).toMatch(/Alertas contratuais[\s\S]*?Indisponível[\s\S]*?<\/section>/);
 });
 it('renders unavailable when vigencia_fim cannot classify the portfolio', () => {
   const summary: ManagerDashboardSummaryResponse = { ...base,
@@ -81,7 +92,7 @@ it('renders real alerts, balance amounts and the financial chart while preservin
     contractAlerts: [{ alertId: 206, contractId: 41, contractNumber: 'CT-41', type: 'designacao_ausente', status: 'em_tratamento', description: 'Pendência de teste', expiryDate: '2026-10-20', createdAt: '2026-10-01T12:00:00Z' }],
     contractBalances: [{ contractId: 41, contractNumber: 'CT-41', contractedValue: 200, consumedValue: 50, balanceValue: 150, balancePct: 75 }] } };
   const html = render(summary).replaceAll('\u00a0', ' ');
-  for (const label of ['Alertas contratuais', 'designacao_ausente', 'em_tratamento', 'Pendência de teste', '2026-10-20', 'Saldos da carteira', 'R$ 200,00', 'R$ 50,00', 'R$ 150,00', '75%', 'Fiscais e distribuição da carteira', 'Fornecedores da carteira', 'Contratos vigentes da carteira']) expect(html).toContain(label);
+  for (const label of ['Alertas contratuais', 'designacao_ausente', 'em_tratamento', 'Pendência de teste', '20/10/2026', 'Saldos da carteira', 'R$ 200,00', 'R$ 50,00', 'R$ 150,00', '75%', 'Fiscais e distribuição da carteira', 'Fornecedores da carteira', 'Contratos vigentes da carteira']) expect(html).toContain(label);
   expect(html).toContain('aria-label="Distribuição financeira por contrato"');
   expect(html).toContain('<rect');
   expect(html).not.toContain('Classificação de risco');

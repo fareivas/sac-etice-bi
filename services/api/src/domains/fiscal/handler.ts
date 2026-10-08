@@ -15,6 +15,7 @@ export interface FiscalDashboardHandlerDependencies {
   repository: FiscalSummaryRepository;
   kpiSource: FiscalKpiSource;
   now?: () => Date;
+  environment?: NodeJS.ProcessEnv;
   generateCorrelationId?: () => string;
 }
 
@@ -70,6 +71,7 @@ export function createFiscalDashboardHandler(
           repository: dependencies.repository,
           kpiSource: dependencies.kpiSource,
           now: dependencies.now,
+          environment: dependencies.environment,
         },
       );
       return jsonResponse(summary, 200);
@@ -100,6 +102,7 @@ export function createLocalFiscalDashboardHandler(
     repository: new PostgresFiscalSummaryRepository(db, now),
     kpiSource: unavailablePrototypeKpiSource,
     now,
+    environment,
   });
 }
 

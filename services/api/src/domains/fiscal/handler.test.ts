@@ -8,7 +8,7 @@ import type { FiscalSummaryRepository, FiscalIndicatorResult } from './repositor
 import type { FiscalKpiSource, FiscalKpiResult } from './service';
 import { createFiscalDashboardHandler, handler } from './handler';
 import { createLocalFiscalDashboardHandler } from './handler';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES, GET_CURRENT_FISCAL_CONTRACT_ALERTS } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES, GET_CURRENT_FISCAL_CONTRACT_ALERTS, GET_CURRENT_FISCAL_ITEM_BALANCES } from './queries';
 import type { DbReader } from '../../shared/db/index';
 
 const NOW = new Date('2026-09-23T12:00:00.000Z');
@@ -133,7 +133,7 @@ describe('Fiscal dashboard handler factory', () => {
       if (sql === GET_FISCAL_CONTRACT_SCOPE) return [{ contrato_id: '184' }];
       if (sql === COUNT_ACTIVE_FISCAL_CONTRACTS) return [{ total: '1' }];
       if (sql === COUNT_PENDING_FISCAL_SERVICE_ORDERS) return [{ total: '0' }];
-      if (sql === GET_PENDING_FISCAL_SERVICE_ORDERS || sql === GET_CURRENT_FISCAL_CONTRACT_ALERTS) return [];
+      if (sql === GET_PENDING_FISCAL_SERVICE_ORDERS || sql === GET_CURRENT_FISCAL_CONTRACT_ALERTS || sql === GET_CURRENT_FISCAL_ITEM_BALANCES) return [];
       if (sql === GET_CURRENT_FISCAL_CONTRACTS) return [{ contract_id: '184', contract_number: 'CT-EXEMPLO', supplier_name: 'Fornecedor de teste', value: '75000', expiry_date: '2027-01-20' }];
       if (sql === GET_CURRENT_FISCAL_CONTRACT_BALANCES) return [{ contract_id: '184', contract_number: 'CT-EXEMPLO', contracted_value: '75000', consumed_value: '0', balance_value: '75000' }];
       throw new Error('Unexpected SQL');

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { loadFiscalSummary } from '../../lib/api';
+import { displayDate } from '../../lib/display-date';
 
 type ViewState =
   | { status: 'loading' }
@@ -11,7 +12,7 @@ type CardKey = keyof FiscalDashboardSummaryResponse['data']['cards'];
 const cards: readonly { key: CardKey; label: string; detail: string }[] = [
   { key: 'activeContracts', label: 'Contratos sob fiscalização', detail: 'Carteira atribuída' },
   { key: 'pendingServiceOrders', label: 'OS pendentes', detail: 'Fluxo operacional' },
-  { key: 'criticalItems', label: 'Itens críticos', detail: 'Saldo contratual' },
+  { key: 'criticalItems', label: 'Itens críticos (legado)', detail: 'Indicador contratual com regra própria' },
   { key: 'overdueActions', label: 'Ações vencidas', detail: 'Planos de ação' },
   { key: 'externalViolations', label: 'Violações de SLA', detail: 'Projeto de KPIs' },
 ];
@@ -49,11 +50,12 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
   const kpiSource = summary && 'sources' in summary.meta
     ? summary.meta.sources.find((source) => source.system === 'KPIs') : null;
   const queue = summary?.data.priorityQueue;
+  const itemBalances = summary?.data.itemBalances;
 
   return <main className="fiscal-dashboard">
     <header className="fiscal-header"><div className="fiscal-header-inner">
       <div><span className="fiscal-brand">ETICE <span>•</span> SAC BI</span><h1>Dashboard do Fiscal do Contrato</h1><p>Visão da carteira sob fiscalização</p></div>
-      <div className="header-meta"><span className="header-chip">{summary?.data.fiscal.name ?? (summary ? `Fiscal ${summary.data.fiscal.userId}` : 'Fiscal')}</span><span>Data de referência: {summary?.meta.dataReference ?? 'Indisponível'}</span></div>
+      <div className="header-meta"><span className="header-chip">{summary?.data.fiscal.name ?? (summary ? `Fiscal ${summary.data.fiscal.userId}` : 'Fiscal')}</span><span>Data de referência: {displayDate(summary?.meta.dataReference, summary?.meta.timezone)}</span></div>
     </div></header>
     <div className="fiscal-page">
       <section className="fiscal-filters" aria-label="Filtros do dashboard"><div><strong>Filtros da carteira</strong><span>Recorte autorizado do fiscal</span></div><div className="filter-values"><span>Unidade: {summary?.meta.filtersApplied.unidadeId ?? 'Todas'}</span><span>Contrato: {summary?.meta.filtersApplied.contratoId.length ? summary.meta.filtersApplied.contratoId.join(', ') : 'Todos'}</span><label className="external-switch"><input type="checkbox" checked={includeExternal} onChange={(event) => onIncludeExternalChange(event.target.checked)} /> Consultar fonte externa</label></div></section>
@@ -73,7 +75,7 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Descrição</th><th>Vencimento do contrato</th></tr></thead><tbody>
             {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts?.length ? summary.data.contractAlerts.map(alert => <tr key={alert.alertId}>
               <td>{alert.contractNumber ?? 'Indisponível'}</td><td>{alert.description ?? 'Indisponível'}</td>
-              <td>{alert.expiryDate ?? 'Indisponível'}</td>
+              <td>{displayDate(alert.expiryDate, summary.meta.timezone)}</td>
             </tr>) : <tr><td colSpan={3} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
           </tbody></table></div>
         </Panel>
@@ -81,12 +83,12 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Valor atual</th><th>Fim da vigência</th></tr></thead><tbody>
             {summary.data.contracts?.length ? summary.data.contracts.map(contract => <tr key={contract.contractId}>
               <td>{contract.contractNumber ?? 'Indisponível'}</td><td>{contract.supplierName ?? 'Indisponível'}</td>
-              <td>{money(contract.value)}</td><td>{contract.expiryDate ?? 'Indisponível'}</td>
+              <td>{money(contract.value)}</td><td>{displayDate(contract.expiryDate, summary.meta.timezone)}</td>
             </tr>) : <tr><td colSpan={4} className="table-empty">{summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente na carteira'}</td></tr>}
           </tbody></table></div>
         </Panel>
         <div className="fiscal-grid-two">
-          <Panel title="Minha fila de ação" subtitle="Ordens de serviço da carteira autorizada."><div className="fiscal-table-wrap"><table><thead><tr><th>Prior.</th><th>Contrato / empresa</th><th>Problema</th><th>Impacto</th><th>Prazo</th><th>Ação recomendada</th></tr></thead><tbody>{queue?.length ? queue.map((item, index) => <tr key={`${item.contractId ?? 'sem-contrato'}-${index}`}><td>{item.severity ?? 'Indisponível'}</td><td><b>{item.contractNumber ?? 'Indisponível'}</b><br />{item.supplierName ?? 'Indisponível'}</td><td>{item.title ?? 'Indisponível'}</td><td>Indisponível</td><td>{item.dueAt ?? 'Indisponível'}</td><td>Indisponível</td></tr>) : <tr><td colSpan={6} className="table-empty">{queueLabel(queue ?? null)}</td></tr>}</tbody></table></div></Panel>
+          <Panel title="Minha fila de ação" subtitle="Ordens de serviço da carteira autorizada."><div className="fiscal-table-wrap"><table><thead><tr><th>Prior.</th><th>Contrato / empresa</th><th>Problema</th><th>Impacto</th><th>Prazo</th><th>Ação recomendada</th></tr></thead><tbody>{queue?.length ? queue.map((item, index) => <tr key={`${item.contractId ?? 'sem-contrato'}-${index}`}><td>{item.severity ?? 'Indisponível'}</td><td><b>{item.contractNumber ?? 'Indisponível'}</b><br />{item.supplierName ?? 'Indisponível'}</td><td>{item.title ?? 'Indisponível'}</td><td>Indisponível</td><td>{displayDate(item.dueAt, summary.meta.timezone)}</td><td>Indisponível</td></tr>) : <tr><td colSpan={6} className="table-empty">{queueLabel(queue ?? null)}</td></tr>}</tbody></table></div></Panel>
           <Panel title="Saúde da carteira" subtitle="Indicadores operacionais da carteira."><Unavailable /></Panel>
         </div>
         <div className="fiscal-grid-two">
@@ -98,11 +100,43 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
               </tr>) : <tr><td colSpan={5} className="table-empty">{summary.data.contractBalances === null ? 'Indisponível' : 'Nenhum contrato vigente na carteira'}</td></tr>}
             </tbody></table></div>
           </Panel>
-          <Panel title="Distribuição dos itens por faixa" subtitle="Classificação dos saldos contratuais."><Unavailable /></Panel>
+          <Panel title="Distribuição dos itens por faixa" subtitle="Classificação dos saldos contratuais.">{itemBalances?.coverage === 'AVAILABLE'
+            ? <p>Adequado: {itemBalances.resumo.adequado} · Atenção: {itemBalances.resumo.atencao} · Crítico: {itemBalances.resumo.critico} · Não verificável: {itemBalances.resumo.nao_verificavel}</p>
+            : <Unavailable />}</Panel>
         </div>
         <Panel title="Gestão dos Saldos dos Itens Contratuais" subtitle="Total contratado, execução acumulada, saldo e ação do fiscal." className="fiscal-saldos">
-          <div className="saldo-summary">{['Total contratado', 'Saldo disponível', 'Saldo consolidado', 'Itens críticos'].map((label) => <div key={label}><span>{label}</span><strong>{label === 'Itens críticos' ? countLabel(summary.data.cards.criticalItems) : 'Indisponível'}</strong></div>)}</div>
-          <div className="fiscal-table-wrap"><table><thead><tr><th>Status</th><th>Contrato / fornecedor</th><th>Item contratual</th><th>Total</th><th>Executado</th><th>Saldo</th><th>% saldo</th><th>Ação do fiscal</th></tr></thead><tbody><tr><td colSpan={8} className="table-empty">Indisponível</td></tr></tbody></table></div>
+          {itemBalances?.coverage === 'AVAILABLE' ? <>
+            <div className="saldo-summary">
+              <div><span>Total contratado dos itens</span><strong>{money(itemBalances.agregados.totalContratado)}</strong></div>
+              <div><span>Saldo comprometido dos itens</span><strong>{money(itemBalances.agregados.saldoComprometido)}</strong></div>
+              <div><span>Saldo medido dos itens</span><strong>{money(itemBalances.agregados.saldoMedido)}</strong></div>
+              <div><span>Itens críticos</span><strong>{itemBalances.resumo.critico}</strong></div>
+              <div><span>Não verificáveis</span><strong>{itemBalances.resumo.nao_verificavel}</strong></div>
+            </div>
+            {itemBalances.agregados.contractedValueRows < itemBalances.agregados.itemCount && <p role="status">Total contratado incompleto: {itemBalances.agregados.contractedValueRows} de {itemBalances.agregados.itemCount} itens cobertos.</p>}
+            {itemBalances.agregados.committedBalanceRows < itemBalances.agregados.itemCount && <p role="status">Saldo comprometido incompleto: {itemBalances.agregados.committedBalanceRows} de {itemBalances.agregados.itemCount} itens cobertos.</p>}
+            {itemBalances.agregados.measuredBalanceRows < itemBalances.agregados.itemCount && <p role="status">Saldo medido incompleto: {itemBalances.agregados.measuredBalanceRows} de {itemBalances.agregados.itemCount} itens cobertos.</p>}
+            <p>Faixa por {itemBalances.criterio.dimensao}, base {itemBalances.criterio.base}: adequado ≥ {percentage(itemBalances.criterio.limiar_atencao * 100)}; crítico ≤ {percentage(itemBalances.criterio.limiar_critico * 100)}; atenção entre esses limites. Limiares provisórios.</p>
+            <div className="fiscal-table-wrap"><table><thead><tr><th>Faixa / verificação</th><th>Contrato / fornecedor</th><th>Item contratual</th><th>Total</th><th>Executado</th><th>Saldo</th><th>% saldo</th><th>Orientação ao fiscal</th></tr></thead><tbody>
+              {itemBalances.itens.length ? itemBalances.itens.map(item => {
+                const quantity = itemBalances.criterio.dimensao === 'quantidade';
+                const total = quantity ? item.quantityContracted : item.valueContracted;
+                const measuredBase = itemBalances.criterio.base === 'medido';
+                const executed = quantity ? (measuredBase ? total === null ? null : item.quantityMeasured ?? 0 : item.quantityConsumed)
+                  : (measuredBase ? total === null ? null : item.valueMeasured ?? 0 : item.valueConsumed);
+                const balance = measuredBase ? (quantity ? item.quantityMeasuredBalance : item.valueMeasuredBalance)
+                  : (quantity ? item.quantityBalance : item.valueBalance);
+                const format = quantity ? (value: number | null) => value === null ? 'Não calculável' : `${value} ${item.unit ?? ''}` : money;
+                return <tr key={item.itemId}><td>{item.faixa}{item.statusVerificacao && <> <small>Verificação: {item.statusVerificacao}</small></>}{item.blockedAt && <small> Bloqueado: {item.blockReason ?? 'motivo indisponível'}</small>}</td>
+                  <td>{item.contractNumber ?? 'Contrato sem número'}<br />{item.supplierName ?? 'Fornecedor indisponível'}</td>
+                  <td>{item.sequence ?? '—'} · {item.specification ?? 'Sem especificação'}</td>
+                  <td>{format(total)}</td><td>{format(executed)}</td>
+                  <td>{format(balance)}{balance !== null && balance < 0 && <strong> · Saldo negativo</strong>}</td>
+                  <td>{percentage((itemBalances.criterio.base === 'medido' ? item.pctSaldoMedido : item.pctSaldo) === null ? null : (itemBalances.criterio.base === 'medido' ? item.pctSaldoMedido! : item.pctSaldo!) * 100)}</td>
+                  <td>{item.faixa === 'critico' ? 'Avaliar o saldo e o planejamento do item.' : item.faixa === 'nao_verificavel' ? 'Conferir dados do item.' : item.faixa === 'atencao' ? 'Acompanhar o consumo do item.' : 'Acompanhar normalmente.'}</td></tr>;
+              }) : <tr><td colSpan={8} className="table-empty">Nenhum item contratual cadastrado na carteira.</td></tr>}
+            </tbody></table></div>
+          </> : <Unavailable label="Fonte de saldos por item indisponível para esta data." />}
         </Panel>
         <Panel title="Ciclo financeiro do contrato" subtitle="Cliente → ETICE → fornecedor."><Unavailable /></Panel>
         <Panel title="Relevância econômica das partes"><div className="fiscal-grid-two relevance"><div>Fornecedores <strong>Indisponível</strong></div><div>Clientes <strong>Indisponível</strong></div></div></Panel>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse, ManagerSuppliersResponse } from '@sac-etice-bi/contracts';
 import { loadManagerSummary, loadManagerFiscalLoad, loadManagerSuppliers } from '../../lib/api';
+import { displayDate } from '../../lib/display-date';
 
 type State = { status: 'loading' } | { status: 'error'; message: string } |
   { status: 'success'; summary: ManagerDashboardSummaryResponse; load?: ManagerFiscalLoadResponse | null; suppliers?: ManagerSuppliersResponse | null; suppliersError?: string | null };
@@ -42,7 +43,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
   return <main className="fiscal-dashboard manager-dashboard">
     <header className="fiscal-header"><div className="fiscal-header-inner">
       <div><span className="fiscal-brand">ETICE <span>•</span> SAC BI</span><h1>Dashboard do Gerente de Contratos</h1><p>Carteira contratual sob sua gestão</p></div>
-      <div className="header-meta"><span className="header-chip">{summary?.data.manager.name ?? (summary ? `Gestor ${summary.data.manager.userId}` : 'Gerente')}</span><span>Data de referência: {summary?.meta.dataReference ?? 'Indisponível'}</span></div>
+      <div className="header-meta"><span className="header-chip">{summary?.data.manager.name ?? (summary ? `Gestor ${summary.data.manager.userId}` : 'Gerente')}</span><span>Data de referência: {displayDate(summary?.meta.dataReference, summary?.meta.timezone)}</span></div>
     </div></header>
     <div className="fiscal-page">
       {state.status === 'loading' && <div className="fiscal-message" role="status">Carregando resumo…</div>}
@@ -59,7 +60,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
         <section className="fiscal-panel"><div className="panel-heading"><h2>Alertas contratuais</h2><p>Pendências abertas ou em tratamento dos contratos vigentes da carteira.</p></div>
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Tipo</th><th>Estado</th><th>Descrição</th><th>Vencimento contratual</th></tr></thead><tbody>
             {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts?.length ? summary.data.contractAlerts.map(alert => <tr key={alert.alertId}>
-              <td>{alert.contractNumber ?? `#${alert.contractId}`}</td><td>{alert.type ?? 'Indisponível'}</td><td>{alert.status}</td><td>{alert.description ?? 'Indisponível'}</td><td>{alert.expiryDate ?? 'Indisponível'}</td>
+              <td>{alert.contractNumber ?? `#${alert.contractId}`}</td><td>{alert.type ?? 'Indisponível'}</td><td>{alert.status}</td><td>{alert.description ?? 'Indisponível'}</td><td>{displayDate(alert.expiryDate, summary.meta.timezone)}</td>
             </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
           </tbody></table></div>
         </section>
@@ -80,10 +81,10 @@ export function ManagerDashboardView({ state }: { state: State }) {
           {state.status === 'success' && state.suppliers?.data.suppliers?.length ? state.suppliers.data.suppliers.map((supplier) => <tr key={supplier.supplierId}><td>{supplier.name}</td><td>{money(supplier.vigentValue)}</td><td>Indisponível</td><td>Indisponível</td><td>Indisponível</td></tr>) : <tr><td colSpan={5} className="table-empty">{state.status === 'success' && state.suppliersError ? `Erro ao carregar fornecedores: ${state.suppliersError}` : state.status === 'success' && state.suppliers?.data.suppliers?.length === 0 ? 'Nenhum fornecedor na carteira' : 'Indisponível'}</td></tr>}
         </tbody></table></div></section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Contratos vigentes da carteira</h2><p>Dados atuais dos contratos autorizados.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Valor atual</th><th>Fim da vigência</th></tr></thead><tbody>
-          {summary.data.contracts?.length ? summary.data.contracts.map((contract) => <tr key={contract.contractId}><td>{contract.contractNumber ?? `#${contract.contractId}`}</td><td>{contract.supplierName ?? 'Indisponível'}</td><td>{money(contract.value)}</td><td>{contract.expiryDate ?? 'Indisponível'}</td></tr>) : <tr><td colSpan={4} className="table-empty">{summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente'}</td></tr>}
+          {summary.data.contracts?.length ? summary.data.contracts.map((contract) => <tr key={contract.contractId}><td>{contract.contractNumber ?? `#${contract.contractId}`}</td><td>{contract.supplierName ?? 'Indisponível'}</td><td>{money(contract.value)}</td><td>{displayDate(contract.expiryDate, summary.meta.timezone)}</td></tr>) : <tr><td colSpan={4} className="table-empty">{summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente'}</td></tr>}
         </tbody></table></div></section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Contratos vigentes com vencimento nos próximos 120 dias</h2><p>Inclui a data de referência e o limite de 120 dias.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Fim da vigência</th></tr></thead><tbody>
-          {summary.data.expiringContractList?.length ? summary.data.expiringContractList.map((contract) => <tr key={contract.contractId}><td>{contract.contractNumber ?? `#${contract.contractId}`}</td><td>{contract.supplierName ?? 'Indisponível'}</td><td>{contract.expiryDate ?? 'Indisponível'}</td></tr>) : <tr><td colSpan={3} className="table-empty">{summary.data.expiringContractList === null ? 'Indisponível' : 'Nenhum contrato na janela'}</td></tr>}
+          {summary.data.expiringContractList?.length ? summary.data.expiringContractList.map((contract) => <tr key={contract.contractId}><td>{contract.contractNumber ?? `#${contract.contractId}`}</td><td>{contract.supplierName ?? 'Indisponível'}</td><td>{displayDate(contract.expiryDate, summary.meta.timezone)}</td></tr>) : <tr><td colSpan={3} className="table-empty">{summary.data.expiringContractList === null ? 'Indisponível' : 'Nenhum contrato na janela'}</td></tr>}
         </tbody></table></div></section>
       </>}
     </div>

@@ -33,7 +33,7 @@ describe('Fiscal summary presentation', () => {
   it('shows a real positive count and partial unavailability', () => {
     const html = render({ status: 'success', summary: summary(3) });
     expect(html).toContain('Fiscal Real');
-    expect(html).toContain('2026-09-24');
+    expect(html).toContain('24/09/2026');
     expect(html).toContain('>3</strong>');
     expect(html).toContain('Cobertura parcial');
     expect(html).toContain('Indisponível');
@@ -80,7 +80,7 @@ it('renders contracts and view balances while keeping unsupported panels unavail
   expect(html.replaceAll('\u00a0', ' ')).toContain('R$ 300.000,00');
   expect(html.replaceAll('\u00a0', ' ')).toContain('R$ 0,00');
   expect(html).toContain('100%');
-  expect(html).toContain('2026-10-20');
+  expect(html).toContain('20/10/2026');
   for (const title of ['Saúde da carteira', 'Distribuição dos itens por faixa']) {
     expect(html).toMatch(new RegExp(`${title}[\\s\\S]*?Indisponível[\\s\\S]*?</section>`));
   }
@@ -105,7 +105,7 @@ it('renders contractual alerts separately from the fiscal queue and overdue acti
   const data = summary(1, []);
   data.data.contractAlerts = [{ alertId: 126, contractId: 2, contractNumber: 'CT-2', description: 'Vigência próxima do fim', expiryDate: '2026-10-20', createdAt: '2026-10-01T12:00:00Z' }];
   const html = render({ status: 'success', summary: data });
-  expect(html).toMatch(/Alertas contratuais[\s\S]*CT-2[\s\S]*Vigência próxima do fim[\s\S]*2026-10-20/);
+  expect(html).toMatch(/Alertas contratuais[\s\S]*CT-2[\s\S]*Vigência próxima do fim[\s\S]*20\/10\/2026/);
   expect(html).toContain('Fila apurada sem ocorrências');
   expect(data.data.cards.overdueActions).toBeNull();
 });
@@ -118,4 +118,64 @@ it('distinguishes empty alerts from unavailable coverage', () => {
   const html = render({ status: 'success', summary: data });
   expect(html).toMatch(/Alertas contratuais[\s\S]*?Indisponível[\s\S]*?<\/section>/);
   expect(html).not.toContain('Nenhum alerta contratual no recorte');
+});
+
+it('formats queue timestamps in the dashboard timezone', () => {
+  const data = summary(1, [{ type: 'SERVICE_ORDER', severity: null, contractId: 2,
+    contractNumber: '13/2025', supplierName: null, title: null, dueAt: '2026-10-21T01:00:00Z' }]);
+  const html = render({ status: 'success', summary: data });
+  expect(html).toContain('20/10/2026');
+  expect(html).not.toContain('2026-10-21T01:00:00Z');
+});
+
+it('distinguishes a valid empty item portfolio from an unavailable source', () => {
+  const data = summary(1);
+  data.data.itemBalances = { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: 0.6, limiar_critico: 0.1 },
+    resumo: { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 },
+    agregados: { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0, itemCount: 0, completeValueRows: 0,
+      contractedValueRows: 0, committedBalanceRows: 0, measuredBalanceRows: 0 }, itens: [] };
+  const empty = render({ status: 'success', summary: data });
+  expect(empty).toContain('Nenhum item contratual cadastrado na carteira.');
+  expect(empty).toContain('60%');
+  data.data.itemBalances = { coverage: 'UNAVAILABLE' };
+  const unavailable = render({ status: 'success', summary: data });
+  expect(unavailable).toContain('Fonte de saldos por item indisponível');
+  expect(unavailable).not.toContain('Nenhum item contratual cadastrado na carteira.');
+});
+
+it('shows item critical count separately from the legacy criticalItems card', () => {
+  const data = summary(1);
+  data.data.itemBalances = { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: 0.6, limiar_critico: 0.1 },
+    resumo: { adequado: 0, atencao: 0, critico: 1, nao_verificavel: 0 },
+    agregados: { totalContratado: 100, saldoComprometido: -1, saldoMedido: 100, itemCount: 1, completeValueRows: 1,
+      contractedValueRows: 1, committedBalanceRows: 1, measuredBalanceRows: 1 },
+    itens: [{ contractId: 2, contractNumber: '13/2025', supplierName: 'Fornecedor', itemId: 10, sequence: 1,
+      specification: 'Serviço', unit: 'un', quantityContracted: 1, quantityConsumed: 0, quantityMeasured: 0,
+      quantityBalance: 1, valueContracted: 100, valueConsumed: 101, valueMeasured: 0, valueBalance: -1,
+      valueMeasuredBalance: 100, quantityMeasuredBalance: 1,
+      pctSaldo: -0.01, pctSaldoMedido: 1, faixa: 'critico', statusVerificacao: 'ok', blockedAt: null, blockReason: null }] };
+  const html = render({ status: 'success', summary: data });
+  expect(html).toContain('Saldo negativo');
+  expect(html).toContain('Verificação: ok');
+  expect(html).toContain('Itens críticos</span><strong>1</strong>');
+  expect(html).toContain('Itens críticos (legado)</span><strong class="unavailable-value">Indisponível</strong>');
+});
+
+it('uses backend measured balances and shows coverage per aggregate', () => {
+  const data = summary(1);
+  data.data.itemBalances = { coverage: 'AVAILABLE', criterio: { base: 'medido', dimensao: 'valor', limiar_atencao: 0.6, limiar_critico: 0.1 },
+    resumo: { adequado: 0, atencao: 1, critico: 0, nao_verificavel: 0 },
+    agregados: { totalContratado: 100, saldoComprometido: null, saldoMedido: 30, itemCount: 1,
+      completeValueRows: 0, contractedValueRows: 1, committedBalanceRows: 0, measuredBalanceRows: 1 },
+    itens: [{ contractId: 2, contractNumber: '13/2025', supplierName: 'Fornecedor', itemId: 10, sequence: 1,
+      specification: 'Serviço', unit: 'un', quantityContracted: 1, quantityConsumed: 0, quantityMeasured: 0,
+      quantityBalance: 1, valueContracted: 100, valueConsumed: 0, valueMeasured: 70, valueBalance: null,
+      valueMeasuredBalance: 30.01, quantityMeasuredBalance: 1, pctSaldo: null, pctSaldoMedido: 0.3001,
+      faixa: 'atencao', statusVerificacao: null, blockedAt: null, blockReason: null }] };
+  const html = render({ status: 'success', summary: data }).replaceAll('\u00a0', ' ');
+  expect(html).toContain('Saldo comprometido incompleto: 0 de 1');
+  expect(html).not.toContain('Total contratado incompleto');
+  expect(html).not.toContain('Saldo medido incompleto');
+  expect(html).toContain('R$ 30,01');
+  expect(html).toContain('Saldo comprometido dos itens</span><strong>Indisponível</strong>');
 });

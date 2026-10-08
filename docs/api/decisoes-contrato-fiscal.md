@@ -478,3 +478,11 @@ A seção mostra contrato, descrição e vencimento, com estado vazio explícito
 Indisponível para cobertura insuficiente. Não participa de `priorityQueue`,
 `overdueActions`, `criticalItems` ou KPIs; não infere severidade, responsabilidade,
 atraso, SLA ou obrigação de ação.
+
+## Extensão local — saldos por item da carteira atual
+
+O resumo Fiscal inclui `data.itemBalances`. `coverage: "UNAVAILABLE"` indica data histórica ou fonte não disponibilizada. `coverage: "AVAILABLE"` inclui `criterio`, `resumo`, `agregados` e `itens`; carteira sem itens tem `itens: []` e contagens zero. A consulta usa `bi.saldos_por_item` e somente IDs da carteira autorizada atual. `cards.criticalItems` mantém a regra distinta da DEC-007/029.
+
+`criterio` informa `base` (`comprometido|medido`), `dimensao` (`valor|quantidade`) e limiares em escala 0–1. Padrões: `comprometido`, `valor`, `0.60` e `0.10`, configuráveis por `SALDO_FAIXA_BASE`, `SALDO_FAIXA_DIMENSAO`, `SALDO_LIMIAR_ATENCAO` e `SALDO_LIMIAR_CRITICO`. A faixa usa razão decimal não arredondada; `pctSaldo` e `pctSaldoMedido` são razões arredondadas a quatro casas. `resumo` conta todos os itens retornados.
+
+Cada item contém identificação do contrato, fornecedor e item; sequência, especificação, unidade; quantidades e valores contratados, consumidos, medidos e saldo; `valueMeasuredBalance` e `quantityMeasuredBalance` calculados no backend; percentuais; faixa e status cadastral de verificação. `blockedAt` e `blockReason` são `null` enquanto o banco local não disponibilizar as colunas da migration oficial 0043. Cada agregado monetário é `null` se algum item carecer de um valor necessário para aquele agregado; medido nulo é tratado como zero quando o contratado existe, conforme a regra oficial. Os agregados usam os decimais originais do PostgreSQL, com arredondamento final ao centavo (meio para longe de zero) e rejeição de valores fora da precisão segura. `itemCount`, `contractedValueRows`, `committedBalanceRows` e `measuredBalanceRows` expõem coberturas independentes; `completeValueRows` permanece por compatibilidade. A lista considera apenas contratos vigentes da carteira autorizada. O ciclo financeiro permanece indisponível sem fontes comprovadas para suas etapas.

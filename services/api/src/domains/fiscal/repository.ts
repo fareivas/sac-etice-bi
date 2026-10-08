@@ -1,5 +1,6 @@
 import type { FiscalDashboardFilters } from './schemas';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
+import type { RawBalanceItem } from './item-balances';
 
 export interface FiscalIdentity {
   /** public.usuario.id from the already authenticated request context. */
@@ -69,6 +70,7 @@ export interface FiscalSummaryRepository {
   getContracts(query: FiscalScopedRepositoryQuery): Promise<FiscalContractsResult>;
   getContractAlerts(query: FiscalScopedRepositoryQuery): Promise<FiscalContractAlertsResult>;
   getContractBalances(query: FiscalScopedRepositoryQuery): Promise<FiscalContractBalancesResult>;
+  getItemBalances?(query: FiscalScopedRepositoryQuery): Promise<FiscalListResult<RawBalanceItem>>;
   getActiveContracts(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;
   getPendingServiceOrders(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;
   getCriticalItems(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;

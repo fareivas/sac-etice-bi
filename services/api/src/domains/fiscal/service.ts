@@ -4,6 +4,7 @@ import {
   type FiscalDashboardSummaryResponse,
 } from '@sac-etice-bi/contracts';
 import type { FiscalDashboardFilters } from './schemas';
+import { balanceCriteria, composeItemBalances } from './item-balances';
 import type {
   FiscalIndicatorResult,
   FiscalRepositoryContext,
@@ -42,6 +43,7 @@ export interface FiscalSummaryServiceDependencies {
   repository: FiscalSummaryRepository;
   kpiSource: FiscalKpiSource;
   now?: () => Date;
+  environment?: NodeJS.ProcessEnv;
 }
 
 export interface FiscalSummaryServiceInput {
@@ -85,8 +87,8 @@ export async function composeFiscalDashboardSummary(
   }
 
   const unavailable: FiscalIndicatorResult = { coverage: 'UNAVAILABLE' };
-  const [active, pending, critical, overdue, priorityQueue, contracts, contractBalances, contractAlerts, external] = scope.coverage === 'UNAVAILABLE'
-    ? [unavailable, unavailable, unavailable, unavailable, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const },
+  const [active, pending, critical, overdue, priorityQueue, contracts, contractBalances, contractAlerts, itemBalanceRows, external] = scope.coverage === 'UNAVAILABLE'
+    ? [unavailable, unavailable, unavailable, unavailable, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const }, { coverage: 'UNAVAILABLE' as const },
       input.filters.includeExternal ? { status: 'UNAVAILABLE' as const, externalViolations: null, updatedAt: null } : null] as const
     : await (async () => {
       const query: FiscalScopedRepositoryQuery = { context, scope };
@@ -99,6 +101,7 @@ export async function composeFiscalDashboardSummary(
         dependencies.repository.getContracts(query),
         dependencies.repository.getContractBalances(query),
         dependencies.repository.getContractAlerts(query),
+        dependencies.repository.getItemBalances?.(query) ?? Promise.resolve({ coverage: 'UNAVAILABLE' as const }),
         input.filters.includeExternal
           ? dependencies.kpiSource.getExternalViolations(
             scope.contracts.flatMap((contract) => contract.integrationUuid === null
@@ -108,6 +111,9 @@ export async function composeFiscalDashboardSummary(
           : Promise.resolve(null),
       ]);
     })();
+  const itemBalances = itemBalanceRows.coverage === 'AVAILABLE'
+    ? composeItemBalances(itemBalanceRows.items, balanceCriteria(dependencies.environment ?? process.env))
+    : { coverage: 'UNAVAILABLE' as const };
   const generatedAt = (dependencies.now ?? (() => new Date()))().toISOString();
   const sacCards = {
     activeContracts: cardValue(active),
@@ -158,6 +164,7 @@ export async function composeFiscalDashboardSummary(
         contracts: contracts.coverage === 'AVAILABLE' ? [...contracts.items] : null,
         contractBalances: contractBalances.coverage === 'AVAILABLE' ? [...contractBalances.items] : null,
         contractAlerts: contractAlerts.coverage === 'AVAILABLE' ? [...contractAlerts.items] : null,
+        itemBalances,
       },
     }
     : {
@@ -180,6 +187,7 @@ export async function composeFiscalDashboardSummary(
         contracts: contracts.coverage === 'AVAILABLE' ? [...contracts.items] : null,
         contractBalances: contractBalances.coverage === 'AVAILABLE' ? [...contractBalances.items] : null,
         contractAlerts: contractAlerts.coverage === 'AVAILABLE' ? [...contractAlerts.items] : null,
+        itemBalances,
       },
     };
 
