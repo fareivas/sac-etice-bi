@@ -8,7 +8,7 @@ import type { FiscalSummaryRepository, FiscalIndicatorResult } from './repositor
 import type { FiscalKpiSource, FiscalKpiResult } from './service';
 import { createFiscalDashboardHandler, handler } from './handler';
 import { createLocalFiscalDashboardHandler } from './handler';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES, GET_CURRENT_FISCAL_CONTRACT_ALERTS } from './queries';
 import type { DbReader } from '../../shared/db/index';
 
 const NOW = new Date('2026-09-23T12:00:00.000Z');
@@ -76,6 +76,7 @@ function repo(overrides: Partial<FiscalSummaryRepository> = {}): FiscalSummaryRe
     getPriorityQueue: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     getContracts: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     getContractBalances: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
+    getContractAlerts: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     ...overrides,
   };
 }
@@ -132,7 +133,7 @@ describe('Fiscal dashboard handler factory', () => {
       if (sql === GET_FISCAL_CONTRACT_SCOPE) return [{ contrato_id: '184' }];
       if (sql === COUNT_ACTIVE_FISCAL_CONTRACTS) return [{ total: '1' }];
       if (sql === COUNT_PENDING_FISCAL_SERVICE_ORDERS) return [{ total: '0' }];
-      if (sql === GET_PENDING_FISCAL_SERVICE_ORDERS) return [];
+      if (sql === GET_PENDING_FISCAL_SERVICE_ORDERS || sql === GET_CURRENT_FISCAL_CONTRACT_ALERTS) return [];
       if (sql === GET_CURRENT_FISCAL_CONTRACTS) return [{ contract_id: '184', contract_number: 'CT-EXEMPLO', supplier_name: 'Fornecedor de teste', value: '75000', expiry_date: '2027-01-20' }];
       if (sql === GET_CURRENT_FISCAL_CONTRACT_BALANCES) return [{ contract_id: '184', contract_number: 'CT-EXEMPLO', contracted_value: '75000', consumed_value: '0', balance_value: '75000' }];
       throw new Error('Unexpected SQL');
@@ -149,7 +150,7 @@ describe('Fiscal dashboard handler factory', () => {
     expect(body.data.cards).toMatchObject({ activeContracts: 1, pendingServiceOrders: 0,
       criticalItems: null, overdueActions: null, externalViolations: null });
     expect(body.meta.dataCoverage).toEqual({ activeContracts: 'AVAILABLE', pendingServiceOrders: 'AVAILABLE',
-      criticalItems: 'UNAVAILABLE', overdueActions: 'UNAVAILABLE', contracts: 'AVAILABLE', contractBalances: 'AVAILABLE' });
+      criticalItems: 'UNAVAILABLE', overdueActions: 'UNAVAILABLE', contracts: 'AVAILABLE', contractBalances: 'AVAILABLE', contractAlerts: 'AVAILABLE' });
     expect(body.data.priorityQueue).toEqual([]);
     expect(body.data.contracts).toEqual([{ contractId: 184, contractNumber: 'CT-EXEMPLO', supplierName: 'Fornecedor de teste', value: 75000, expiryDate: '2027-01-20' }]);
     expect(body.data.contractBalances).toEqual([{ contractId: 184, contractNumber: 'CT-EXEMPLO', contractedValue: 75000, consumedValue: 0, balanceValue: 75000, balancePct: 100 }]);
@@ -314,4 +315,12 @@ describe('Fiscal dashboard handler factory', () => {
     });
     vi.unstubAllEnvs();
   });
+});
+
+it('returns safe INTERNAL_ERROR on contractual alert SQL failure', async () => {
+  const handle = createHandler({ repository: repo({ getContractAlerts: vi.fn().mockRejectedValue(new Error('private SQL detail')) }) });
+  const response = await invoke('includeExternal=false', undefined, handle);
+  expect(response.statusCode).toBe(500);
+  expect(bodyOf(response).error.code).toBe('INTERNAL_ERROR');
+  expect(response.body).not.toContain('private SQL detail');
 });

@@ -448,3 +448,33 @@ alertas de `vigencia_vencendo`, SLA externo ou novas inferências de execução.
 `criticalItems` e `overdueActions` continuam `null/UNAVAILABLE`; distribuição,
 saúde e saldos por item permanecem indisponíveis. A fila e OS pendentes mantêm
 DEC-026/027/032. O fornecedor destas listas não altera a semântica da fila.
+
+## DEC-034 — Alertas contratuais no resumo Fiscal
+
+**Status:** APROVADA para este lote local, conforme pedido consolidado.
+
+Esta decisão amplia DEC-033: a exclusão anterior de alertas de vigência deixa de
+se aplicar à seção independente aqui definida. Acrescenta propriedades obrigatórias
+`data.contractAlerts: array | null` e `meta.dataCoverage.contractAlerts:
+AVAILABLE | UNAVAILABLE`, preservando todos os campos anteriores.
+
+Cada alerta contém `alertId` e `contractId` (inteiros positivos seguros),
+`contractNumber` e `description` (`string | null`), `expiryDate`
+(`YYYY-MM-DD | null`) e `createdAt` (datetime ISO 8601 com offset ou `null`).
+A fonte é `comum.pendencia`: `entidade_tipo = 'contrato'`,
+`entidade_id = contratos.contrato.id`, `tipo = 'vigencia_vencendo'` e
+`status = 'aberta'`. O contrato deve ser vigente e pertencer à carteira atual
+resolvida por designação ativa de fiscal, depois da autorização de `contratoId`.
+O vencimento vem exclusivamente de `contrato.vigencia_fim`.
+
+A consulta recebe os IDs autorizados como parâmetro; não liga designações ou
+`comum.decisao`, deduplica por pendência e ordena por `p.criado_em DESC, p.id DESC`.
+Consulta atual válida retorna lista/AVAILABLE, inclusive `[]` sem alertas ou
+com carteira vazia. Histórico ou escopo não reconstruível retorna
+`null/UNAVAILABLE`, sem consultar a fotografia atual. Falhas SQL continuam
+no tratamento de erro interno existente, nunca como indisponibilidade.
+
+A seção mostra contrato, descrição e vencimento, com estado vazio explícito e
+Indisponível para cobertura insuficiente. Não participa de `priorityQueue`,
+`overdueActions`, `criticalItems` ou KPIs; não infere severidade, responsabilidade,
+atraso, SLA ou obrigação de ação.

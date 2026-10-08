@@ -46,6 +46,8 @@ export type FiscalListResult<T> =
 export type FiscalContractsResult = FiscalListResult<NonNullable<FiscalDashboardSummaryResponse['data']['contracts']>[number]>;
 export type FiscalContractBalancesResult = FiscalListResult<NonNullable<FiscalDashboardSummaryResponse['data']['contractBalances']>[number]>;
 
+export type FiscalContractAlertsResult = FiscalListResult<NonNullable<FiscalDashboardSummaryResponse['data']['contractAlerts']>[number]>;
+
 /**
  * Port for future SAC reads. Implementations must not substitute current state
  * for an unreconstructable dataReference. Query/data failures should reject;
@@ -65,6 +67,7 @@ export interface FiscalSummaryRepository {
 
   /** For each card: on valid empty scope return 0/AVAILABLE when apurable, else UNAVAILABLE. */
   getContracts(query: FiscalScopedRepositoryQuery): Promise<FiscalContractsResult>;
+  getContractAlerts(query: FiscalScopedRepositoryQuery): Promise<FiscalContractAlertsResult>;
   getContractBalances(query: FiscalScopedRepositoryQuery): Promise<FiscalContractBalancesResult>;
   getActiveContracts(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;
   getPendingServiceOrders(query: FiscalScopedRepositoryQuery): Promise<FiscalIndicatorResult>;

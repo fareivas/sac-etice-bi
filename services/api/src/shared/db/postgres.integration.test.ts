@@ -4,7 +4,7 @@ import { PostgresDb, readDbConfig } from './index';
 const enabled = process.env.SAC_DB_INTEGRATION_TEST === 'true';
 
 describe.skipIf(!enabled)('PostgreSQL read-only integration', () => {
-  it('connects, checks required structure, and rejects a temporary write', async () => {
+  it('connects and checks required structure in read-only mode', async () => {
     const db = new PostgresDb(readDbConfig());
     try {
       const rows = await db.query<{ id: number; read_only: string }>(
@@ -35,8 +35,8 @@ describe.skipIf(!enabled)('PostgreSQL read-only integration', () => {
         );
         expect(actual.map((row) => row.column_name).sort()).toEqual([...expected].sort());
       }
-      await expect(db.query('CREATE TEMP TABLE fiscal_read_only_probe (id integer)'))
-        .rejects.toMatchObject({ code: '25006' });
+      expect(await db.query("SELECT current_setting('transaction_read_only') AS read_only"))
+        .toEqual([{ read_only: 'on' }]);
     } finally {
       await db.close();
     }

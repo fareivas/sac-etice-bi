@@ -72,7 +72,7 @@ const mixedResponse = {
       pendingServiceOrders: 'AVAILABLE',
       criticalItems: 'AVAILABLE',
       overdueActions: 'AVAILABLE',
-      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE',
+      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE', contractAlerts: 'AVAILABLE',
     },
     filtersApplied: { unidadeId: 4, contratoId: [184, 205], includeExternal: true },
   },
@@ -85,7 +85,7 @@ const mixedResponse = {
       overdueActions: 0,
       externalViolations: 3,
     },
-    contracts: [], contractBalances: [],
+    contracts: [], contractBalances: [], contractAlerts: [],
     priorityQueue: [{
       type: 'SERVICE_ORDER',
       severity: 'ALTA',
@@ -110,7 +110,7 @@ const sacResponse = {
       pendingServiceOrders: 'AVAILABLE',
       criticalItems: 'AVAILABLE',
       overdueActions: 'AVAILABLE',
-      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE',
+      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE', contractAlerts: 'AVAILABLE',
     },
     filtersApplied: { unidadeId: null, contratoId: [], includeExternal: false },
   },
@@ -123,7 +123,7 @@ const sacResponse = {
       overdueActions: 0,
       externalViolations: null,
     },
-    priorityQueue: [], contracts: [], contractBalances: [],
+    priorityQueue: [], contracts: [], contractBalances: [], contractAlerts: [],
   },
 };
 
@@ -285,4 +285,16 @@ it('requires Fiscal lists and matching coverage for null versus available arrays
   expect(fiscalDashboardSummaryResponseSchema.safeParse(input).success).toBe(true);
   delete input.data.contracts;
   expect(fiscalDashboardSummaryResponseSchema.safeParse(input).success).toBe(false);
+});
+
+it('validates contractual alerts and their coverage consistently', () => {
+  const response = structuredClone(sacResponse);
+  const alert = { alertId: 126, contractId: 2, contractNumber: 'CT-2', description: null, expiryDate: '2026-10-20', createdAt: '2026-10-01T12:00:00Z' };
+  const withAlerts = { ...response, data: { ...response.data, contractAlerts: [alert] } };
+  expect(fiscalDashboardSummaryResponseSchema.safeParse(withAlerts).success).toBe(true);
+  for (const invalid of [{ ...alert, alertId: 0 }, { ...alert, expiryDate: '20/10/2026' }, { ...alert, createdAt: 'ontem' }, { ...alert, severity: 'ALTA' }]) {
+    expect(fiscalDashboardSummaryResponseSchema.safeParse({ ...withAlerts, data: { ...withAlerts.data, contractAlerts: [invalid] } }).success).toBe(false);
+  }
+  expect(fiscalDashboardSummaryResponseSchema.safeParse({ ...response, data: { ...response.data, contractAlerts: null } }).success).toBe(false);
+  expect(fiscalDashboardSummaryResponseSchema.safeParse({ ...response, meta: { ...response.meta, dataCoverage: { ...response.meta.dataCoverage, contractAlerts: 'UNAVAILABLE' } }, data: { ...response.data, contractAlerts: null } }).success).toBe(true);
 });

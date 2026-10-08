@@ -1,11 +1,12 @@
 import { createApiError, createInternalError } from '../../shared/errors/index';
 import { safeBigintId, type DbReader } from '../../shared/db/index';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES, GET_CURRENT_FISCAL_CONTRACT_ALERTS } from './queries';
 import { dateInTimezone } from './schemas';
 import type {
   FiscalAuthorizedScope,
   FiscalContractsResult,
   FiscalContractBalancesResult,
+  FiscalContractAlertsResult,
   FiscalIdentity,
   FiscalIndicatorResult,
   FiscalPriorityQueueResult,
@@ -26,6 +27,12 @@ interface ContractRow {
 interface BalanceRow {
   contract_id: string | bigint; contract_number: string | null;
   contracted_value: string | null; consumed_value: string | null; balance_value: string | null;
+}
+
+interface ContractAlertRow {
+  alert_id: string | bigint; contract_id: string | bigint;
+  contract_number: string | null; description: string | null;
+  expiry_date: string | null; created_at: Date | null;
 }
 
 // PostgreSQL numeric arrives as text. Reject non-finite or unsafe cent values.
@@ -104,6 +111,24 @@ export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository 
       items.push({ contractId: safeBigintId(row.contract_id), contractNumber: row.contract_number,
         contractedValue, consumedValue, balanceValue,
         balancePct: percentage !== null && Number.isFinite(percentage) ? percentage : null });
+    }
+    return { coverage: 'AVAILABLE', items };
+  }
+
+  async getContractAlerts(query: FiscalScopedRepositoryQuery): Promise<FiscalContractAlertsResult> {
+    if (!this.isCurrent(query.context)) return { coverage: 'UNAVAILABLE' };
+    const ids = query.scope.contracts.map(contract => contract.contractId);
+    if (!ids.length) return { coverage: 'AVAILABLE', items: [] };
+    const rows = await this.db.query<ContractAlertRow>(GET_CURRENT_FISCAL_CONTRACT_ALERTS, [ids]);
+    const seen = new Set<number>();
+    const items: Extract<FiscalContractAlertsResult, { coverage: 'AVAILABLE' }>['items'][number][] = [];
+    for (const row of rows) {
+      const alertId = safeBigintId(row.alert_id);
+      if (seen.has(alertId)) continue;
+      seen.add(alertId);
+      items.push({ alertId, contractId: safeBigintId(row.contract_id),
+        contractNumber: row.contract_number, description: row.description,
+        expiryDate: row.expiry_date, createdAt: row.created_at === null ? null : row.created_at.toISOString() });
     }
     return { coverage: 'AVAILABLE', items };
   }

@@ -43,6 +43,7 @@ const fiscalDataCoverageSchema = z.strictObject({
   overdueActions: z.enum(['AVAILABLE', 'UNAVAILABLE']),
   contracts: z.enum(['AVAILABLE', 'UNAVAILABLE']),
   contractBalances: z.enum(['AVAILABLE', 'UNAVAILABLE']),
+  contractAlerts: z.enum(['AVAILABLE', 'UNAVAILABLE']),
 });
 
 const fiscalFiltersAppliedSchema = z.strictObject({
@@ -119,6 +120,16 @@ export const fiscalContractBalanceSchema = z.strictObject({
 export type FiscalContract = z.infer<typeof fiscalContractSchema>;
 export type FiscalContractBalance = z.infer<typeof fiscalContractBalanceSchema>;
 
+export const fiscalContractAlertSchema = z.strictObject({
+  alertId: z.number().int().positive().safe(),
+  contractId: z.number().int().positive().safe(),
+  contractNumber: z.string().nullable(),
+  description: z.string().nullable(),
+  expiryDate: z.iso.date().nullable(),
+  createdAt: sourceDateTimeSchema.nullable(),
+});
+export type FiscalContractAlert = z.infer<typeof fiscalContractAlertSchema>;
+
 const fiscalDataSchema = z.strictObject({
   fiscal: z.strictObject({
     userId: z.number().int(),
@@ -134,6 +145,7 @@ const fiscalDataSchema = z.strictObject({
   priorityQueue: z.array(fiscalPriorityQueueItemSchema).nullable(),
   contracts: z.array(fiscalContractSchema).nullable(),
   contractBalances: z.array(fiscalContractBalanceSchema).nullable(),
+  contractAlerts: z.array(fiscalContractAlertSchema).nullable(),
 });
 
 export const fiscalDashboardSummaryResponseSchema = z.union([
@@ -158,7 +170,7 @@ export const fiscalDashboardSummaryResponseSchema = z.union([
     }
   }
 
-  for (const key of ['contracts', 'contractBalances'] as const) {
+  for (const key of ['contracts', 'contractBalances', 'contractAlerts'] as const) {
     if ((response.data[key] === null) !== (response.meta.dataCoverage[key] === 'UNAVAILABLE')) {
       context.addIssue({ code: 'custom', path: ['data', key], message: 'Lista e dataCoverage inconsistentes' });
     }

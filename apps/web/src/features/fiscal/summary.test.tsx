@@ -7,13 +7,13 @@ function summary(activeContracts: number, queue: FiscalDashboardSummaryResponse[
   return {
     meta: {
       generatedAt: '2026-09-24T12:00:00-03:00', dataReference: '2026-09-24', timezone: 'America/Fortaleza',
-      dataCoverage: { activeContracts: 'AVAILABLE', pendingServiceOrders: 'UNAVAILABLE', criticalItems: 'UNAVAILABLE', overdueActions: 'UNAVAILABLE', contracts: 'AVAILABLE', contractBalances: 'AVAILABLE' },
+      dataCoverage: { activeContracts: 'AVAILABLE', pendingServiceOrders: 'UNAVAILABLE', criticalItems: 'UNAVAILABLE', overdueActions: 'UNAVAILABLE', contracts: 'AVAILABLE', contractBalances: 'AVAILABLE', contractAlerts: 'AVAILABLE' },
       filtersApplied: { unidadeId: null, contratoId: [], includeExternal: false }, source: 'SAC', merCoverage: 'PROPOSTA',
     },
     data: {
       fiscal: { userId: 77, name: 'Fiscal Real' },
       cards: { activeContracts, pendingServiceOrders: null, criticalItems: null, overdueActions: null, externalViolations: null },
-      priorityQueue: queue, contracts: [], contractBalances: [],
+      priorityQueue: queue, contracts: [], contractBalances: [], contractAlerts: [],
     },
   };
 }
@@ -99,4 +99,23 @@ it('distinguishes empty portfolio from unavailable contract lists and balances',
   const html = render({ status: 'success', summary: unavailable });
   expect(html).not.toContain('Nenhum contrato vigente na carteira');
   expect(html).not.toContain('R$ 0,00');
+});
+
+it('renders contractual alerts separately from the fiscal queue and overdue actions', () => {
+  const data = summary(1, []);
+  data.data.contractAlerts = [{ alertId: 126, contractId: 2, contractNumber: 'CT-2', description: 'Vigência próxima do fim', expiryDate: '2026-10-20', createdAt: '2026-10-01T12:00:00Z' }];
+  const html = render({ status: 'success', summary: data });
+  expect(html).toMatch(/Alertas contratuais[\s\S]*CT-2[\s\S]*Vigência próxima do fim[\s\S]*2026-10-20/);
+  expect(html).toContain('Fila apurada sem ocorrências');
+  expect(data.data.cards.overdueActions).toBeNull();
+});
+
+it('distinguishes empty alerts from unavailable coverage', () => {
+  const data = summary(0, []);
+  expect(render({ status: 'success', summary: data })).toContain('Nenhum alerta contratual no recorte');
+  data.data.contractAlerts = null;
+  data.meta.dataCoverage.contractAlerts = 'UNAVAILABLE';
+  const html = render({ status: 'success', summary: data });
+  expect(html).toMatch(/Alertas contratuais[\s\S]*?Indisponível[\s\S]*?<\/section>/);
+  expect(html).not.toContain('Nenhum alerta contratual no recorte');
 });

@@ -6,4 +6,4 @@ SELECT DISTINCT c.id::text AS contract_id, f.id::text AS supplier_id, f.razao_so
 FROM contratos.contrato c
 JOIN fornecedores.fornecedor f ON f.id = c.fornecedor_id
 WHERE c.id = ANY($1::bigint[])
-ORDER BY f.id, c.id`;
+ORDER BY supplier_id, contract_id`;

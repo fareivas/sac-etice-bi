@@ -58,3 +58,17 @@ LEFT JOIN contratos.vw_saldo_contrato s ON s.contrato_id = c.id
 WHERE c.id = ANY($1::bigint[]) AND c.status = 'vigente'
 ORDER BY c.id
 `;
+
+// The distinct, filtered scope is resolved before this query. No designation or
+// decision JOIN is needed, so each pendencia can produce only one alert.
+export const GET_CURRENT_FISCAL_CONTRACT_ALERTS = `
+SELECT p.id::text AS alert_id, c.id::text AS contract_id,
+       c.numero AS contract_number, p.descricao AS description,
+       c.vigencia_fim::date::text AS expiry_date, p.criado_em AS created_at
+FROM comum.pendencia p
+JOIN contratos.contrato c ON c.id = p.entidade_id
+WHERE p.entidade_tipo = 'contrato'
+  AND c.id = ANY($1::bigint[]) AND c.status = 'vigente'
+  AND p.tipo = 'vigencia_vencendo' AND p.status = 'aberta'
+ORDER BY p.criado_em DESC, p.id DESC
+`;

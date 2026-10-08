@@ -31,6 +31,7 @@ function repository(overrides: Partial<FiscalSummaryRepository> = {}): FiscalSum
     getPriorityQueue: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     getContracts: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     getContractBalances: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
+    getContractAlerts: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: [] })),
     ...overrides,
   };
 }
@@ -163,7 +164,7 @@ describe('composeFiscalDashboardSummary', () => {
       pendingServiceOrders: 'UNAVAILABLE',
       criticalItems: 'AVAILABLE',
       overdueActions: 'UNAVAILABLE',
-      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE',
+      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE', contractAlerts: 'AVAILABLE',
     });
   });
 
@@ -195,7 +196,7 @@ describe('composeFiscalDashboardSummary', () => {
       pendingServiceOrders: 'AVAILABLE',
       criticalItems: 'AVAILABLE',
       overdueActions: 'AVAILABLE',
-      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE',
+      contracts: 'AVAILABLE', contractBalances: 'AVAILABLE', contractAlerts: 'AVAILABLE',
     });
   });
 
@@ -206,7 +207,7 @@ describe('composeFiscalDashboardSummary', () => {
       { repository: repo, kpiSource: kpiSource({ status: 'UNAVAILABLE', externalViolations: null, updatedAt: null }), now },
     );
     expect(response.data.cards).toMatchObject({ activeContracts: null, pendingServiceOrders: null, criticalItems: null, overdueActions: null });
-    expect(Object.values(response.meta.dataCoverage)).toEqual(Array(6).fill('UNAVAILABLE'));
+    expect(Object.values(response.meta.dataCoverage)).toEqual(Array(7).fill('UNAVAILABLE'));
     expect(response.data.priorityQueue).toBeNull();
     expect(repo.getActiveContracts).not.toHaveBeenCalled();
   });
@@ -289,8 +290,10 @@ describe('composeFiscalDashboardSummary', () => {
 
 it('composes contract lists and balances independently from unsupported indicators', async () => {
   const contracts = [{ contractId: 184, contractNumber: 'CT-EXEMPLO', supplierName: null, value: 75000, expiryDate: '2027-01-20' }];
+  const alerts = [{ alertId: 126, contractId: 184, contractNumber: 'CT-EXEMPLO', description: 'Vigência próxima', expiryDate: '2027-01-20', createdAt: '2026-09-20T12:00:00Z' }];
   const balances = [{ contractId: 184, contractNumber: 'CT-EXEMPLO', contractedValue: 75000, consumedValue: 0, balanceValue: 75000, balancePct: 100 }];
   const repo = repository({
+    getContractAlerts: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: alerts })),
     getContracts: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: contracts })),
     getContractBalances: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: balances })),
     getPendingServiceOrders: vi.fn(async () => available(0)),
@@ -299,9 +302,10 @@ it('composes contract lists and balances independently from unsupported indicato
   const response = await composeFiscalDashboardSummary({ authenticatedUserId: 77, filters: filters(false) }, {
     repository: repo, kpiSource: kpiSource({ status: 'UNAVAILABLE', externalViolations: null, updatedAt: null }), now,
   });
+  expect(response.data.contractAlerts).toEqual(alerts);
   expect(response.data.contracts).toEqual(contracts);
   expect(response.data.contractBalances).toEqual(balances);
-  expect(response.meta.dataCoverage).toMatchObject({ contracts: 'AVAILABLE', contractBalances: 'AVAILABLE' });
+  expect(response.meta.dataCoverage).toMatchObject({ contracts: 'AVAILABLE', contractBalances: 'AVAILABLE', contractAlerts: 'AVAILABLE' });
   expect(response.data.cards).toMatchObject({ activeContracts: 1, pendingServiceOrders: 0, criticalItems: null, overdueActions: null });
   expect(response.data.priorityQueue).toEqual([]);
   expect(repo.getContracts).toHaveBeenCalledWith(expect.objectContaining({ scope: { coverage: 'AVAILABLE', contracts: [{ contractId: 184, integrationUuid: 'uuid-contrato-184' }] } }));
@@ -318,6 +322,9 @@ it('keeps missing current balances null and historical lists unavailable without
   vi.mocked(repo.getContracts).mockClear();
   vi.mocked(repo.getContractBalances).mockClear();
   const historical = await composeFiscalDashboardSummary({ authenticatedUserId: 77, filters: { ...filters(false), dataReferencia: '2026-09-20' } }, dependencies);
+  expect(historical.data.contractAlerts).toBeNull();
+  expect(historical.meta.dataCoverage.contractAlerts).toBe('UNAVAILABLE');
+  expect(repo.getContractAlerts).toHaveBeenCalledTimes(1);
   expect(historical.data.contracts).toBeNull();
   expect(historical.data.contractBalances).toBeNull();
   expect(historical.meta.dataCoverage).toMatchObject({ contracts: 'UNAVAILABLE', contractBalances: 'UNAVAILABLE' });

@@ -79,3 +79,15 @@ representa o processo de renovação definido pelo endpoint 7.4.
   processo de renovação conforme o contrato 7.4.
 
 O endpoint 7.4 fica sem implementação funcional nesta fase.
+
+## Correção técnica da consulta de fornecedores
+
+No lote consolidado, `GET_MANAGER_SUPPLIER_CONTRACTS` passa de
+`ORDER BY f.id, c.id` para `ORDER BY supplier_id, contract_id`. PostgreSQL exige
+que expressões de ordenação de `SELECT DISTINCT` estejam na seleção; os aliases
+selecionados eliminam o HTTP 500 causado por essa restrição. A consulta mantém
+parâmetros, carteira autorizada, deduplicação e valores nulos. A ordenação
+funcional e a paginação continuam aplicadas pelo serviço depois da agregação,
+sem alteração do contrato HTTP ou de regras funcionais. A regressão PostgreSQL
+é optativa (`SAC_DB_INTEGRATION_TEST=true`) e executa somente SELECT, sem fixtures
+persistentes ou mudanças no banco.

@@ -69,6 +69,14 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
           })}
         </section>
         {summary.data.cards.activeContracts === 0 && <p className="empty-contracts" role="status">Nenhum contrato ativo na data de referência.</p>}
+        <Panel title="Alertas contratuais" subtitle="Pendências abertas de vigência dos contratos da carteira.">
+          <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Descrição</th><th>Vencimento do contrato</th></tr></thead><tbody>
+            {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts?.length ? summary.data.contractAlerts.map(alert => <tr key={alert.alertId}>
+              <td>{alert.contractNumber ?? 'Indisponível'}</td><td>{alert.description ?? 'Indisponível'}</td>
+              <td>{alert.expiryDate ?? 'Indisponível'}</td>
+            </tr>) : <tr><td colSpan={3} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
+          </tbody></table></div>
+        </Panel>
         <Panel title="Contratos fiscalizados" subtitle="Contratos vigentes da carteira autorizada atual.">
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Valor atual</th><th>Fim da vigência</th></tr></thead><tbody>
             {summary.data.contracts?.length ? summary.data.contracts.map(contract => <tr key={contract.contractId}>

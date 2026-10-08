@@ -90,3 +90,8 @@ describe('manager suppliers 7.3', () => {
     expect(JSON.parse((response as { body: string }).body).error.code).toBe('INVALID_FILTER');
   });
 });
+
+it('orders DISTINCT supplier contracts by selected aliases (PostgreSQL regression)', () => {
+  expect(GET_MANAGER_SUPPLIER_CONTRACTS).toContain('ORDER BY supplier_id, contract_id');
+  expect(GET_MANAGER_SUPPLIER_CONTRACTS).not.toContain('ORDER BY f.id, c.id');
+});
