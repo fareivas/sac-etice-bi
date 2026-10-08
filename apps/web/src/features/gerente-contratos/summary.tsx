@@ -5,7 +5,8 @@ import { displayDate } from '../../lib/display-date';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 
 type State = { status: 'loading' } | { status: 'error'; message: string } |
-  { status: 'success'; summary: ManagerDashboardSummaryResponse; load?: ManagerFiscalLoadResponse | null; suppliers?: ManagerSuppliersResponse | null; suppliersError?: string | null };
+  { status: 'success'; summary: ManagerDashboardSummaryResponse; load?: ManagerFiscalLoadResponse | null;
+    loadError?: string | null; suppliers?: ManagerSuppliersResponse | null; suppliersError?: string | null };
 const money = (value: number | null) => value === null ? 'Indisponível' :
   new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
 const count = (value: number | null) => value === null ? 'Indisponível' : String(value);
@@ -39,8 +40,43 @@ export function PortfolioFinancialChart({ balances }: { balances: NonNullable<Ma
     </g>)}
   </svg></div>;
 }
+
+type Inspector = NonNullable<ManagerFiscalLoadResponse['data']['inspectors']>[number];
+const inspectorName = (inspector: Inspector) => inspector.name ?? `Fiscal ${inspector.userId}`;
+function orderedInspectors(inspectors: readonly Inspector[]): Inspector[] {
+  return [...inspectors].sort((a, b) => b.activeContracts - a.activeContracts ||
+    inspectorName(a).localeCompare(inspectorName(b), 'pt-BR') || a.userId - b.userId);
+}
+
+export function FiscalLoadChart({ inspectors }: { inspectors: readonly Inspector[] }) {
+  const max = Math.max(0, ...inspectors.flatMap(inspector => [inspector.activeContracts, inspector.pendingOrders]));
+  const barWidth = (value: number) => max === 0 ? 0 : value / max * 450;
+  return <div className="fiscal-table-wrap manager-fiscal-chart-wrap">
+    <div className="manager-fiscal-chart-legend" aria-hidden="true"><span><i className="contracts" />Contratos vigentes</span><span><i className="orders" />OS pendentes na carteira</span></div>
+    <svg viewBox={`0 0 760 ${inspectors.length * 85 + 20}`} width="100%" role="img"
+      aria-label="Comparativo de contratos vigentes e OS pendentes por fiscal" style={{ minWidth: 700, display: 'block' }}>
+      <title>Contratos vigentes e OS pendentes na carteira por fiscal</title>
+      <desc>Escala linear comum iniciada em zero. Os valores completos estão na tabela abaixo.</desc>
+      {inspectors.map((inspector, index) => {
+        const y = index * 85 + 16;
+        const contractedWidth = barWidth(inspector.activeContracts);
+        const pendingWidth = barWidth(inspector.pendingOrders);
+        return <g key={inspector.userId} aria-label={`${inspectorName(inspector)}: ${inspector.activeContracts} contratos vigentes; ${inspector.pendingOrders} OS pendente${inspector.pendingOrders === 1 ? '' : 's'}`}>
+          <text x="12" y={y + 13} className="manager-fiscal-name">{inspectorName(inspector)}</text>
+          <rect x="150" y={y + 22} width={contractedWidth} height="18" className="manager-fiscal-bar-contracts" />
+          <text x={156 + contractedWidth} y={y + 36}>{inspector.activeContracts}</text>
+          <rect x="150" y={y + 47} width={pendingWidth} height="18" className="manager-fiscal-bar-orders" />
+          <text x={156 + pendingWidth} y={y + 61}>{inspector.pendingOrders}</text>
+        </g>;
+      })}
+    </svg>
+  </div>;
+}
 export function ManagerDashboardView({ state }: { state: State }) {
   const summary = state.status === 'success' ? state.summary : null;
+  const inspectors = state.status === 'success' && state.load?.meta.dataCoverage.inspectors === 'AVAILABLE'
+    ? state.load.data.inspectors : null;
+  const sortedInspectors = inspectors === null ? null : orderedInspectors(inspectors);
   const itemBalances = summary?.data.itemBalances;
   const context = summary ? JSON.stringify([summary.data.manager.userId,
     [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b)]) : null;
@@ -125,9 +161,14 @@ export function ManagerDashboardView({ state }: { state: State }) {
             </tbody></table></div>
           </> : <div className="panel-unavailable" role="status">Fonte de saldos por item indisponível para esta data.</div>}
         </section>
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Fiscais e distribuição da carteira</h2><p>Contratos vigentes designados e OS com decisão fiscal pendente.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
-          {state.status === 'success' && state.load?.data.inspectors?.length ? state.load.data.inspectors.map((fiscal) => <tr key={fiscal.userId}><td>{fiscal.name ?? `Fiscal ${fiscal.userId}`}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>) : <tr><td colSpan={4} className="table-empty">{state.status === 'success' && state.load?.data.inspectors?.length === 0 ? 'Nenhum fiscal designado' : 'Indisponível'}</td></tr>}
-        </tbody></table></div></section>
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Fiscais e distribuição da carteira</h2><p>Contratos vigentes designados e OS com decisão fiscal pendente. OS pendentes são vinculadas aos contratos da carteira do fiscal e não representam necessariamente atribuições individuais. Uma mesma OS pode aparecer para fiscais diferentes; as contagens não devem ser somadas como OS únicas da carteira gerencial.</p></div>
+          {state.status === 'success' && state.loadError ? <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>
+            : sortedInspectors === null ? <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
+              : sortedInspectors.length === 0 ? <p role="status">Nenhum fiscal designado na carteira.</p>
+                : <><FiscalLoadChart inspectors={sortedInspectors} /><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
+                  {sortedInspectors.map(fiscal => <tr key={fiscal.userId}><td>{inspectorName(fiscal)}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>)}
+                </tbody></table></div></>}
+        </section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Fornecedores da carteira</h2><p>Valor vigente dos contratos autorizados; demais indicadores sem fonte aprovada.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Valor vigente</th><th>ABC</th><th>Financeiro em aberto</th><th>Riscos críticos</th></tr></thead><tbody>
           {state.status === 'success' && state.suppliers?.data.suppliers?.length ? state.suppliers.data.suppliers.map((supplier) => <tr key={supplier.supplierId}><td>{supplier.name}</td><td>{money(supplier.vigentValue)}</td><td>Indisponível</td><td>Indisponível</td><td>Indisponível</td></tr>) : <tr><td colSpan={5} className="table-empty">{state.status === 'success' && state.suppliersError ? `Erro ao carregar fornecedores: ${state.suppliersError}` : state.status === 'success' && state.suppliers?.data.suppliers?.length === 0 ? 'Nenhum fornecedor na carteira' : 'Indisponível'}</td></tr>}
         </tbody></table></div></section>
@@ -143,7 +184,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
 }
 export function ManagerDashboard() {
   const [state, setState] = useState<State>({ status: 'loading' });
-  useEffect(() => { let active = true; Promise.all([loadManagerSummary(), loadManagerFiscalLoad().catch(() => null), loadManagerSuppliers().then((value) => ({ value, error: null })).catch((error: unknown) => ({ value: null, error: error instanceof Error ? error.message : 'Falha na consulta' }))]).then(([summary, load, suppliers]) => { if (active) setState({ status: 'success', summary, load, suppliers: suppliers.value, suppliersError: suppliers.error }); })
+  useEffect(() => { let active = true; Promise.all([loadManagerSummary(), loadManagerFiscalLoad().then((value) => ({ value, error: null })).catch((error: unknown) => ({ value: null, error: error instanceof Error ? error.message : 'Falha na consulta' })), loadManagerSuppliers().then((value) => ({ value, error: null })).catch((error: unknown) => ({ value: null, error: error instanceof Error ? error.message : 'Falha na consulta' }))]).then(([summary, load, suppliers]) => { if (active) setState({ status: 'success', summary, load: load.value, loadError: load.error, suppliers: suppliers.value, suppliersError: suppliers.error }); })
     .catch((error: unknown) => { if (active) setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha na consulta' }); });
     return () => { active = false; }; }, []);
   return <ManagerDashboardView state={state} />;

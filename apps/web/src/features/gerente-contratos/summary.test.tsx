@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse } from '@sac-etice-bi/contracts';
-import { ManagerDashboardView } from './summary';
+import { ManagerDashboard, ManagerDashboardView } from './summary';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -77,6 +77,88 @@ it('renders official fiscal load fields and unavailable capacity', () => {
   const html = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, load }} />);
   expect(html).toContain('Contratos vigentes');
   expect(html).toContain('<td>Fiscal Sete</td><td>2</td><td>3</td><td>Indisponível</td>');
+});
+
+type Inspector = NonNullable<ManagerFiscalLoadResponse['data']['inspectors']>[number];
+function fiscalLoad(inspectors: Inspector[] | null): ManagerFiscalLoadResponse {
+  const coverage = inspectors === null ? 'UNAVAILABLE' : 'AVAILABLE';
+  return { meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25',
+    timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA',
+    dataCoverage: { inspectors: coverage, activeContracts: coverage, pendingOrders: coverage,
+      capacity: 'UNAVAILABLE', weightedLoad: 'UNAVAILABLE', criticality: 'UNAVAILABLE',
+      ranking: 'UNAVAILABLE', overdueActions: 'UNAVAILABLE' } },
+    data: { inspectors } };
+}
+const inspector = (userId: number, name: string | null, activeContracts: number, pendingOrders: number): Inspector => ({
+  userId, name, activeContracts, pendingOrders, capacity: null, weightedLoad: null,
+  criticality: null, ranking: null, overdueActions: null,
+});
+
+it('compares multiple fiscals on one zero-based scale and sorts chart and table identically', () => {
+  const load = fiscalLoad([inspector(9, 'Zeca', 4, 4), inspector(8, 'Álvaro', 4, 1),
+    inspector(7, 'Álvaro', 4, 3), inspector(5, 'Bruna', 0, 0)]);
+  const host = document.createElement('div');
+  host.innerHTML = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, load }} />);
+  const panel = [...host.querySelectorAll('section.fiscal-panel')].find(node => node.querySelector('h2')?.textContent === 'Fiscais e distribuição da carteira')!;
+  const chart = panel.querySelector('svg[aria-label="Comparativo de contratos vigentes e OS pendentes por fiscal"]')!;
+  const chartNames = [...chart.querySelectorAll('g > text.manager-fiscal-name')].map(node => node.textContent);
+  const tableNames = [...panel.querySelectorAll('tbody tr')].map(node => node.querySelector('td')?.textContent);
+  expect(chartNames).toEqual(['Álvaro', 'Álvaro', 'Zeca', 'Bruna']);
+  expect(tableNames).toEqual(chartNames);
+  expect([...panel.querySelectorAll('tbody tr')].map(node => node.querySelectorAll('td')[1].textContent)).toEqual(['4', '4', '4', '0']);
+  expect([...chart.querySelectorAll('g[aria-label]')].map(node => node.getAttribute('aria-label'))[0]).toContain('3 OS pendentes');
+  expect([...chart.querySelectorAll('g[aria-label]')].map(node => node.getAttribute('aria-label'))[1]).toContain('1 OS pendente');
+  const firstBars = chart.querySelectorAll('g[aria-label]')[0].querySelectorAll('rect');
+  expect(firstBars[0].getAttribute('width')).toBe('450');
+  expect(firstBars[1].getAttribute('width')).toBe('337.5');
+  expect(panel.textContent).toContain('OS pendentes são vinculadas aos contratos da carteira do fiscal');
+  expect(panel.textContent).toContain('não devem ser somadas como OS únicas');
+  expect([...panel.querySelectorAll('tbody tr')].every(node => node.querySelectorAll('td')[3].textContent === 'Indisponível')).toBe(true);
+  expect(host.textContent).toContain('Fornecedores da carteira');
+  expect(host.textContent).not.toContain('Total de OS pendentes');
+});
+
+it('shows observed zeros, including an all-zero chart without a false bar', () => {
+  const host = document.createElement('div');
+  host.innerHTML = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base,
+    load: fiscalLoad([inspector(2, null, 0, 0), inspector(1, 'Ana', 0, 0)]) }} />);
+  const chart = host.querySelector('svg[aria-label="Comparativo de contratos vigentes e OS pendentes por fiscal"]')!;
+  expect([...chart.querySelectorAll('rect')].map(node => node.getAttribute('width'))).toEqual(['0', '0', '0', '0']);
+  expect(chart.textContent).toContain('Fiscal 2');
+  expect(chart.querySelectorAll('g[aria-label] text:not(.manager-fiscal-name)')).toHaveLength(4);
+  expect([...chart.querySelectorAll('g[aria-label] text:not(.manager-fiscal-name)')].every(node => node.textContent === '0')).toBe(true);
+});
+
+it('distinguishes empty, unavailable and loading fiscal distribution', () => {
+  const empty = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, load: fiscalLoad([]) }} />);
+  expect(empty).toContain('Nenhum fiscal designado na carteira');
+  expect(empty).not.toContain('Comparativo de contratos vigentes');
+  const unavailable = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, load: fiscalLoad(null) }} />);
+  expect(unavailable).toContain('Distribuição dos fiscais indisponível para esta referência');
+  expect(unavailable).not.toContain('Nenhum fiscal designado na carteira');
+  const loading = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'loading' }} />);
+  expect(loading).toContain('Carregando resumo');
+  expect(loading).not.toContain('Distribuição dos fiscais indisponível');
+});
+
+it('isolates a fiscal-load HTTP error without hiding the main summary', async () => {
+  const suppliers = { meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25',
+    timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA',
+    pagination: { page: 1, pageSize: 25, totalItems: 0 },
+    dataCoverage: { suppliers: 'AVAILABLE', vigentValue: 'AVAILABLE', abcClass: 'UNAVAILABLE',
+      openFinancialAmount: 'UNAVAILABLE', openCriticalRisks: 'UNAVAILABLE' } }, data: { suppliers: [] } };
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => input.includes('/fiscais/carga')
+    ? new Response('{}', { status: 503 })
+    : new Response(JSON.stringify(input.includes('/fornecedores/') ? suppliers : base), { status: 200 })));
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => { root.render(<ManagerDashboard />); await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(host.textContent).toContain('Dashboard do Gerente de Contratos');
+    expect(host.textContent).toContain('Contratos ativos');
+    expect(host.textContent).toContain('Erro ao carregar distribuição dos fiscais');
+    expect(host.textContent).not.toContain('Distribuição dos fiscais indisponível para esta referência');
+  } finally { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });
 
 it('renders factual supplier value and unavailable supplier indicators', () => {

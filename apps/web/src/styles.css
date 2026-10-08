@@ -97,4 +97,12 @@ button, input, select { font: inherit; }
 }
 
 .manager-kpis { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.manager-fiscal-chart-wrap { margin: 12px 0 18px; }
+.manager-fiscal-chart-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-bottom: 8px; color: var(--text-secondary); font-size: .8rem; }
+.manager-fiscal-chart-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.manager-fiscal-chart-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.manager-fiscal-chart-legend .contracts, .manager-fiscal-bar-contracts { fill: var(--color-accent); background: var(--color-accent); }
+.manager-fiscal-chart-legend .orders, .manager-fiscal-bar-orders { fill: var(--text-secondary); background: var(--text-secondary); }
+.manager-fiscal-chart-wrap svg { color: var(--text-primary); font-size: 12px; }
+.manager-fiscal-chart-wrap .manager-fiscal-name { font-weight: 600; }
 @media (max-width: 700px) { .manager-kpis { grid-template-columns: 1fr; } }

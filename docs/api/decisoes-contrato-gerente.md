@@ -167,3 +167,31 @@ autorizado recebido. Tabela, distribuição e indicadores por item usam o mesmo
 recorte. Os painéis de `Saldos da carteira` e `Distribuição financeira por
 contrato` continuam baseados exclusivamente em `contratos.vw_saldo_contrato`,
 sem influência dos filtros locais ou recálculo a partir de itens.
+
+## DEC-GC-028 — Supervisão operacional dos fiscais
+
+**Status:** APROVADA para a apresentação gerencial atual.
+
+O Dashboard do Gerente usa exclusivamente
+`GET /api/v1/gerentes-contrato/me/fiscais/carga` para comparar, por fiscal,
+`inspectors[].activeContracts` (contratos vigentes designados) e
+`inspectors[].pendingOrders` (OS cliente com decisão fiscal pendente ligada
+diretamente a contrato da carteira com designação fiscal ativa, conforme
+DEC-026). Mantém a tabela com as colunas Fiscal, Contratos vigentes, OS
+pendentes e Capacidade e acrescenta gráfico de barras agrupadas na mesma
+escala linear iniciada em zero. A tabela é a alternativa textual do gráfico.
+
+A ordenação existe apenas no frontend: contratos vigentes decrescente, nome
+do fiscal em ordem `pt-BR` e `userId` crescente. Não altera o endpoint nem
+representa ranking de desempenho. As pendências são vinculadas a contratos,
+não necessariamente atribuídas individualmente ao fiscal. A mesma OS pode
+constar para fiscais diferentes com designações ativas múltiplas; as contagens
+por fiscal não são somadas como OS únicas da carteira do gerente.
+
+Lista disponível vazia apresenta mensagem própria sem gráfico. Cobertura
+`UNAVAILABLE` ou `inspectors: null` apresenta indisponibilidade sem zeros.
+Falha HTTP ou de validação da chamada de carga é exibida separadamente e não
+derruba o resumo principal. Durante a carga conjunta permanece o estado de
+carregamento. Capacidade, carga ponderada, criticidade, ranking, ações
+concluídas no prazo, ações vencidas e recomendações de intervenção seguem
+indisponíveis; não há cálculo de sobrecarga.
