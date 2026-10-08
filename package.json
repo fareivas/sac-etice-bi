@@ -11,6 +11,8 @@
     "dev:web": "npm run dev --workspace @sac-etice-bi/web",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspace @sac-etice-bi/api --workspace @sac-etice-bi/contracts"
+    "test": "npm run test --workspace @sac-etice-bi/api --workspace @sac-etice-bi/contracts",
+    "local:api": "bash scripts/local-api.sh",
+    "local:web": "npm run dev --workspace @sac-etice-bi/web -- --host 127.0.0.1"
   }
 }

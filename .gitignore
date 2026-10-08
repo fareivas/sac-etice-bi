@@ -6,3 +6,8 @@ coverage/
 .env.*
 !.env.example
 *.tsbuildinfo
+
+# Local dashboard configuration and legacy SAM credentials
+!.env.local.example
+.env.local
+infra/sam/env.local.json
