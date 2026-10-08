@@ -92,4 +92,19 @@ describe('item balances', () => {
     expect(composeItemBalances([second], { ...criterion, base: 'medido', dimensao: 'quantidade' }).itens[0])
       .toMatchObject({ quantityMeasuredBalance: -10, faixa: 'critico' });
   });
+  it('counts measured balance coverage by calculability with missing measurement and missing contracted value', () => {
+    const observedZero = row('100');
+    const missingMeasurement = row('100');
+    missingMeasurement.raw.valueMeasured = null;
+    missingMeasurement.valueMeasured = null;
+    missingMeasurement.raw.quantityMeasured = null;
+    missingMeasurement.quantityMeasured = null;
+    const missingContracted = row(null, null);
+    const result = composeItemBalances([observedZero, missingMeasurement, missingContracted], criterion);
+    expect(result.itens.map(item => item.valueMeasuredBalance)).toEqual([100, 100, null]);
+    expect(result.itens.map(item => item.valueMeasured)).toEqual([0, null, 0]);
+    expect(result.agregados).toMatchObject({ itemCount: 3, measuredBalanceRows: 2, saldoMedido: null });
+    const available = composeItemBalances([observedZero, missingMeasurement], criterion);
+    expect(available.agregados).toMatchObject({ measuredBalanceRows: 2, saldoMedido: 200 });
+  });
 });

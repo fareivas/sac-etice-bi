@@ -5,6 +5,7 @@ import { PostgresManagerRepository } from './repository';
 import { composeManagerSummary } from './service';
 import { parseManagerQuery } from './schemas';
 import { createManagerHandler } from './handler';
+import { GET_CURRENT_ITEM_BALANCES } from '../../shared/item-balance-query';
 
 const now = () => new Date('2026-09-25T15:00:00Z');
 const filters = { dataReferencia: '2026-09-25', timezone: 'America/Fortaleza', contratoId: [] as number[] };
@@ -12,7 +13,7 @@ const contract = (id: string, value: string | null, status = 'vigente', expiry: 
   ({ id, numero: `CT-${id}`, valor_total: value, status, vigencia_fim: expiry, fornecedor_id: '1' });
 function fixture(designations: { userId: number; contractId: string; role: string; active: boolean }[],
   contracts: ReturnType<typeof contract>[]) {
-  const query = vi.fn(async (sql: string, values?: readonly unknown[]) => {
+  const query = vi.fn(async (sql: string, values?: readonly unknown[]): Promise<unknown[]> => {
     if (sql === GET_MANAGER_IDENTITY) return [{ id: String(values![0]), nome: `Gestor ${values![0]}`, ativo: true }];
     if (sql === GET_MANAGER_SCOPE) return designations.filter((d) => d.userId === values![0] && d.role === 'gestor' && d.active)
       .map((d) => ({ contrato_id: d.contractId }));
@@ -26,6 +27,7 @@ function fixture(designations: { userId: number; contractId: string; role: strin
       });
     if (sql === GET_MANAGER_CONTRACT_ALERTS) return [];
     if (sql === GET_MANAGER_CONTRACT_BALANCES) return contracts.filter(c => (values![0] as number[]).includes(Number(c.id)) && c.status === 'vigente').map(c => ({ contract_id: c.id, contract_number: c.numero, contracted_value: c.valor_total, consumed_value: '0', balance_value: c.valor_total }));
+    if (sql === GET_CURRENT_ITEM_BALANCES) return [];
     throw new Error('Unexpected SQL');
   });
   return { repo: new PostgresManagerRepository({ query } as DbReader), query };
@@ -39,7 +41,9 @@ describe('manager current portfolio', () => {
     expect(result.data.cards).toEqual({ activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 });
     expect(result.data.expiringContractList).toEqual([]);
     expect(result.data.contracts).toEqual([]);
-    expect(result.meta.dataCoverage).toEqual({ portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE' });
+    expect(result.meta.dataCoverage).toEqual({ portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE' });
+    expect(result.data.itemBalances).toMatchObject({ coverage: 'AVAILABLE', itens: [], agregados: { itemCount: 0, totalContratado: 0 } });
+    expect(query).not.toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, expect.anything());
     expect(query).not.toHaveBeenCalledWith(GET_MANAGER_ACTIVE_CONTRACTS, expect.anything());
   });
   it('counts one and multiple distinct active contracts, excluding all inactive statuses and fiscal-only/inactive designations', async () => {
@@ -134,5 +138,55 @@ describe('manager current portfolio', () => {
     const response = await handler({ rawQueryString: 'contratoId=2', requestContext: { requestId: 'test' } } as any, {} as any, () => {});
     expect(response).toMatchObject({ statusCode: 403 });
     expect(JSON.parse((response as { body: string }).body).error.code).toBe('FORBIDDEN_SCOPE');
+  });
+  it('reads only scoped current items with the Fiscal classification and incomplete monetary coverage', async () => {
+    const { repo, query } = fixture([assignment(1, '1'), assignment(1, '2'), assignment(2, '3')],
+      [contract('1', '100'), contract('2', '100'), contract('3', '100')]);
+    const original = query.getMockImplementation()!;
+    query.mockImplementation(async (sql, values) => sql === GET_CURRENT_ITEM_BALANCES ? [{
+      contract_id: '1', contract_number: 'CT-1', supplier_name: 'Fornecedor', item_id: '10', sequence: 1,
+      specification: 'Serviço', unit: 'un', quantity_contracted: '2', quantity_consumed: '1',
+      quantity_measured: '1', quantity_balance: '1', value_contracted: '100', value_consumed: '95',
+      value_measured: '20', value_balance: '5', verification_status: 'pendente',
+    }, {
+      contract_id: '2', contract_number: 'CT-2', supplier_name: null, item_id: '11', sequence: 2,
+      specification: null, unit: null, quantity_contracted: '1', quantity_consumed: null,
+      quantity_measured: null, quantity_balance: null, value_contracted: null, value_consumed: null,
+      value_measured: null, value_balance: null, verification_status: null,
+    }] : original(sql, values));
+    const result = await composeManagerSummary(1, filters, repo, now);
+    expect(query).toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, [[1, 2]]);
+    expect(result.meta.dataCoverage.itemBalances).toBe('AVAILABLE');
+    expect(result.data.itemBalances).toMatchObject({ coverage: 'AVAILABLE', resumo: { critico: 1, nao_verificavel: 1 },
+      agregados: { itemCount: 2, totalContratado: null, saldoComprometido: null,
+        contractedValueRows: 1, committedBalanceRows: 1, measuredBalanceRows: 1 } });
+    if (result.data.itemBalances.coverage !== 'AVAILABLE') throw new Error('Expected current items');
+    expect(result.data.itemBalances.itens[0]).toMatchObject({ faixa: 'critico', valueMeasuredBalance: 80,
+      statusVerificacao: 'pendente' });
+    expect(result.data.itemBalances.itens[1].valueContracted).toBeNull();
+    expect(GET_CURRENT_ITEM_BALANCES).toContain('c.id = ANY($1::bigint[])');
+    expect(GET_CURRENT_ITEM_BALANCES).toContain("c.status = 'vigente'");
+    expect(GET_CURRENT_ITEM_BALANCES).toContain('ORDER BY c.id, s.seq, s.contrato_item_id');
+  });
+  it('does not query items for forbidden scope or historical data and surfaces SQL failures', async () => {
+    const { repo, query } = fixture([assignment(1, '1')], [contract('1', '100')]);
+    await expect(composeManagerSummary(1, { ...filters, contratoId: [2] }, repo, now))
+      .rejects.toMatchObject({ code: 'FORBIDDEN_SCOPE' });
+    expect(query).not.toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, expect.anything());
+    const historical = await composeManagerSummary(1, { ...filters, dataReferencia: '2026-09-24' }, repo, now);
+    expect(historical.data.itemBalances).toEqual({ coverage: 'UNAVAILABLE' });
+    expect(historical.meta.dataCoverage.itemBalances).toBe('UNAVAILABLE');
+    expect(query).not.toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, expect.anything());
+    const original = query.getMockImplementation()!;
+    query.mockImplementation(async (sql, values) => {
+      if (sql === GET_CURRENT_ITEM_BALANCES) throw new Error('private SQL detail');
+      return original(sql, values);
+    });
+    await expect(composeManagerSummary(1, filters, repo, now)).rejects.toThrow('private SQL detail');
+    const handler = createManagerHandler({ authProvider: { authenticate: async () =>
+      ({ status: 'AUTHENTICATED', principal: { userId: 1 }, canAccessManagerView: true }) }, repository: repo, now });
+    const response = await handler({ rawQueryString: '', requestContext: { requestId: 'test' } } as any, {} as any, () => {});
+    expect(response).toMatchObject({ statusCode: 500 });
+    expect((response as { body: string }).body).not.toContain('private SQL detail');
   });
 });

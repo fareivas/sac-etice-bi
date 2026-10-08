@@ -1,7 +1,8 @@
 import { createApiError, createInternalError } from '../../shared/errors/index';
 import { safeBigintId, type DbReader } from '../../shared/db/index';
-import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES, GET_CURRENT_FISCAL_CONTRACT_ALERTS, GET_CURRENT_FISCAL_ITEM_BALANCES } from './queries';
+import { GET_FISCAL_IDENTITY, GET_FISCAL_CONTRACT_SCOPE, COUNT_ACTIVE_FISCAL_CONTRACTS, COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS, GET_CURRENT_FISCAL_CONTRACTS, GET_CURRENT_FISCAL_CONTRACT_BALANCES, GET_CURRENT_FISCAL_CONTRACT_ALERTS } from './queries';
 import type { RawBalanceItem } from './item-balances';
+import { readCurrentItemBalances } from '../../shared/item-balance-reader';
 import { dateInTimezone } from './schemas';
 import type {
   FiscalAuthorizedScope,
@@ -34,14 +35,6 @@ interface ContractAlertRow {
   alert_id: string | bigint; contract_id: string | bigint;
   contract_number: string | null; description: string | null;
   expiry_date: string | null; created_at: Date | null;
-}
-
-interface ItemBalanceRow {
-  contract_id: string | bigint; contract_number: string | null; supplier_name: string | null;
-  item_id: string | bigint; sequence: number | null; specification: string | null; unit: string | null;
-  quantity_contracted: string | null; quantity_consumed: string | null; quantity_measured: string | null;
-  quantity_balance: string | null; value_contracted: string | null; value_consumed: string | null;
-  value_measured: string | null; value_balance: string | null; verification_status: string | null;
 }
 
 // PostgreSQL numeric arrives as text. Reject non-finite or unsafe cent values.
@@ -128,19 +121,7 @@ export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository 
     if (!this.isCurrent(query.context)) return { coverage: 'UNAVAILABLE' };
     const ids = query.scope.contracts.map(contract => contract.contractId);
     if (!ids.length) return { coverage: 'AVAILABLE', items: [] };
-    const rows = await this.db.query<ItemBalanceRow>(GET_CURRENT_FISCAL_ITEM_BALANCES, [ids]);
-    return { coverage: 'AVAILABLE', items: rows.map(row => ({
-      contractId: safeBigintId(row.contract_id), contractNumber: row.contract_number,
-      supplierName: row.supplier_name, itemId: safeBigintId(row.item_id),
-      sequence: row.sequence, specification: row.specification, unit: row.unit,
-      quantityContracted: moneyValue(row.quantity_contracted), quantityConsumed: moneyValue(row.quantity_consumed),
-      quantityMeasured: moneyValue(row.quantity_measured), quantityBalance: moneyValue(row.quantity_balance),
-      valueContracted: moneyValue(row.value_contracted), valueConsumed: moneyValue(row.value_consumed),
-      valueMeasured: moneyValue(row.value_measured), valueBalance: moneyValue(row.value_balance),
-      statusVerificacao: row.verification_status, blockedAt: null, blockReason: null,
-      raw: { valueContracted: row.value_contracted, valueBalance: row.value_balance, valueMeasured: row.value_measured,
-        quantityContracted: row.quantity_contracted, quantityBalance: row.quantity_balance, quantityMeasured: row.quantity_measured },
-    })) };
+    return { coverage: 'AVAILABLE', items: await readCurrentItemBalances(this.db, ids) };
   }
 
   async getContractAlerts(query: FiscalScopedRepositoryQuery): Promise<FiscalContractAlertsResult> {

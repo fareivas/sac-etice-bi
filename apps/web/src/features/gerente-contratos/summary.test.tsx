@@ -1,16 +1,25 @@
+// @vitest-environment jsdom
 import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse } from '@sac-etice-bi/contracts';
 import { ManagerDashboardView } from './summary';
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const base: ManagerDashboardSummaryResponse = {
   meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25', timezone: 'America/Fortaleza',
     source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: [] },
     dataCoverage: { portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE',
-      expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE' } },
+      expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE' } },
   data: { manager: { userId: 1, name: 'Gestora' },
     cards: { activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 },
-    contracts: [], expiringContractList: [], contractAlerts: [], contractBalances: [] },
+    contracts: [], expiringContractList: [], contractAlerts: [], contractBalances: [],
+    itemBalances: { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: .6, limiar_critico: .1 },
+      resumo: { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 },
+      agregados: { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0, itemCount: 0, completeValueRows: 0,
+        contractedValueRows: 0, committedBalanceRows: 0, measuredBalanceRows: 0 }, itens: [] } },
 };
 const render = (summary: ManagerDashboardSummaryResponse) =>
   renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary }} />);
@@ -112,4 +121,177 @@ it('distinguishes empty lists from unavailable coverage and omits the chart in b
   expect(html).not.toContain('Nenhum alerta contratual');
   expect(html).not.toContain('Nenhum saldo contratual');
   expect(html).not.toContain('<svg');
+});
+
+function item(id: number, contractId: number, supplierName: string | null, faixa: 'adequado' | 'critico' | 'nao_verificavel', overrides: Record<string, unknown> = {}) {
+  return { contractId, contractNumber: `CT-${contractId}`, supplierName, itemId: id, sequence: id,
+    specification: `Serviço ${id}`, unit: 'un', quantityContracted: 1, quantityConsumed: 0,
+    quantityMeasured: 0, quantityBalance: 1, valueContracted: 100, valueConsumed: 0,
+    valueMeasured: 0, valueBalance: 100, valueMeasuredBalance: 100, quantityMeasuredBalance: 1,
+    pctSaldo: 1, pctSaldoMedido: 1, faixa, statusVerificacao: null, blockedAt: null, blockReason: null,
+    ...overrides } as Extract<ManagerDashboardSummaryResponse['data']['itemBalances'], { coverage: 'AVAILABLE' }>['itens'][number];
+}
+
+function withItems(items: ReturnType<typeof item>[]): ManagerDashboardSummaryResponse {
+  const data = structuredClone(base);
+  data.data.itemBalances = { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: .6, limiar_critico: .1 },
+    resumo: { adequado: 1, atencao: 0, critico: 1, nao_verificavel: 1 },
+    agregados: { totalContratado: null, saldoComprometido: null, saldoMedido: null,
+      itemCount: items.length, completeValueRows: 2, contractedValueRows: 2,
+      committedBalanceRows: 2, measuredBalanceRows: 2 }, itens: items };
+  data.data.contractBalances = [{ contractId: 1, contractNumber: 'CT-1', contractedValue: 999,
+    consumedValue: 0, balanceValue: 999, balancePct: 100 }];
+  return data;
+}
+
+function mount(data: ManagerDashboardSummaryResponse) {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const update = (next: ManagerDashboardSummaryResponse) => act(() => root.render(<ManagerDashboardView state={{ status: 'success', summary: next }} />));
+  update(data);
+  const select = (label: string, value: string) => {
+    const control = [...host.querySelectorAll('label')].find(node => node.textContent?.startsWith(label))?.querySelector('select');
+    if (!control) throw new Error(`Select ausente: ${label}`);
+    act(() => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+  const search = (value: string) => {
+    const control = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(control, value);
+      control.dispatchEvent(new Event('input', { bubbles: true })); });
+  };
+  const section = (title: string) => [...host.querySelectorAll('section.fiscal-panel')]
+    .find(node => node.querySelector('h2')?.textContent === title)?.textContent ?? '';
+  const selected = (label: string) => [...host.querySelectorAll('label')]
+    .find(node => node.textContent?.startsWith(label))?.querySelector('select')?.value;
+  return { host, update, select, search, section, selected,
+    clear: () => act(() => host.querySelector<HTMLButtonElement>('.saldo-filter-meta button')!.click()),
+    unmount: () => { act(() => root.unmount()); host.remove(); } };
+}
+
+const rows = () => [
+  item(1, 1, 'Árvore', 'adequado', { specification: 'Fibra óptica', valueBalance: 80 }),
+  item(2, 2, 'Zeta', 'critico', { specification: 'Roteador', valueContracted: 200, valueBalance: 5 }),
+  item(3, 3, null, 'nao_verificavel', { contractNumber: null, specification: null,
+    valueContracted: null, valueBalance: null, valueMeasuredBalance: null }),
+];
+
+it('renders manager item indicators, distribution and the four interactive filters', () => {
+  const view = mount(withItems(rows()));
+  try {
+    const text = view.section('Gestão dos Saldos dos Itens Contratuais');
+    for (const label of ['Total contratado dos itens', 'Saldo comprometido dos itens', 'Saldo medido dos itens',
+      'Itens críticos', 'Não verificáveis', 'Adequado: 1', 'Atenção: 0', 'Crítico: 1', 'Não verificável: 1',
+      'Total contratado incompleto: 2 de 3', 'Orientação ao gerente']) expect(text).toContain(label);
+    expect(view.host.querySelectorAll('.saldo-filters select')).toHaveLength(3);
+    expect(view.host.querySelector('input[type="search"]')).not.toBeNull();
+    expect(view.section('Saldos da carteira')).toContain('R$ 999,00');
+    expect(view.section('Distribuição financeira por contrato')).toContain('R$ 999,00');
+  } finally { view.unmount(); }
+});
+
+it('combines filters, searches item/contract/supplier without accents, and keeps contract balances independent', () => {
+  const view = mount(withItems(rows()));
+  try {
+    view.search('FIBRA OPTICA');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 3 itens encontrados');
+    view.search('CT-2');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Roteador');
+    view.search('ARVORE');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Fibra óptica');
+    view.search('');
+    view.select('Fornecedor', 'Árvore');
+    view.select('Contrato', '1');
+    view.select('Faixa', 'adequado');
+    const filtered = view.section('Gestão dos Saldos dos Itens Contratuais');
+    expect(filtered).toContain('1 de 3 itens encontrados');
+    expect(filtered).toContain('Total contratado dos itensR$ 100,00');
+    expect(filtered).toContain('Saldo comprometido dos itensR$ 80,00');
+    expect(filtered).toContain('Crítico: 0');
+    expect(view.section('Saldos da carteira')).toContain('R$ 999,00');
+    view.select('Faixa', 'critico');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item encontrado com os filtros atuais.');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Total contratado dos itensR$ 0,00');
+    view.clear();
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('3 de 3 itens encontrados');
+  } finally { view.unmount(); }
+});
+
+it('preserves valid selections, invalidates missing options and resets on manager or scope change', () => {
+  const data = withItems(rows());
+  const view = mount(data);
+  try {
+    view.select('Fornecedor', 'Árvore');
+    view.select('Contrato', '1');
+    view.select('Faixa', 'adequado');
+    view.search('FIBRA');
+    view.update(structuredClone(data));
+    expect(view.selected('Fornecedor')).toBe('Árvore');
+    expect(view.selected('Contrato')).toBe('1');
+    const changed = withItems([item(4, 4, 'Outro', 'adequado', { specification: 'Fibra nova' })]);
+    view.update(changed);
+    expect(view.selected('Fornecedor')).toBe('');
+    expect(view.selected('Contrato')).toBe('');
+    expect(view.selected('Faixa')).toBe('adequado');
+    expect(view.host.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('FIBRA');
+    view.update(data);
+    expect(view.selected('Fornecedor')).toBe('');
+    const other = structuredClone(data);
+    other.data.manager.userId = 2;
+    view.update(other);
+    expect(view.selected('Faixa')).toBe('');
+    expect(view.host.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('');
+    view.select('Contrato', '1');
+    const scoped = structuredClone(other);
+    scoped.meta.filtersApplied.contratoId = [1];
+    view.update(scoped);
+    expect(view.selected('Contrato')).toBe('');
+  } finally { view.unmount(); }
+});
+
+it('distinguishes unavailable, available empty and incomplete item recuts', () => {
+  const view = mount(withItems(rows()));
+  try {
+    view.select('Contrato', '3');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Total contratado dos itensIndisponível');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Total contratado incompleto: 0 de 1');
+    const unavailable = withItems([]);
+    unavailable.meta.dataCoverage.itemBalances = 'UNAVAILABLE';
+    unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+    view.update(unavailable);
+    expect(view.host.querySelectorAll('.saldo-filters select')).toHaveLength(0);
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Fonte de saldos por item indisponível');
+    const empty = withItems([]);
+    view.update(empty);
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item contratual cadastrado na carteira.');
+  } finally { view.unmount(); }
+});
+
+it('shows absent measurement as unavailable while retaining calculable measured balance coverage', () => {
+  const data = withItems([
+    item(1, 1, 'Árvore', 'adequado', { valueMeasured: null, quantityMeasured: null,
+      valueMeasuredBalance: 100, quantityMeasuredBalance: 1 }),
+    item(2, 1, 'Árvore', 'adequado', { valueMeasured: 0, quantityMeasured: 0,
+      valueMeasuredBalance: 100, quantityMeasuredBalance: 1 }),
+    item(3, 1, 'Árvore', 'nao_verificavel', { valueContracted: null, quantityContracted: null,
+      valueMeasured: null, quantityMeasured: null, valueMeasuredBalance: null, quantityMeasuredBalance: null }),
+  ]);
+  if (data.data.itemBalances.coverage !== 'AVAILABLE') throw new Error('fixture inválida');
+  data.data.itemBalances.criterio.base = 'medido';
+  const view = mount(data);
+  try {
+    view.select('Fornecedor', 'Árvore');
+    view.select('Contrato', '1');
+    const cells = [...view.host.querySelectorAll('.fiscal-saldos tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent));
+    expect(cells[0][4]).toBe('Indisponível');
+    expect(cells[0][5]).toBe('R$ 100,00');
+    expect(cells[1][4]).toBe('R$ 0,00');
+    expect(cells[2][4]).toBe('Indisponível');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Saldo medido incompleto: 2 de 3');
+    data.data.itemBalances.criterio.dimensao = 'quantidade';
+    view.update(structuredClone(data));
+    const quantityCells = [...view.host.querySelectorAll('.fiscal-saldos tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent));
+    expect(quantityCells[0][4]).toBe('Não calculável');
+    expect(quantityCells[1][4]).toBe('0 un');
+  } finally { view.unmount(); }
 });

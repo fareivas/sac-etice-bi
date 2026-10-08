@@ -2,6 +2,7 @@ import { managerDashboardSummaryResponseSchema, type ManagerDashboardSummaryResp
 import { dateInTimezone } from '../fiscal/schemas';
 import type { ManagerFilters } from './schemas';
 import type { PostgresManagerRepository } from './repository';
+import { balanceCriteria, composeItemBalances } from '../../shared/item-balances';
 
 function sumDecimal(values: readonly number[]): number {
   const parts = values.map((value) => {
@@ -20,16 +21,18 @@ function sumDecimal(values: readonly number[]): number {
 }
 
 export async function composeManagerSummary(userId: number, filters: ManagerFilters,
-  repository: Pick<PostgresManagerRepository, 'identity' | 'scope' | 'activeContracts' | 'contractAlerts' | 'contractBalances'>,
+  repository: Pick<PostgresManagerRepository, 'identity' | 'scope' | 'activeContracts' | 'contractAlerts' | 'contractBalances' | 'itemBalances'>,
   now: () => Date = () => new Date()): Promise<ManagerDashboardSummaryResponse> {
   const manager = await repository.identity(userId);
   if (manager.userId !== userId) throw new Error('Identity mismatch');
   const current = filters.dataReferencia === dateInTimezone(now(), filters.timezone);
   // The current designation and contract record cannot reconstruct a past snapshot.
   const ids = current ? await repository.scope(userId, filters.contratoId) : null;
-  const [activeRows, contractAlerts, contractBalances] = ids === null ? [null, null, null] :
+  const [activeRows, contractAlerts, contractBalances, itemRows] = ids === null ? [null, null, null, null] :
     await Promise.all([repository.activeContracts(ids, filters.dataReferencia),
-      repository.contractAlerts(ids), repository.contractBalances(ids)]);
+      repository.contractAlerts(ids), repository.contractBalances(ids), repository.itemBalances(ids)]);
+  const itemBalances = itemRows === null ? { coverage: 'UNAVAILABLE' as const }
+    : composeItemBalances(itemRows, balanceCriteria(process.env));
   const contracts = activeRows?.map(({ expiresWithin120Days: _within, ...contract }) => contract) ?? null;
   const activeContracts = contracts?.length ?? null;
   const activePortfolioValue = contracts === null || contracts.some((contract) => contract.value === null)
@@ -43,11 +46,12 @@ export async function composeManagerSummary(userId: number, filters: ManagerFilt
       source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: filters.contratoId },
       dataCoverage: { contractAlerts: contractAlerts === null ? 'UNAVAILABLE' : 'AVAILABLE',
         contractBalances: contractBalances === null ? 'UNAVAILABLE' : 'AVAILABLE', portfolio: current ? 'AVAILABLE' : 'UNAVAILABLE',
+        itemBalances: itemBalances.coverage,
         activeContracts: current ? 'AVAILABLE' : 'UNAVAILABLE',
         activePortfolioValue: activePortfolioValue === null ? 'UNAVAILABLE' : 'AVAILABLE',
         expiringContracts: expiryAvailable ? 'AVAILABLE' : 'UNAVAILABLE',
         renewalsWithin120Days: expiryAvailable ? 'AVAILABLE' : 'UNAVAILABLE' } },
     data: { manager, cards: { activeContracts, activePortfolioValue, expiringContracts: renewalsWithin120Days, renewalsWithin120Days },
-      contracts, expiringContractList, contractAlerts, contractBalances },
+      contracts, expiringContractList, contractAlerts, contractBalances, itemBalances },
   });
 }

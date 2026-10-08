@@ -256,6 +256,7 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
       renewalsWithin120Days: managerCoverageSchema,
       contractAlerts: managerCoverageSchema,
       contractBalances: managerCoverageSchema,
+      itemBalances: managerCoverageSchema,
     }),
   }),
   data: z.strictObject({
@@ -270,6 +271,7 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
     expiringContractList: z.array(managerContractSchema).nullable(),
     contractAlerts: z.array(managerContractAlertSchema).nullable(),
     contractBalances: z.array(managerContractBalanceSchema).nullable(),
+    itemBalances: fiscalItemBalancesSchema,
   }),
 }).superRefine((response, context) => {
   const pairs = [
@@ -285,6 +287,9 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
   if (response.data.cards.expiringContracts !== response.data.cards.renewalsWithin120Days ||
       response.meta.dataCoverage.expiringContracts !== response.meta.dataCoverage.renewalsWithin120Days) {
     context.addIssue({ code: 'custom', path: ['data', 'cards', 'renewalsWithin120Days'], message: 'Indicadores de vencimento inconsistentes' });
+  }
+  if (response.meta.dataCoverage.itemBalances !== response.data.itemBalances.coverage) {
+    context.addIssue({ code: 'custom', path: ['meta', 'dataCoverage', 'itemBalances'], message: 'Cobertura inconsistente' });
   }
   for (const [key, value] of pairs) {
     if ((value === null) !== (response.meta.dataCoverage[key] === 'UNAVAILABLE')) {

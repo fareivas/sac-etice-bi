@@ -304,8 +304,8 @@ describe('manager contractual alerts and balances', () => {
   const alert = { alertId: 206, contractId: 41, contractNumber: null, type: 'outro_tipo', status: 'em_tratamento', description: null, expiryDate: null, createdAt: '2026-10-01T12:00:00Z' };
   const balance = { contractId: 41, contractNumber: null, contractedValue: 200, consumedValue: 50, balanceValue: 150, balancePct: 75 };
   const response = {
-    meta: { generatedAt: '2026-10-08T12:00:00Z', dataReference: '2026-10-08', timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: [] }, dataCoverage: { portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE' } },
-    data: { manager: { userId: 17, name: null }, cards: { activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 }, contracts: [], expiringContractList: [], contractAlerts: [alert], contractBalances: [balance] },
+    meta: { generatedAt: '2026-10-08T12:00:00Z', dataReference: '2026-10-08', timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA', filtersApplied: { contratoId: [] }, dataCoverage: { portfolio: 'AVAILABLE', activeContracts: 'AVAILABLE', activePortfolioValue: 'AVAILABLE', expiringContracts: 'AVAILABLE', renewalsWithin120Days: 'AVAILABLE', contractAlerts: 'AVAILABLE', contractBalances: 'AVAILABLE', itemBalances: 'AVAILABLE' } },
+    data: { manager: { userId: 17, name: null }, cards: { activeContracts: 0, activePortfolioValue: 0, expiringContracts: 0, renewalsWithin120Days: 0 }, contracts: [], expiringContractList: [], contractAlerts: [alert], contractBalances: [balance], itemBalances: { coverage: 'AVAILABLE', criterio: { base: 'comprometido', dimensao: 'valor', limiar_atencao: .6, limiar_critico: .1 }, resumo: { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 }, agregados: { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0, itemCount: 0, completeValueRows: 0, contractedValueRows: 0, committedBalanceRows: 0, measuredBalanceRows: 0 }, itens: [] } },
   };
   it('accepts approved shapes and rejects invalid dates, resolved status, unsafe IDs and financial values', () => {
     expect(managerDashboardSummaryResponseSchema.safeParse(response).success).toBe(true);
@@ -319,5 +319,25 @@ describe('manager contractual alerts and balances', () => {
       expect(managerDashboardSummaryResponseSchema.safeParse({ ...response, data: { ...response.data, [key]: null } }).success).toBe(false);
       expect(managerDashboardSummaryResponseSchema.safeParse({ ...response, meta: { ...response.meta, dataCoverage: { ...response.meta.dataCoverage, [key]: 'UNAVAILABLE' } }, data: { ...response.data, [key]: null } }).success).toBe(true);
     }
+  });
+  it('requires item balances and matching coverage while preserving previous fields', () => {
+    expect(managerDashboardSummaryResponseSchema.safeParse(response).success).toBe(true);
+    const unavailable = { ...response, meta: { ...response.meta, dataCoverage: { ...response.meta.dataCoverage, itemBalances: 'UNAVAILABLE' } }, data: { ...response.data, itemBalances: { coverage: 'UNAVAILABLE' } } };
+    expect(managerDashboardSummaryResponseSchema.safeParse(unavailable).success).toBe(true);
+    expect(managerDashboardSummaryResponseSchema.safeParse({ ...response, data: { ...response.data, itemBalances: { coverage: 'UNAVAILABLE' } } }).success).toBe(false);
+    expect(managerDashboardSummaryResponseSchema.safeParse({ ...response, meta: { ...response.meta, dataCoverage: { ...response.meta.dataCoverage, itemBalances: 'UNAVAILABLE' } } }).success).toBe(false);
+    expect(managerDashboardSummaryResponseSchema.safeParse({ ...response, data: { ...response.data, itemBalances: undefined } }).success).toBe(false);
+    const withItem = clone(response);
+    (withItem.data.itemBalances.itens as unknown[]).push({
+      contractId: 41, contractNumber: 'CT-41', supplierName: 'Fornecedor', itemId: 5,
+      sequence: 1, specification: 'Serviço', unit: 'un', quantityContracted: 1,
+      quantityConsumed: 0, quantityMeasured: 0, quantityBalance: 1,
+      valueContracted: 100, valueConsumed: 0, valueMeasured: 0, valueBalance: 100,
+      valueMeasuredBalance: 100, quantityMeasuredBalance: 1, pctSaldo: 1, pctSaldoMedido: 1,
+      faixa: 'adequado', statusVerificacao: null, blockedAt: null, blockReason: null,
+    });
+    withItem.data.itemBalances.agregados.itemCount = 1;
+    withItem.data.itemBalances.resumo.adequado = 1;
+    expect(managerDashboardSummaryResponseSchema.safeParse(withItem).success).toBe(true);
   });
 });

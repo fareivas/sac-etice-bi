@@ -141,3 +141,29 @@ Validação local posterior: conferir o gestor 4, seus dois contratos e quatro
 pendências não resolvidas, e os saldos totalizando R$ 612.156,00 conforme pedido.
 Essas expectativas não são fixtures permanentes. Integração PostgreSQL não foi
 repetida no sandbox após a indisponibilidade do ambiente constatada no lote anterior.
+
+## DEC-GC-027 — Saldos por item na carteira do gerente
+
+**Status:** APROVADA para o resumo gerencial atual.
+
+`GET /api/v1/gerentes-contrato/me/dashboard/resumo` inclui as propriedades
+obrigatórias `data.itemBalances` e `meta.dataCoverage.itemBalances`. A estrutura
+do primeiro campo é a mesma do resumo Fiscal, inclusive critério, distribuição,
+agregados com contadores de completude e itens. A classificação, os limiares,
+os percentuais e o arredondamento monetário reutilizam a implementação Fiscal;
+`cards.criticalItems` do Fiscal conserva sua regra distinta.
+
+A fonte é `bi.saldos_por_item`, ligada a `contratos.contrato_item` e a contratos
+`vigente`. A consulta recebe somente IDs resolvidos previamente por designação
+ativa de `gestor` e pelo filtro `contratoId` validado por `scope`. Carteira vazia
+não consulta a view e retorna `AVAILABLE`, `itens: []` e agregados zerados.
+Valores ausentes continuam `null` nos itens e nos agregados afetados, com
+contadores de completude independentes. Data histórica retorna
+`{ coverage: 'UNAVAILABLE' }` e cobertura `UNAVAILABLE`, sem aplicar
+designações atuais retroativamente. Falhas de SQL continuam erros HTTP.
+
+Os filtros de fornecedor, contrato, faixa e busca são locais ao conjunto
+autorizado recebido. Tabela, distribuição e indicadores por item usam o mesmo
+recorte. Os painéis de `Saldos da carteira` e `Distribuição financeira por
+contrato` continuam baseados exclusivamente em `contratos.vw_saldo_contrato`,
+sem influência dos filtros locais ou recálculo a partir de itens.

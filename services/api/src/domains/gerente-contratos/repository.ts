@@ -4,6 +4,8 @@ import { safeBigintId, type DbReader } from '../../shared/db/index';
 import { GET_MANAGER_ACTIVE_CONTRACTS, GET_MANAGER_IDENTITY, GET_MANAGER_SCOPE, GET_MANAGER_CONTRACT_ALERTS, GET_MANAGER_CONTRACT_BALANCES } from './queries';
 import { GET_MANAGER_FISCAL_LOAD } from './carga-queries';
 import { GET_MANAGER_SUPPLIER_CONTRACTS } from './fornecedores-queries';
+import { readCurrentItemBalances } from '../../shared/item-balance-reader';
+import type { RawBalanceItem } from '../../shared/item-balances';
 
 export type ManagerContract = NonNullable<ManagerDashboardSummaryResponse['data']['contracts']>[number];
 export type ManagerActiveContract = ManagerContract & { expiresWithin120Days: boolean | null };
@@ -30,6 +32,9 @@ export class PostgresManagerRepository {
     const authorized = [...new Set(rows.map((row) => safeBigintId(row.contrato_id)))];
     if (requested.some((id) => !authorized.includes(id))) throw createApiError('FORBIDDEN_SCOPE');
     return requested.length ? [...requested] : authorized;
+  }
+  async itemBalances(ids: readonly number[]): Promise<RawBalanceItem[]> {
+    return readCurrentItemBalances(this.db, ids);
   }
   async supplierContracts(ids: readonly number[]) {
     if (!ids.length) return [];

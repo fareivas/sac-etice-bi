@@ -63,6 +63,22 @@ describe('PostgresFiscalSummaryRepository', () => {
     await expect(repo.getItemBalances({ context: context([], '2026-09-20'), scope })).resolves.toEqual({ coverage: 'UNAVAILABLE' });
     expect(query).not.toHaveBeenCalled();
   });
+  it('preserves nullable measurements and rejects malformed non-null item values in Fiscal', async () => {
+    const item = { contract_id: '184', contract_number: 'CT-184', supplier_name: 'Fornecedor',
+      item_id: '10', sequence: 1, specification: 'Serviço', unit: 'un', quantity_contracted: '1',
+      quantity_consumed: '0', quantity_measured: null, quantity_balance: '1',
+      value_contracted: '100', value_consumed: '0', value_measured: null,
+      value_balance: '100', verification_status: null };
+    const query = vi.fn().mockResolvedValue([item]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
+    const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: null }] };
+    const request = { context: context(), scope };
+    const result = await repo.getItemBalances(request);
+    expect(result).toMatchObject({ coverage: 'AVAILABLE', items: [{ valueMeasured: null,
+      quantityMeasured: null, raw: { valueMeasured: null, quantityMeasured: null } }] });
+    query.mockResolvedValue([{ ...item, value_measured: 'invalid' }]);
+    await expect(repo.getItemBalances(request)).rejects.toThrow('Invalid database numeric value');
+  });
 
   it('resolves distinct current contracts with safe IDs and null integration UUID', async () => {
     const query = vi.fn().mockResolvedValue([{ contrato_id: '184' }, { contrato_id: 205n }, { contrato_id: '184' }]);

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse, ManagerSuppliersResponse } from '@sac-etice-bi/contracts';
 import { loadManagerSummary, loadManagerFiscalLoad, loadManagerSuppliers } from '../../lib/api';
 import { displayDate } from '../../lib/display-date';
+import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 
 type State = { status: 'loading' } | { status: 'error'; message: string } |
   { status: 'success'; summary: ManagerDashboardSummaryResponse; load?: ManagerFiscalLoadResponse | null; suppliers?: ManagerSuppliersResponse | null; suppliersError?: string | null };
@@ -40,6 +41,11 @@ export function PortfolioFinancialChart({ balances }: { balances: NonNullable<Ma
 }
 export function ManagerDashboardView({ state }: { state: State }) {
   const summary = state.status === 'success' ? state.summary : null;
+  const itemBalances = summary?.data.itemBalances;
+  const context = summary ? JSON.stringify([summary.data.manager.userId,
+    [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b)]) : null;
+  const { items, suppliers, contracts, supplier, contract, band, search, setFilter, activeFilters,
+    filteredItems, distribution, aggregates, allItemsSelected, clearFilters } = useItemBalanceFilters(itemBalances, context);
   return <main className="fiscal-dashboard manager-dashboard">
     <header className="fiscal-header"><div className="fiscal-header-inner">
       <div><span className="fiscal-brand">ETICE <span>•</span> SAC BI</span><h1>Dashboard do Gerente de Contratos</h1><p>Carteira contratual sob sua gestão</p></div>
@@ -64,15 +70,60 @@ export function ManagerDashboardView({ state }: { state: State }) {
             </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
           </tbody></table></div>
         </section>
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Saldos da carteira</h2><p>Valores da visão de saldo contratual.</p></div>
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Saldos da carteira</h2><p>Valores da visão de saldo contratual para a carteira completa; filtros locais de itens não se aplicam.</p></div>
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Valor contratado</th><th>Valor consumido</th><th>Saldo</th><th>Percentual disponível</th></tr></thead><tbody>
             {summary.meta.dataCoverage.contractBalances === 'AVAILABLE' && summary.data.contractBalances?.length ? summary.data.contractBalances.map(item => <tr key={item.contractId}>
               <td>{item.contractNumber ?? `#${item.contractId}`}</td><td>{currency(item.contractedValue)}</td><td>{currency(item.consumedValue)}</td><td>{currency(item.balanceValue)}</td><td>{percentage(item.balancePct)}</td>
             </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' || summary.data.contractBalances === null ? 'Indisponível' : 'Nenhum saldo contratual no recorte'}</td></tr>}
           </tbody></table></div>
         </section>
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Distribuição financeira por contrato</h2><p>Contratado, consumido e saldo em reais, na mesma escala.</p></div>
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Distribuição financeira por contrato</h2><p>Contratado, consumido e saldo em reais, na mesma escala; filtros locais de itens não se aplicam.</p></div>
           {summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' || summary.data.contractBalances === null ? <div className="panel-unavailable" role="status">Indisponível</div> : summary.data.contractBalances.length === 0 ? <p className="table-empty">Nenhum saldo contratual no recorte</p> : <PortfolioFinancialChart balances={summary.data.contractBalances} />}
+        </section>
+        <section className="fiscal-panel fiscal-saldos"><div className="panel-heading"><h2>Gestão dos Saldos dos Itens Contratuais</h2><p>Itens da carteira autorizada; filtros locais não alteram os indicadores globais nem os saldos por contrato.</p></div>
+          {itemBalances?.coverage === 'AVAILABLE' ? <>
+            <div className="saldo-filters" aria-label="Filtros dos saldos contratuais">
+              <label>Fornecedor<select value={supplier} onChange={event => setFilter({ supplier: event.target.value })}><option value="">Todos os fornecedores</option>{suppliers.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
+              <label>Contrato<select value={contract} onChange={event => setFilter({ contract: event.target.value })}><option value="">Todos os contratos</option>{contracts.map(([id, number]) => <option key={id} value={id}>{number ?? `Contrato ID ${id}`} (ID {id})</option>)}</select></label>
+              <label>Faixa<select value={band} onChange={event => setFilter({ band: event.target.value })}><option value="">Todas as faixas</option><option value="adequado">Adequado</option><option value="atencao">Atenção</option><option value="critico">Crítico</option><option value="nao_verificavel">Não verificável</option></select></label>
+              <label>Busca textual<input type="search" placeholder="Buscar item, contrato ou fornecedor..." value={search} onChange={event => setFilter({ search: event.target.value })} /></label>
+            </div>
+            <div className="saldo-filter-meta"><span role="status">{filteredItems.length} de {items.length} itens encontrados</span><button type="button" onClick={clearFilters} disabled={!activeFilters}>Limpar todos os filtros</button></div>
+            <div className="saldo-summary">
+              <div><span>Total contratado dos itens</span><strong>{aggregates.totalContratado === null ? 'Indisponível' : currency(aggregates.totalContratado)}</strong></div>
+              <div><span>Saldo comprometido dos itens</span><strong>{aggregates.saldoComprometido === null ? 'Indisponível' : currency(aggregates.saldoComprometido)}</strong></div>
+              <div><span>Saldo medido dos itens</span><strong>{aggregates.saldoMedido === null ? 'Indisponível' : currency(aggregates.saldoMedido)}</strong></div>
+              <div><span>Itens críticos</span><strong>{distribution.critico}</strong></div>
+              <div><span>Não verificáveis</span><strong>{distribution.nao_verificavel}</strong></div>
+            </div>
+            {aggregates.contractedValueRows < filteredItems.length && <p role="status">Total contratado incompleto: {aggregates.contractedValueRows} de {filteredItems.length} itens cobertos.</p>}
+            {aggregates.committedBalanceRows < filteredItems.length && <p role="status">Saldo comprometido incompleto: {aggregates.committedBalanceRows} de {filteredItems.length} itens cobertos.</p>}
+            {aggregates.measuredBalanceRows < filteredItems.length && <p role="status">Saldo medido incompleto: {aggregates.measuredBalanceRows} de {filteredItems.length} itens cobertos.</p>}
+            {!allItemsSelected && aggregates.contractedValueRows === filteredItems.length && aggregates.totalContratado === null && <p role="status">Total contratado indisponível por limite de precisão.</p>}
+            {!allItemsSelected && aggregates.committedBalanceRows === filteredItems.length && aggregates.saldoComprometido === null && <p role="status">Saldo comprometido indisponível por limite de precisão.</p>}
+            {!allItemsSelected && aggregates.measuredBalanceRows === filteredItems.length && aggregates.saldoMedido === null && <p role="status">Saldo medido indisponível por limite de precisão.</p>}
+            <p>Faixa por {itemBalances.criterio.dimensao}, base {itemBalances.criterio.base}: adequado ≥ {percentage(itemBalances.criterio.limiar_atencao * 100)}; crítico ≤ {percentage(itemBalances.criterio.limiar_critico * 100)}; atenção entre esses limites. Limiares provisórios.</p>
+            <p>Distribuição por faixa: Adequado: {distribution.adequado} · Atenção: {distribution.atencao} · Crítico: {distribution.critico} · Não verificável: {distribution.nao_verificavel}</p>
+            <div className="fiscal-table-wrap"><table><thead><tr><th>Faixa / verificação</th><th>Contrato / fornecedor</th><th>Item contratual</th><th>Total</th><th>Executado</th><th>Saldo</th><th>% saldo</th><th>Orientação ao gerente</th></tr></thead><tbody>
+              {filteredItems.length ? filteredItems.map(item => {
+                const quantity = itemBalances.criterio.dimensao === 'quantidade';
+                const total = quantity ? item.quantityContracted : item.valueContracted;
+                const measuredBase = itemBalances.criterio.base === 'medido';
+                const executed = quantity ? (measuredBase ? total === null ? null : item.quantityMeasured : item.quantityConsumed)
+                  : (measuredBase ? total === null ? null : item.valueMeasured : item.valueConsumed);
+                const balance = measuredBase ? (quantity ? item.quantityMeasuredBalance : item.valueMeasuredBalance)
+                  : (quantity ? item.quantityBalance : item.valueBalance);
+                const format = quantity ? (value: number | null) => value === null ? 'Não calculável' : `${value} ${item.unit ?? ''}` : (value: number | null) => value === null ? 'Indisponível' : currency(value);
+                return <tr key={item.itemId}><td>{item.faixa}{item.statusVerificacao && <> <small>Verificação: {item.statusVerificacao}</small></>}{item.blockedAt && <small> Bloqueado: {item.blockReason ?? 'motivo indisponível'}</small>}</td>
+                  <td>{item.contractNumber ?? `Contrato ID ${item.contractId}`}<br />{item.supplierName ?? 'Fornecedor indisponível'}</td>
+                  <td>{item.sequence ?? '—'} · {item.specification ?? 'Sem especificação'}</td>
+                  <td>{format(total)}</td><td>{format(executed)}</td>
+                  <td>{format(balance)}{balance !== null && balance < 0 && <strong> · Saldo negativo</strong>}</td>
+                  <td>{percentage((itemBalances.criterio.base === 'medido' ? item.pctSaldoMedido : item.pctSaldo) === null ? null : (itemBalances.criterio.base === 'medido' ? item.pctSaldoMedido! : item.pctSaldo!) * 100)}</td>
+                  <td>{item.faixa === 'critico' ? 'Avaliar saldo e planejamento do item.' : item.faixa === 'nao_verificavel' ? 'Conferir dados do item.' : item.faixa === 'atencao' ? 'Acompanhar consumo do item.' : 'Manter acompanhamento do item.'}</td></tr>;
+              }) : <tr><td colSpan={8} className="table-empty">{items.length ? 'Nenhum item encontrado com os filtros atuais.' : 'Nenhum item contratual cadastrado na carteira.'}</td></tr>}
+            </tbody></table></div>
+          </> : <div className="panel-unavailable" role="status">Fonte de saldos por item indisponível para esta data.</div>}
         </section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Fiscais e distribuição da carteira</h2><p>Contratos vigentes designados e OS com decisão fiscal pendente.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
           {state.status === 'success' && state.load?.data.inspectors?.length ? state.load.data.inspectors.map((fiscal) => <tr key={fiscal.userId}><td>{fiscal.name ?? `Fiscal ${fiscal.userId}`}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>) : <tr><td colSpan={4} className="table-empty">{state.status === 'success' && state.load?.data.inspectors?.length === 0 ? 'Nenhum fiscal designado' : 'Indisponível'}</td></tr>}
