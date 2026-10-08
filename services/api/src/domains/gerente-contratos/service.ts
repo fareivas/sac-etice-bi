@@ -74,7 +74,9 @@ function composeContractRiskMatrix(
       items.some(item => item.faixa === 'atencao') ? 'ATTENTION' :
       items.some(item => item.faixa === 'adequado') ? 'OK' : 'UNAVAILABLE';
     return { contractId: contract.contractId, contractNumber: contract.contractNumber,
-      supplierName: contract.supplierName, saldo: { status: saldo, partialCoverage },
+      supplierName: contract.supplierName, saldo: { status: saldo, partialCoverage, reason: itemBalances.coverage === 'UNAVAILABLE'
+        ? 'ITEM_SOURCE_UNAVAILABLE' : items.length === 0 ? 'NO_ITEMS'
+          : saldo === 'UNAVAILABLE' ? 'ALL_ITEMS_UNVERIFIABLE' : null },
       vigencia: expiryRisk(contract.expiryDate, reference),
       sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' };
   });

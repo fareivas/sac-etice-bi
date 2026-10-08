@@ -39,10 +39,10 @@ it('renders available zero and an empty expiry list', () => {
 it('renders the contract risk matrix with distinct states and partial balance coverage', () => {
   const summary = structuredClone(base);
   summary.data.contractRiskMatrix = [{ contractId: 7, contractNumber: 'CT-7', supplierName: 'Fornecedor X',
-    saldo: { status: 'CRITICAL', partialCoverage: true }, vigencia: 'ATTENTION',
+    saldo: { status: 'CRITICAL', partialCoverage: true, reason: null }, vigencia: 'ATTENTION',
     sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' },
   { contractId: 8, contractNumber: null, supplierName: null,
-    saldo: { status: 'OK', partialCoverage: false }, vigencia: 'UNAVAILABLE',
+    saldo: { status: 'OK', partialCoverage: false, reason: null }, vigencia: 'UNAVAILABLE',
     sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
   const host = document.createElement('div');
   host.innerHTML = render(summary);
@@ -61,6 +61,22 @@ it('renders the contract risk matrix with distinct states and partial balance co
   unavailable.data.contractRiskMatrix = null;
   expect(render(unavailable)).toContain('Matriz indisponível para esta referência.');
   expect(render(unavailable)).not.toContain('Risco por contrato e dimensão');
+});
+it.each([
+  ['NO_ITEMS', false, 'Sem itens cadastrados para classificar o saldo'],
+  ['ALL_ITEMS_UNVERIFIABLE', true, 'Todos os itens são não verificáveis para classificar o saldo'],
+  ['ITEM_SOURCE_UNAVAILABLE', false, 'Fonte de itens indisponível para classificar o saldo'],
+] as const)('explains unavailable balance: %s', (reason, partialCoverage, explanation) => {
+  const summary = structuredClone(base);
+  summary.data.contractRiskMatrix = [{ contractId: 29, contractNumber: '20/2022', supplierName: null,
+    saldo: { status: 'UNAVAILABLE', partialCoverage, reason }, vigencia: 'OK',
+    sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
+  const host = document.createElement('div');
+  host.innerHTML = render(summary);
+  const cell = host.querySelector('.manager-risk-table tbody td')!;
+  expect(cell.textContent).toContain('Indisponível');
+  expect(cell.textContent).toContain(explanation);
+  expect(cell.textContent?.includes('Cobertura parcial')).toBe(partialCoverage);
 });
 it('renders the actual count and summary list without renewal claims', () => {
   const summary: ManagerDashboardSummaryResponse = { ...base,

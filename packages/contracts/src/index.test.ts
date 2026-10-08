@@ -377,9 +377,30 @@ describe('manager contractual alerts and balances', () => {
   it('requires a strict risk row per current contract and matching matrix coverage', () => {
     const contract = { contractId: 41, contractNumber: 'CT-41', supplierName: 'Fornecedor', value: 100, expiryDate: '2026-10-25' };
     const row = { contractId: 41, contractNumber: 'CT-41', supplierName: 'Fornecedor',
-      saldo: { status: 'UNAVAILABLE', partialCoverage: false }, vigencia: 'CRITICAL',
+      saldo: { status: 'UNAVAILABLE', partialCoverage: false, reason: 'NO_ITEMS' }, vigencia: 'CRITICAL',
       sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' };
     const current = { ...response, data: { ...response.data, contracts: [contract], contractRiskMatrix: [row] } };
+    const parseSaldo = (saldo: unknown) => managerDashboardSummaryResponseSchema.safeParse({
+      ...current, data: { ...current.data, contractRiskMatrix: [{ ...row, saldo }] },
+    }).success;
+    for (const saldo of [
+      { status: 'UNAVAILABLE', partialCoverage: false },
+      { status: 'UNAVAILABLE', partialCoverage: false, reason: null },
+      { status: 'OK', partialCoverage: false, reason: 'NO_ITEMS' },
+      { status: 'UNAVAILABLE', partialCoverage: true, reason: 'NO_ITEMS' },
+      { status: 'UNAVAILABLE', partialCoverage: false, reason: 'ALL_ITEMS_UNVERIFIABLE' },
+      { status: 'UNAVAILABLE', partialCoverage: false, reason: 'UNKNOWN' },
+      { status: 'UNAVAILABLE', partialCoverage: false, reason: 'ITEM_SOURCE_UNAVAILABLE' },
+    ]) expect(parseSaldo(saldo)).toBe(false);
+    expect(parseSaldo({ status: 'UNAVAILABLE', partialCoverage: true, reason: 'ALL_ITEMS_UNVERIFIABLE' })).toBe(true);
+    const sourceUnavailable = { ...current, meta: { ...current.meta, dataCoverage: {
+      ...current.meta.dataCoverage, itemBalances: 'UNAVAILABLE' } }, data: { ...current.data,
+      itemBalances: { coverage: 'UNAVAILABLE' }, contractRiskMatrix: [{ ...row, saldo: {
+        status: 'UNAVAILABLE', partialCoverage: false, reason: 'ITEM_SOURCE_UNAVAILABLE' } }] } };
+    expect(managerDashboardSummaryResponseSchema.safeParse(sourceUnavailable).success).toBe(true);
+    expect(managerDashboardSummaryResponseSchema.safeParse({ ...sourceUnavailable, data: {
+      ...sourceUnavailable.data, contractRiskMatrix: [row] } }).success).toBe(false);
+
     expect(managerDashboardSummaryResponseSchema.safeParse(current).success).toBe(true);
     for (const invalid of [
       { ...row, contractId: 42 }, { ...row, supplierName: 'Outro' },

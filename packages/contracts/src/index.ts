@@ -261,7 +261,17 @@ const contractRiskRowSchema = z.strictObject({
   contractId: z.number().int().positive(),
   contractNumber: z.string().nullable(),
   supplierName: z.string().nullable(),
-  saldo: z.strictObject({ status: contractRiskStatusSchema, partialCoverage: z.boolean() }),
+  saldo: z.strictObject({
+    status: contractRiskStatusSchema,
+    partialCoverage: z.boolean(),
+    reason: z.enum(['NO_ITEMS', 'ALL_ITEMS_UNVERIFIABLE', 'ITEM_SOURCE_UNAVAILABLE']).nullable(),
+  }).superRefine((saldo, context) => {
+    if ((saldo.status === 'UNAVAILABLE') !== (saldo.reason !== null) ||
+        (saldo.reason === 'ALL_ITEMS_UNVERIFIABLE' && !saldo.partialCoverage) ||
+        ((saldo.reason === 'NO_ITEMS' || saldo.reason === 'ITEM_SOURCE_UNAVAILABLE') && saldo.partialCoverage)) {
+      context.addIssue({ code: 'custom', message: 'Motivo e cobertura do saldo inconsistentes' });
+    }
+  }),
   vigencia: contractRiskStatusSchema,
   sla: z.literal('UNAVAILABLE'),
   medicao: z.literal('UNAVAILABLE'),
@@ -342,8 +352,9 @@ export const managerDashboardSummaryResponseSchema = z.strictObject({
       const contract = contractsById.get(row.contractId);
       if (seen.has(row.contractId) || !contract || row.contractNumber !== contract.contractNumber ||
           row.supplierName !== contract.supplierName ||
+          (response.data.itemBalances.coverage === 'AVAILABLE' && row.saldo.reason === 'ITEM_SOURCE_UNAVAILABLE') ||
           (response.data.itemBalances.coverage === 'UNAVAILABLE' &&
-            (row.saldo.status !== 'UNAVAILABLE' || row.saldo.partialCoverage))) {
+            (row.saldo.status !== 'UNAVAILABLE' || row.saldo.partialCoverage || row.saldo.reason !== 'ITEM_SOURCE_UNAVAILABLE'))) {
         context.addIssue({ code: 'custom', path: ['data', 'contractRiskMatrix'], message: 'Linha da matriz inconsistente' });
       }
       seen.add(row.contractId);

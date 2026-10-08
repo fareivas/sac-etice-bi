@@ -26,6 +26,11 @@ function QualityRing({ label, value }: { label: string; value: number | null }) 
   </div>;
 }
 
+const balanceReasonLabels = {
+  NO_ITEMS: 'Sem itens cadastrados para classificar o saldo',
+  ALL_ITEMS_UNVERIFIABLE: 'Todos os itens são não verificáveis para classificar o saldo',
+  ITEM_SOURCE_UNAVAILABLE: 'Fonte de itens indisponível para classificar o saldo',
+} as const;
 const riskLabels = { CRITICAL: 'Crítico', ATTENTION: 'Atenção', OK: 'OK', UNAVAILABLE: 'Indisponível' } as const;
 function RiskTag({ status }: { status: keyof typeof riskLabels }) {
   return <span className={`manager-risk-tag manager-risk-${status.toLowerCase()}`}>{riskLabels[status]}</span>;
@@ -159,7 +164,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 <th scope="col">Contrato</th><th scope="col">Saldo</th><th scope="col">Vigência</th><th scope="col">SLA</th><th scope="col">Medição</th><th scope="col">Pagamento</th><th scope="col">Índice</th>
               </tr></thead><tbody>{summary.data.contractRiskMatrix.map(row => <tr key={row.contractId}>
                 <th scope="row">{row.contractNumber ?? `Contrato ID ${row.contractId}`}<small>{row.supplierName ?? 'Fornecedor indisponível'}</small></th>
-                <td><RiskTag status={row.saldo.status} />{row.saldo.partialCoverage && <small>Cobertura parcial: há itens não verificáveis</small>}</td>
+                <td><RiskTag status={row.saldo.status} />{row.saldo.reason && <small>{balanceReasonLabels[row.saldo.reason]}</small>}{row.saldo.partialCoverage && <small>Cobertura parcial: há itens não verificáveis</small>}</td>
                 <td><RiskTag status={row.vigencia} /></td><td><RiskTag status={row.sla} /></td>
                 <td><RiskTag status={row.medicao} /></td><td><RiskTag status={row.pagamento} /></td><td><RiskTag status={row.indice} /></td>
               </tr>)}</tbody></table></div>}

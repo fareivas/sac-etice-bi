@@ -77,13 +77,21 @@ describe('manager current portfolio', () => {
     ] : original(sql, values));
     const result = await composeManagerSummary(1, filters, repo, now);
     expect(result.data.contractRiskMatrix?.map(row => row.saldo)).toEqual([
-      { status: 'CRITICAL', partialCoverage: true },
-      { status: 'ATTENTION', partialCoverage: false },
-      { status: 'OK', partialCoverage: false },
-      { status: 'UNAVAILABLE', partialCoverage: true },
-      { status: 'UNAVAILABLE', partialCoverage: false },
+      { status: 'CRITICAL', partialCoverage: true, reason: null },
+      { status: 'ATTENTION', partialCoverage: false, reason: null },
+      { status: 'OK', partialCoverage: false, reason: null },
+      { status: 'UNAVAILABLE', partialCoverage: true, reason: 'ALL_ITEMS_UNVERIFIABLE' },
+      { status: 'UNAVAILABLE', partialCoverage: false, reason: 'NO_ITEMS' },
     ]);
     expect(query).toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, [[1, 2, 3, 4, 5]]);
+  });
+  it('keeps a positive global balance separate from risk for contract 29 without items', async () => {
+    const { repo } = fixture([assignment(1, '29')], [contract('29', '17940')]);
+    const result = await composeManagerSummary(1, filters, repo, now);
+    expect(result.data.contractBalances?.[0].balanceValue).toBe(17940);
+    expect(result.data.contractRiskMatrix?.[0].saldo).toEqual({
+      status: 'UNAVAILABLE', partialCoverage: false, reason: 'NO_ITEMS',
+    });
   });
   it('returns available zero for a manager with no portfolio', async () => {
     const { repo, query } = fixture([], []);
@@ -223,7 +231,7 @@ describe('manager current portfolio', () => {
       statusVerificacao: 'pendente' });
     expect(result.data.itemBalances.itens[1].valueContracted).toBeNull();
     expect(result.data.contractRiskMatrix?.map(row => row.saldo)).toEqual([
-      { status: 'CRITICAL', partialCoverage: false }, { status: 'UNAVAILABLE', partialCoverage: true },
+      { status: 'CRITICAL', partialCoverage: false, reason: null }, { status: 'UNAVAILABLE', partialCoverage: true, reason: 'ALL_ITEMS_UNVERIFIABLE' },
     ]);
     expect(GET_CURRENT_ITEM_BALANCES).toContain('c.id = ANY($1::bigint[])');
     expect(GET_CURRENT_ITEM_BALANCES).toContain("c.status = 'vigente'");

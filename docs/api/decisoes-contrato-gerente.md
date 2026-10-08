@@ -265,3 +265,20 @@ nas bordas.
 pontuação, ponderação, ranking ou inferência a partir da ausência de alertas.
 SLA e demais KPIs técnicos dependem do Projeto de KPIs. A interface mostra
 etiquetas textuais para os estados e explicita cobertura parcial de Saldo.
+
+### GC-031 — Motivos de indisponibilidade do saldo
+
+Extensão aprovada pelo pedido de ajuste da coluna Saldo: cada `saldo` inclui
+`reason` obrigatório, com `null` quando o status é classificável e um dos
+seguintes valores quando é `UNAVAILABLE`:
+
+- `NO_ITEMS`: fonte disponível sem itens para o contrato; cobertura parcial falsa.
+  A tela mostra “Sem itens cadastrados para classificar o saldo”.
+- `ALL_ITEMS_UNVERIFIABLE`: todos os itens do contrato são não verificáveis;
+  cobertura parcial verdadeira, mantendo sua indicação na tela.
+- `ITEM_SOURCE_UNAVAILABLE`: `itemBalances.coverage = UNAVAILABLE`; cobertura
+  parcial falsa. Tem precedência sobre ausência de itens.
+
+O frontend explica os três motivos. Não muda a precedência das faixas nem usa
+saldo global como substituto. Não há alteração de consultas ou dados do banco;
+falhas SQL continuam erros HTTP, conforme GC-027.
