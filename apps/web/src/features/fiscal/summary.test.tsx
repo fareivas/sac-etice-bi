@@ -332,7 +332,7 @@ describe('filtros interativos dos saldos', () => {
       expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item contratual cadastrado na carteira.');
       expect([...view.host.querySelectorAll('.saldo-summary strong')].slice(0, 3).map(node => node.textContent)).toEqual(Array(3).fill('Sem itens cadastrados'));
       expect(view.section('Gestão dos Saldos dos Itens Contratuais')).not.toContain('recorte sem resultados');
-      expect(view.host.querySelector<HTMLSelectElement>('.saldo-filters select')!.value).toBe('');
+      expect(view.host.querySelector<HTMLSelectElement>('.saldo-filters select')!.value).toBe('Zeta');
     } finally { view.unmount(); }
   });
 
@@ -419,7 +419,7 @@ describe('atualizações dos filtros e agregados', () => {
     } finally { view.unmount(); }
   });
 
-  it('invalida fornecedor e contrato ausentes sem apagar faixa ou busca', () => {
+  it('mantém fornecedor e contrato ausentes sem ampliar o recorte ou apagar faixa e busca', () => {
     const view = mount(withItems(sampleItems()));
     try {
       view.select('Fornecedor', 'Zeta');
@@ -427,14 +427,14 @@ describe('atualizações dos filtros e agregados', () => {
       view.select('Faixa', 'critico');
       view.search('FIBRA');
       view.update(withItems([item(8, 8, 'Outro', 'critico', { specification: 'Fibra nova' })]));
-      expect(view.selected('Fornecedor')).toBe('');
-      expect(view.selected('Contrato')).toBe('');
+      expect(view.selected('Fornecedor')).toBe('Zeta');
+      expect(view.selected('Contrato')).toBe('2');
       expect(view.selected('Faixa')).toBe('critico');
       expect(view.query()).toBe('FIBRA');
-      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 1 itens encontrados');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('0 de 1 itens encontrados');
       view.update(withItems(sampleItems()));
-      expect(view.selected('Fornecedor')).toBe('');
-      expect(view.selected('Contrato')).toBe('');
+      expect(view.selected('Fornecedor')).toBe('Zeta');
+      expect(view.selected('Contrato')).toBe('2');
     } finally { view.unmount(); }
   });
 
@@ -786,7 +786,7 @@ it.each(['user', 'unit', 'contracts', 'reference'] as const)('resets queue filte
     }
   } finally { view.unmount(); }
 });
-it('preserves queue filters across unavailable coverage with the same scope and clears vanished contract options', () => {
+it('preserves queue filters across unavailable coverage with the same scope and retains vanished contract options without broadening the selection', () => {
   const view = mount(structuredClone(queueFixture));
   const controls = queueControls(view);
   try {
@@ -800,7 +800,8 @@ it('preserves queue filters across unavailable coverage with the same scope and 
     const changed = structuredClone(queueFixture);
     changed.data.priorityQueue = changed.data.priorityQueue!.filter(item => item.contractId !== 205);
     view.update(changed);
-    expect(controls.panel().querySelector('select')!.value).toBe('');
+    expect(controls.panel().querySelector('select')!.value).toBe('205');
+    expect(controls.panel().textContent).toContain('O contrato selecionado não está disponível nesta fila.');
     expect(controls.panel().querySelector<HTMLInputElement>('input')!.value).toBe('documento');
     expect(controls.panel().textContent).toContain('0 de 3 OS');
   } finally { view.unmount(); }
@@ -840,4 +841,132 @@ it('recovers from an API 500 to an empty queue and item portfolio without invoki
       '/api/v1/fiscais/me/dashboard/resumo?includeExternal=false',
     ]);
   } finally { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});
+
+function pendingResponse() {
+  let resolve!: (value: unknown) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+async function mountedDashboard(fetchMock: ReturnType<typeof vi.fn>) {
+  vi.stubGlobal('fetch', fetchMock);
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<FiscalDashboard />));
+  const refresh = () => [...host.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Atualizar dados')!;
+  return { host, refresh, cleanup: () => { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); } };
+}
+const okResponse = (data: FiscalDashboardSummaryResponse) => ({ ok: true, json: async () => data });
+
+it('refreshes without hiding the previous data, preserves filters and synchronously blocks repeated clicks', async () => {
+  const next = pendingResponse();
+  const initial = structuredClone(queueFixture);
+  const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(initial)).mockReturnValueOnce(next.promise);
+  const view = await mountedDashboard(fetchMock);
+  try {
+    const panel = view.host.querySelector('.fiscal-action-queue')!;
+    const contract = panel.querySelector('select')!;
+    const status = panel.querySelectorAll('select')[1];
+    const search = panel.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const band = [...view.host.querySelectorAll('.saldo-filters label')].find(label => label.textContent?.startsWith('Faixa'))!.querySelector('select')!;
+    // Existing helper scopes the item controls, independently from queue controls.
+    const itemSelect = [...view.host.querySelectorAll('.saldo-filters label')].find(label => label.textContent?.startsWith('Contrato'))!.querySelector('select')!;
+    act(() => {
+      contract.value = '205'; contract.dispatchEvent(new Event('change', { bubbles: true }));
+      itemSelect.value = '2'; itemSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      status.value = 'em_tratamento'; status.dispatchEvent(new Event('change', { bubbles: true }));
+      band.value = 'adequado'; band.dispatchEvent(new Event('change', { bubbles: true }));
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'documento');
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+      view.refresh().click(); view.refresh().click(); view.refresh().click();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(view.refresh().disabled).toBe(true);
+    expect(view.host.textContent).toContain('Atualizando dados');
+    expect(view.host.querySelector('.fiscal-action-queue')!.textContent).toContain('1 de 4 OS');
+    expect(view.host.querySelector('.fiscal-saldos')).not.toBeNull();
+    const updated = structuredClone(initial);
+    updated.meta.generatedAt = '2026-10-09T01:35:42Z';
+    await act(async () => next.resolve(okResponse(updated)));
+    expect(view.refresh().disabled).toBe(false);
+    expect(view.host.textContent).not.toContain('Atualizando dados');
+    expect(view.host.textContent).toContain('Última atualização do dashboard: 08/10/2026, 22:35:42');
+    expect(view.host.querySelector('.fiscal-action-queue select')!.getAttribute('id')).toBeTruthy();
+    expect(view.host.querySelector<HTMLSelectElement>('.fiscal-action-queue select')!.value).toBe('205');
+    expect(itemSelect.value).toBe('2');
+    expect(status.value).toBe('em_tratamento');
+    expect(search.value).toBe('documento');
+    expect(band.value).toBe('adequado');
+  } finally { view.cleanup(); }
+});
+it('preserves data, timestamp and filters on refresh failure and recovers on retry', async () => {
+  const failed = pendingResponse();
+  const recovered = structuredClone(queueFixture);
+  recovered.meta.generatedAt = '2026-10-09T02:35:42Z';
+  const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(queueFixture))
+    .mockReturnValueOnce(failed.promise).mockResolvedValueOnce(okResponse(recovered));
+  const view = await mountedDashboard(fetchMock);
+  try {
+    const contract = view.host.querySelector<HTMLSelectElement>('.fiscal-action-queue select')!;
+    act(() => { contract.value = '184'; contract.dispatchEvent(new Event('change', { bubbles: true })); });
+    const timestamp = view.host.querySelector('.fiscal-refresh span')!.textContent;
+    act(() => view.refresh().click());
+    await act(async () => failed.resolve({ ok: false, status: 500 }));
+    expect(view.host.querySelector('[role="alert"]')!.textContent).toContain('Os dados não foram atualizados');
+    expect(view.host.textContent).toContain('HTTP 500');
+    expect(view.host.querySelector('.fiscal-refresh span')!.textContent).toBe(timestamp);
+    expect(view.host.querySelector('.fiscal-action-queue')!.textContent).toContain('2 de 4 OS');
+    expect(view.refresh().disabled).toBe(false);
+    await act(async () => view.refresh().click());
+    expect(view.host.querySelector('[role="alert"]')).toBeNull();
+    expect(view.host.querySelector('.fiscal-refresh span')!.textContent).not.toBe(timestamp);
+    expect(view.host.querySelector<HTMLSelectElement>('.fiscal-action-queue select')!.value).toBe('184');
+  } finally { view.cleanup(); }
+});
+it('allows retry after an initial failure without presenting a previous-data refresh warning', async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce({ ok: false, status: 500 }).mockResolvedValueOnce(okResponse(queueFixture));
+  const view = await mountedDashboard(fetchMock);
+  try {
+    expect(view.host.textContent).toContain('Erro ao carregar o resumo');
+    expect(view.host.textContent).not.toContain('Os dados não foram atualizados');
+    expect(view.host.querySelector('.fiscal-refresh span')).toBeNull();
+    expect(view.refresh().disabled).toBe(false);
+    await act(async () => view.refresh().click());
+    expect(view.host.querySelector('[role="alert"]')).toBeNull();
+    expect(view.host.querySelector('.fiscal-action-queue')).not.toBeNull();
+  } finally { view.cleanup(); }
+});
+it.each(['success', 'failure'] as const)('ignores a stale %s after a newer request returns a different authorized scope', async outcome => {
+  const oldRequest = pendingResponse();
+  const newest = pendingResponse();
+  const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(queueFixture))
+    .mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(newest.promise);
+  const view = await mountedDashboard(fetchMock);
+  try {
+    const contract = view.host.querySelector<HTMLSelectElement>('.fiscal-action-queue select')!;
+    act(() => { contract.value = '205'; contract.dispatchEvent(new Event('change', { bubbles: true })); view.refresh().click(); });
+    act(() => view.host.querySelector<HTMLInputElement>('.external-switch input')!.click());
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const changed = structuredClone(queueFixture);
+    changed.data.fiscal.userId = 88;
+    changed.meta.filtersApplied.unidadeId = 2;
+    changed.meta.filtersApplied.contratoId = [184];
+    changed.data.priorityQueue = changed.data.priorityQueue!.filter(row => row.contractId === 184);
+    changed.data.cards.pendingServiceOrders = 2;
+    // Valid external response uses the existing HTTP schema.
+    const { responseForRequest } = await import('../../../../../scripts/test/fixtures/fiscal-queue-filters');
+    await act(async () => newest.resolve(okResponse(responseForRequest(changed, true))));
+    expect(view.host.querySelector('.fiscal-action-queue')!.textContent).toContain('2 de 2 OS');
+    expect(view.host.querySelector<HTMLSelectElement>('.fiscal-action-queue select')!.value).toBe('');
+    await act(async () => {
+      if (outcome === 'success') oldRequest.resolve(okResponse(queueFixture));
+      else oldRequest.reject(new Error('stale failure'));
+    });
+    expect(view.host.querySelector('.fiscal-action-queue')!.textContent).toContain('2 de 2 OS');
+    expect(view.host.querySelector('.fiscal-action-queue')!.textContent).not.toContain('OS ID 12');
+    expect(view.host.querySelector('[role="alert"]')).toBeNull();
+    expect(view.refresh().disabled).toBe(false);
+  } finally { view.cleanup(); }
 });

@@ -164,3 +164,9 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-queue-export button { padding: 8px 12px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--color-accent-soft); color: var(--color-accent); cursor: pointer; }
 .fiscal-dashboard .fiscal-queue-export button:disabled { opacity: .5; cursor: default; }
 .fiscal-dashboard .fiscal-queue-export button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.fiscal-dashboard .fiscal-refresh { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+.fiscal-dashboard .fiscal-refresh button { padding: 10px 14px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--color-accent-soft); color: var(--color-accent); cursor: pointer; }
+.fiscal-dashboard .fiscal-refresh button:disabled { opacity: .5; cursor: default; }
+.fiscal-dashboard .fiscal-refresh button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fiscal-dashboard .fiscal-refresh span { min-width: 0; overflow-wrap: anywhere; }

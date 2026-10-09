@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { FiscalContractExpiry, FiscalExpiryReferenceNote } from './contract-expiry';
 import { FiscalItemBalanceDetails } from './item-balance-details';
@@ -6,12 +6,13 @@ import { downloadFiscalQueueCsv } from './queue-csv';
 import { queueContractKey, useFiscalQueueFilters } from './use-fiscal-queue-filters';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 import { loadFiscalSummary } from '../../lib/api';
+import { displayGeneratedAt } from './generated-at';
 import { displayDate } from '../../lib/display-date';
 
 type ViewState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'success'; summary: FiscalDashboardSummaryResponse };
+  | { status: 'success'; summary: FiscalDashboardSummaryResponse; refreshing?: boolean; refreshError?: string };
 type CardKey = keyof FiscalDashboardSummaryResponse['data']['cards'];
 
 const cards: readonly { key: CardKey; label: string; detail: string }[] = [
@@ -45,10 +46,11 @@ function Unavailable({ label = 'Indisponível' }: { label?: string }) {
   return <div className="panel-unavailable" role="status">{label}</div>;
 }
 
-export function FiscalDashboardView({ state, includeExternal, onIncludeExternalChange }: {
+export function FiscalDashboardView({ state, includeExternal, onIncludeExternalChange, onRefresh }: {
   state: ViewState;
   includeExternal: boolean;
   onIncludeExternalChange: (value: boolean) => void;
+  onRefresh?: () => void;
 }) {
   const queueFilterId = useId();
   const summary = state.status === 'success' ? state.summary : null;
@@ -63,8 +65,8 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
     summary.meta.filtersApplied.unidadeId,
     [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b),
   ]) : null;
-  const { items, suppliers, contracts, supplier, contract, band, search, setFilter, activeFilters,
-    filteredItems, distribution, aggregates, allItemsSelected, clearFilters } = useItemBalanceFilters(itemBalances, context);
+  const { items, suppliers, contracts, missingSupplier, missingContract, supplier, contract, band, search, setFilter, activeFilters,
+    filteredItems, distribution, aggregates, allItemsSelected, clearFilters } = useItemBalanceFilters(itemBalances, context, true);
   const queueContext = summary ? JSON.stringify([
     summary.data.fiscal.userId, summary.meta.filtersApplied.unidadeId,
     [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b), summary.meta.dataReference,
@@ -80,6 +82,13 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
     </div></header>
     <div className="fiscal-page">
       <section className="fiscal-filters" aria-label="Filtros do dashboard"><div><strong>Filtros da carteira</strong><span>Recorte autorizado do fiscal</span></div><div className="filter-values"><span>Unidade: {summary?.meta.filtersApplied.unidadeId ?? 'Todas'}</span><span>Contrato: {summary?.meta.filtersApplied.contratoId.length ? summary.meta.filtersApplied.contratoId.join(', ') : 'Todos'}</span><label className="external-switch"><input type="checkbox" checked={includeExternal} onChange={(event) => onIncludeExternalChange(event.target.checked)} /> Consultar fonte externa</label></div></section>
+      <div className="fiscal-refresh">
+        <button type="button" onClick={onRefresh} disabled={state.status === 'loading' || (state.status === 'success' && state.refreshing === true)}>Atualizar dados</button>
+        {summary && <span>Última atualização do dashboard: {displayGeneratedAt(summary.meta.generatedAt, summary.meta.timezone)} ({summary.meta.timezone})</span>}
+      </div>
+      {summary && <p className="source-note">Horário de geração da resposta, não de atualização do banco. A data de referência é apresentada separadamente.</p>}
+      {state.status === 'success' && state.refreshing && <p role="status">Atualizando dados… Os dados anteriores permanecem visíveis.</p>}
+      {state.status === 'success' && state.refreshError && <p role="alert" className="fiscal-message error">Os dados não foram atualizados. Exibindo a última resposta recebida. {state.refreshError} Tente novamente em “Atualizar dados”.</p>}
       {state.status === 'loading' && <div className="fiscal-message" role="status">Carregando resumo…</div>}
       {state.status === 'error' && <div className="fiscal-message error" role="alert">Erro ao carregar o resumo: {state.message}</div>}
       {summary && <>
@@ -116,7 +125,7 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
             {queue !== null && queue !== undefined && <>
               <div className="fiscal-queue-filters" role="group" aria-label="Filtros locais da fila fiscal">
                 <div><label htmlFor={`${queueFilterId}-contract`}>Contrato da fila</label><select id={`${queueFilterId}-contract`} value={queueFilters.contract} onChange={event => queueFilters.setFilter({ contract: event.target.value })}>
-                  <option value="">Todos os contratos</option>{queueFilters.contracts.map(([id, number]) => <option key={queueContractKey(id)} value={queueContractKey(id)}>
+                  <option value="">Todos os contratos</option>{queueFilters.missingContract && <option value={queueFilters.contract}>Contrato ID {queueFilters.contract} (não disponível na resposta)</option>}{queueFilters.contracts.map(([id, number]) => <option key={queueContractKey(id)} value={queueContractKey(id)}>
                     {id === null ? 'Contrato não identificado' : `${number ?? 'Contrato sem número'} (ID ${id})`}
                   </option>)}
                 </select></div>
@@ -126,6 +135,7 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
                 <div><label htmlFor={`${queueFilterId}-search`}>Busca na fila</label><input id={`${queueFilterId}-search`} type="search" value={queueFilters.search} placeholder="OS ID, contrato, fornecedor ou descrição"
                   onChange={event => queueFilters.setFilter({ search: event.target.value })} /></div>
               </div>
+              {queueFilters.missingContract && <p role="status">O contrato selecionado não está disponível nesta fila. O filtro foi mantido; selecione outro contrato ou limpe os filtros para alterar o recorte.</p>}
               <div className="fiscal-queue-filter-meta"><span role="status">{queueFilters.visible.length} de {queueFilters.totalOrders} OS</span>
                 <button type="button" onClick={queueFilters.clearFilters} disabled={!queueFilters.activeFilters}>Limpar filtros da fila</button>
               </div>
@@ -171,11 +181,12 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
         <Panel title="Gestão dos Saldos dos Itens Contratuais" subtitle="Total contratado, execução acumulada, saldo e ação do fiscal." className="fiscal-saldos">
           {itemBalances?.coverage === 'AVAILABLE' ? <>
             <div className="saldo-filters" aria-label="Filtros dos saldos contratuais">
-              <label>Fornecedor<select value={supplier} onChange={event => setFilter({ supplier: event.target.value })}><option value="">Todos os fornecedores</option>{suppliers.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
-              <label>Contrato<select value={contract} onChange={event => setFilter({ contract: event.target.value })}><option value="">Todos os contratos</option>{contracts.map(([id, number]) => <option key={id} value={id}>{number ?? `Contrato ID ${id}`} (ID {id})</option>)}</select></label>
+              <label>Fornecedor<select value={supplier} onChange={event => setFilter({ supplier: event.target.value })}><option value="">Todos os fornecedores</option>{missingSupplier && <option value={supplier}>{supplier} (não disponível na resposta)</option>}{suppliers.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
+              <label>Contrato<select value={contract} onChange={event => setFilter({ contract: event.target.value })}><option value="">Todos os contratos</option>{missingContract && <option value={contract}>Contrato ID {contract} (não disponível na resposta)</option>}{contracts.map(([id, number]) => <option key={id} value={id}>{number ?? `Contrato ID ${id}`} (ID {id})</option>)}</select></label>
               <label>Faixa<select value={band} onChange={event => setFilter({ band: event.target.value })}><option value="">Todas as faixas</option><option value="adequado">Adequado</option><option value="atencao">Atenção</option><option value="critico">Crítico</option><option value="nao_verificavel">Não verificável</option></select></label>
               <label>Busca textual<input type="search" placeholder="Buscar item, contrato ou fornecedor..." value={search} onChange={event => setFilter({ search: event.target.value })} /></label>
             </div>
+            {(missingSupplier || missingContract) && <p role="status">Há opções selecionadas que não estão disponíveis nesta resposta. Os filtros foram mantidos; escolha outras opções ou limpe os filtros para alterar o recorte.</p>}
             <div className="saldo-filter-meta"><span role="status">{filteredItems.length} de {items.length} itens encontrados</span><button type="button" onClick={clearFilters} disabled={!activeFilters}>Limpar todos os filtros</button></div>
             {noRegisteredItems
               ? <p className="source-note" role="status">Não há dados de itens cadastrados na carteira para avaliar o saldo. O saldo consolidado por contrato é apresentado separadamente.</p>
@@ -227,16 +238,42 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
 
 export function FiscalDashboard() {
   const [includeExternal, setIncludeExternal] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [state, setState] = useState<ViewState>({ status: 'loading' });
+  const inFlight = useRef(true);
+  const requestId = useRef(0);
+  const beginLoading = () => setState(previous => previous.status === 'success'
+    ? { status: 'success', summary: previous.summary, refreshing: true } : { status: 'loading' });
   useEffect(() => {
     let active = true;
-    setState({ status: 'loading' });
-    loadFiscalSummary(includeExternal).then((summary) => {
-      if (active) setState({ status: 'success', summary });
+    const id = ++requestId.current;
+    inFlight.current = true;
+    beginLoading();
+    loadFiscalSummary(includeExternal).then(summary => {
+      if (active && id === requestId.current) setState({ status: 'success', summary });
     }).catch((reason: unknown) => {
-      if (active) setState({ status: 'error', message: reason instanceof Error ? reason.message : 'Falha na consulta' });
+      if (!active || id !== requestId.current) return;
+      const message = reason instanceof Error ? reason.message : 'Falha na consulta';
+      setState(previous => previous.status === 'success'
+        ? { status: 'success', summary: previous.summary, refreshError: message }
+        : { status: 'error', message });
+    }).finally(() => {
+      if (active && id === requestId.current) inFlight.current = false;
     });
     return () => { active = false; };
-  }, [includeExternal]);
-  return <FiscalDashboardView state={state} includeExternal={includeExternal} onIncludeExternalChange={setIncludeExternal} />;
+  }, [includeExternal, revision]);
+  const refresh = () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    beginLoading();
+    setRevision(value => value + 1);
+  };
+  const changeExternal = (value: boolean) => {
+    if (value === includeExternal) return;
+    ++requestId.current;
+    inFlight.current = true;
+    beginLoading();
+    setIncludeExternal(value);
+  };
+  return <FiscalDashboardView state={state} includeExternal={includeExternal} onIncludeExternalChange={changeExternal} onRefresh={refresh} />;
 }

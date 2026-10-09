@@ -104,3 +104,21 @@ três estados sem dados exportáveis. O download é lido no armazenamento
 temporário do Playwright, sem ser incorporado ao projeto. Os testes
 `queue-csv.test.ts` cobrem múltiplas pendências, campos ausentes, fallback,
 acentos, aspas, separadores, quebras de linha e proteção contra fórmulas.
+
+## Atualização manual fiscal
+
+Com o mesmo preview Vite e bundle `queue-fixture.cjs` da fila, execute:
+
+```bash
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+  node scripts/test/fiscal-refresh.visual.mjs \
+  /tmp/sac-fiscal-visual/queue-fixture.cjs /tmp/sac-fiscal-visual/refresh-captures
+```
+
+Controla respostas exclusivamente no navegador, em desktop e 390 px. Valida
+Tab/Enter e foco, bloqueio de cliques, dados/filtros visíveis enquanto carrega,
+falha HTTP 500 sem apagar a última resposta, tentativa e recuperação, retenção
+de opção desaparecida sem ampliar o recorte, descarte de resposta antiga após
+escopo novo e horário `generatedAt` no fuso recebido. PNGs/relatório ficam no
+diretório temporário informado. Não usa o banco nem a API oficial.

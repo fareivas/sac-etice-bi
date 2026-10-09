@@ -33,15 +33,12 @@ export function useFiscalQueueFilters(queue: Queue | null | undefined, context: 
   if (context !== null && filters.context !== context) {
     filters = emptyFilters(context);
     setFilters(filters);
-  } else if (queue !== null && queue !== undefined && filters.contract &&
-      !contracts.some(([id]) => queueContractKey(id) === filters.contract)) {
-    filters = { ...filters, contract: '' };
-    setFilters(filters);
   }
   const { contract, status, search } = filters;
+  const missingContract = Boolean(contract && queue != null && !contracts.some(([id]) => queueContractKey(id) === contract));
   const visible = useMemo(() => filterFiscalQueue(rows, { contract, status, search }), [rows, contract, status, search]);
   const setFilter = (change: Partial<QueueFilters>) => setFilters(current => ({ ...current, ...change }));
   const clearFilters = () => setFilters(emptyFilters(context));
-  return { contracts, contract, status, search, visible, setFilter, clearFilters,
+  return { contracts, missingContract, contract, status, search, visible, setFilter, clearFilters,
     activeFilters: Boolean(contract || status || search.trim()), totalOrders: rows.length };
 }

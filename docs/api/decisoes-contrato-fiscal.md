@@ -733,7 +733,8 @@ ou contagem zero inventada, independentemente do card global (DEC-032).
 Usuário, unidade, conjunto de contratos consultados e `meta.dataReference`
 identificam o contexto da fila; sua mudança reinicia os três filtros. Ordenação
 dos IDs do filtro de contrato não muda o contexto. Atualização no mesmo contexto
-preserva os filtros; contrato que deixa de existir nas opções é limpo. Carga ou
+preserva os filtros; contrato que deixa de existir nas opções é mantido como
+não disponível, com aviso, sem ampliar silenciosamente o recorte. Carga ou
 indisponibilidade temporária não apaga seleções do mesmo contexto. Alterar a
 consulta externa de KPIs não define novo contexto da fila.
 
@@ -765,3 +766,44 @@ A exportação fica desabilitada com fonte indisponível, fila vazia ou filtros
 sem resultados. Mantém o escopo autorizado, filtros e a distinção entre carteira
 e atribuição pessoal. Fixtures e downloads da validação ficam fora do fluxo
 normal da aplicação; nenhuma alteração no banco ou API oficial.
+
+
+## Atualização manual do dashboard fiscal
+
+**Atualizar dados** reutiliza `loadFiscalSummary` e o mesmo GET existente, com
+`includeExternal` vigente. Não seleciona usuário, não adiciona parâmetros,
+consulta de banco, regra de negócio ou integração com o SAC oficial. Autorização
+continua no servidor. Não há atualização automática ou execução de ações.
+
+Durante a nova consulta, a última resposta permanece visível, com indicador
+“Atualizando dados”; o botão fica desabilitado e uma trava síncrona bloqueia
+cliques repetidos. Cada consulta tem uma geração; mudança de consulta invalida
+as anteriores e resultados/erros atrasados não sobrescrevem a resposta mais
+recente. Desmontagem também invalida a consulta. O recorte efetivamente retornado
+pela API (usuário/unidade/contratos/data) continua controlando a reinicialização
+dos filtros, sem permitir que uma resposta antiga restaure outro escopo.
+
+Falha na atualização mantém os dados, filtros e horário anteriores, com aviso
+explícito “Os dados não foram atualizados” e possibilidade de tentar novamente.
+Falha no carregamento inicial mantém a apresentação de erro sem dados simulados;
+o botão permite repetir a consulta. Uma resposta válida indisponível continua
+indisponível, com seus próprios estados, sem substituir a fonte por dados antigos.
+
+Filtros da fila e itens continuam válidos no mesmo contexto. No Fiscal, contrato
+ou fornecedor selecionado que desaparece permanece selecionado com indicação
+“não disponível na resposta” e aviso; não se limpa silenciosamente para mostrar
+toda a carteira. O recorte fica sem correspondências até outra seleção/limpeza
+explícita, ou até a opção reaparecer. Mudança de usuário/escopo mantém o reset já
+existente. A opção de retenção do hook compartilhado é usada somente pelo Fiscal;
+o Gerente conserva seu comportamento anterior.
+
+**Última atualização do dashboard** usa exclusivamente `meta.generatedAt`,
+formatado em `meta.timezone`, separado de `meta.dataReference`. Representa a
+geração da resposta recebida, não o horário da última alteração do banco.
+Sem sucesso novo, esse horário não avança.
+
+Testes cobrem sucesso, falha, recuperação, cliques repetidos, respostas/erros
+atrasados após escopo novo, preservação de filtros, opções desaparecidas e
+formatação do horário. O roteiro `scripts/test/fiscal-refresh.visual.mjs` usa
+fixtures isoladas com respostas controladas, teclado e desktop/390 px, sem
+chamadas ao banco ou API oficial.

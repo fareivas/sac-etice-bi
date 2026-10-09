@@ -39,7 +39,7 @@ function filteredAggregates(items: FiscalItemBalance[]) {
 type ItemFilters = { context: string | null; supplier: string; contract: string; band: string; search: string };
 const emptyFilters = (context: string | null): ItemFilters => ({ context, supplier: '', contract: '', band: '', search: '' });
 
-export function useItemBalanceFilters(itemBalances: FiscalItemBalances | undefined, context: string | null) {
+export function useItemBalanceFilters(itemBalances: FiscalItemBalances | undefined, context: string | null, preserveMissingOptions = false) {
   const [storedFilters, setFilters] = useState<ItemFilters>(() => emptyFilters(null));
   const items = itemBalances?.coverage === 'AVAILABLE' ? itemBalances.itens : emptyItems;
   const suppliers = useMemo(() => [...new Set(items.map(item => item.supplierName).filter((name): name is string => name !== null))]
@@ -50,7 +50,7 @@ export function useItemBalanceFilters(itemBalances: FiscalItemBalances | undefin
   if (context !== null && filters.context !== context) {
     filters = emptyFilters(context);
     setFilters(filters);
-  } else if (itemBalances?.coverage === 'AVAILABLE') {
+  } else if (!preserveMissingOptions && itemBalances?.coverage === 'AVAILABLE') {
     const supplier = suppliers.includes(filters.supplier) ? filters.supplier : '';
     const contract = contracts.some(([id]) => String(id) === filters.contract) ? filters.contract : '';
     if (supplier !== filters.supplier || contract !== filters.contract) {
@@ -59,6 +59,8 @@ export function useItemBalanceFilters(itemBalances: FiscalItemBalances | undefin
     }
   }
   const { supplier, contract, band, search } = filters;
+  const missingSupplier = Boolean(supplier && itemBalances?.coverage === 'AVAILABLE' && !suppliers.includes(supplier));
+  const missingContract = Boolean(contract && itemBalances?.coverage === 'AVAILABLE' && !contracts.some(([id]) => String(id) === contract));
   const setFilter = (change: Partial<ItemFilters>) => setFilters(current => ({ ...current, ...change }));
   const activeFilters = Boolean(supplier || contract || band || search.trim());
   const filteredItems = useMemo(() => {
@@ -82,6 +84,6 @@ export function useItemBalanceFilters(itemBalances: FiscalItemBalances | undefin
     : itemBalances?.coverage === 'AVAILABLE' && allItemsSelected ? itemBalances.agregados
       : filteredAggregates(filteredItems), [filteredItems, itemBalances, allItemsSelected]);
   const clearFilters = () => setFilters(emptyFilters(context));
-  return { items, suppliers, contracts, supplier, contract, band, search, setFilter, activeFilters,
+  return { items, suppliers, contracts, missingSupplier, missingContract, supplier, contract, band, search, setFilter, activeFilters,
     filteredItems, distribution, aggregates, allItemsSelected, clearFilters };
 }
