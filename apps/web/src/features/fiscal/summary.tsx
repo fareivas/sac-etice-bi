@@ -5,6 +5,7 @@ import { FiscalItemBalanceDetails } from './item-balance-details';
 import { downloadFiscalItemsCsv } from './item-balances-csv';
 import { downloadFiscalQueueCsv } from './queue-csv';
 import { queueContractKey, useFiscalQueueFilters } from './use-fiscal-queue-filters';
+import { displayedItemBalance, displayedItemRatio, itemSortLabels, useItemBalanceSort, type ItemSortKey, type ItemSortDirection } from './use-item-balance-sort';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 import { loadFiscalSummary } from '../../lib/api';
 import { displayGeneratedAt } from './generated-at';
@@ -73,6 +74,7 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
     [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b), summary.meta.dataReference,
   ]) : null;
   const queueFilters = useFiscalQueueFilters(queue, queueContext);
+  const itemSort = useItemBalanceSort(filteredItems, itemBalances, queueContext);
   const noRegisteredItems = itemBalances?.coverage === 'AVAILABLE' && items.length === 0;
   const itemTotalLabel = (value: number | null) => noRegisteredItems ? 'Sem itens cadastrados' : money(value);
 
@@ -183,7 +185,7 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
           <div className="fiscal-items-export">
             <button type="button" disabled={itemBalances?.coverage !== 'AVAILABLE' || filteredItems.length === 0}
               aria-describedby={`${queueFilterId}-items-export-note`}
-              onClick={() => { if (itemBalances?.coverage === 'AVAILABLE') downloadFiscalItemsCsv(filteredItems, summary.meta.dataReference, itemBalances.criterio); }}>Exportar itens CSV</button>
+              onClick={() => { if (itemBalances?.coverage === 'AVAILABLE') downloadFiscalItemsCsv(itemSort.orderedItems, summary.meta.dataReference, itemBalances.criterio); }}>Exportar itens CSV</button>
             <p className="source-note" id={`${queueFilterId}-items-export-note`}>Uma linha por item visível após os filtros locais. A exportação dos itens não representa o saldo consolidado por contrato.</p>
           </div>
           {itemBalances?.coverage === 'AVAILABLE' ? <>
@@ -212,24 +214,33 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
             {!allItemsSelected && aggregates.committedBalanceRows === filteredItems.length && aggregates.saldoComprometido === null && <p role="status">Saldo comprometido indisponível por limite de precisão.</p>}
             {!allItemsSelected && aggregates.measuredBalanceRows === filteredItems.length && aggregates.saldoMedido === null && <p role="status">Saldo medido indisponível por limite de precisão.</p>}
             <p>Faixa por {itemBalances.criterio.dimensao}, base {itemBalances.criterio.base}: adequado ≥ {percentage(itemBalances.criterio.limiar_atencao * 100)}; crítico ≤ {percentage(itemBalances.criterio.limiar_critico * 100)}; atenção entre esses limites. Limiares provisórios.</p>
+            <div className="fiscal-item-sort" role="group" aria-label="Ordenação local dos itens">
+              <div><label htmlFor={`${queueFilterId}-item-sort`}>Ordenar itens por</label><select id={`${queueFilterId}-item-sort`} value={itemSort.key} onChange={event => itemSort.setSort({ key: event.target.value as ItemSortKey })}>
+                {Object.entries(itemSortLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select></div>
+              <div><label htmlFor={`${queueFilterId}-item-direction`}>Direção da ordenação</label><select id={`${queueFilterId}-item-direction`} value={itemSort.direction} disabled={itemSort.key === 'source'} onChange={event => itemSort.setSort({ direction: event.target.value as ItemSortDirection })}>
+                <option value="asc">Crescente</option><option value="desc">Decrescente</option>
+              </select></div>
+            </div>
+            <p role="status" className="fiscal-item-sort-note">Ordenação: {itemSortLabels[itemSort.key]}{itemSort.key !== 'source' && ` — ${itemSort.direction === 'asc' ? 'crescente' : 'decrescente'}`}. Valores ausentes ficam no final; empates de saldo ou percentual usam IDs de contrato/item em ordem crescente.</p>
             <div className="fiscal-table-wrap"><table><thead><tr><th>Faixa / verificação</th><th>Contrato / fornecedor</th><th>Item contratual</th><th>Total</th><th>Executado</th><th>Saldo</th><th>% saldo</th><th>Orientação ao fiscal</th></tr></thead><tbody>
-              {filteredItems.length ? filteredItems.map(item => {
+              {itemSort.orderedItems.length ? itemSort.orderedItems.map(item => {
                 const quantity = itemBalances.criterio.dimensao === 'quantidade';
                 const total = quantity ? item.quantityContracted : item.valueContracted;
                 const measuredBase = itemBalances.criterio.base === 'medido';
                 const executed = quantity ? (measuredBase ? total === null ? null : item.quantityMeasured ?? 0 : item.quantityConsumed)
                   : (measuredBase ? total === null ? null : item.valueMeasured ?? 0 : item.valueConsumed);
-                const balance = measuredBase ? (quantity ? item.quantityMeasuredBalance : item.valueMeasuredBalance)
-                  : (quantity ? item.quantityBalance : item.valueBalance);
+                const balance = displayedItemBalance(item, itemBalances.criterio);
+                const ratio = displayedItemRatio(item, itemBalances.criterio);
                 const format = quantity ? (value: number | null) => value === null ? 'Não calculável' : `${value} ${item.unit ?? ''}` : money;
-                return <tr key={item.itemId}><td>{item.faixa}{item.statusVerificacao && <> <small>Verificação: {item.statusVerificacao}</small></>}{item.blockedAt && <small> Bloqueado: {item.blockReason ?? 'motivo indisponível'}</small>}</td>
+                return <tr key={`${item.contractId}:${item.itemId}`}><td>{item.faixa}{item.statusVerificacao && <> <small>Verificação: {item.statusVerificacao}</small></>}{item.blockedAt && <small> Bloqueado: {item.blockReason ?? 'motivo indisponível'}</small>}</td>
                   <td>{item.contractNumber ?? 'Contrato sem número'}<br />{item.supplierName ?? 'Fornecedor indisponível'}</td>
                   <td>{item.sequence ?? '—'} · {item.specification ?? 'Sem especificação'}
                     <FiscalItemBalanceDetails item={item} criteria={itemBalances.criterio} />
                   </td>
                   <td>{format(total)}</td><td>{format(executed)}</td>
                   <td>{format(balance)}{balance !== null && balance < 0 && <strong> · Saldo negativo</strong>}</td>
-                  <td>{percentage((itemBalances.criterio.base === 'medido' ? item.pctSaldoMedido : item.pctSaldo) === null ? null : (itemBalances.criterio.base === 'medido' ? item.pctSaldoMedido! : item.pctSaldo!) * 100)}</td>
+                  <td>{percentage(ratio === null ? null : ratio * 100)}</td>
                   <td>{item.faixa === 'critico' ? 'Avaliar o saldo e o planejamento do item.' : item.faixa === 'nao_verificavel' ? 'Conferir dados do item.' : item.faixa === 'atencao' ? 'Acompanhar o consumo do item.' : 'Acompanhar normalmente.'}</td></tr>;
               }) : <tr><td colSpan={8} className="table-empty">{items.length ? 'Nenhum item encontrado com os filtros atuais.' : 'Nenhum item contratual cadastrado na carteira.'}</td></tr>}
             </tbody></table></div>

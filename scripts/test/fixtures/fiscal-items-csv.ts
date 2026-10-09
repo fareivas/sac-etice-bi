@@ -39,6 +39,7 @@ function fixture(source: typeof itemFixtures.committedValue) {
 export const fixtures = { committedValue: fixture(itemFixtures.committedValue), measuredQuantity: fixture(itemFixtures.measuredQuantity) };
 export { responseForRequest } from './fiscal-queue-filters';
 export function expectedCsv(summary: typeof queueFixture, itemIds: number[]) {
-  if (summary.data.itemBalances?.coverage !== 'AVAILABLE') throw new Error('Missing fixture item source');
-  return fiscalItemsCsv(summary.data.itemBalances.itens.filter(item => itemIds.includes(item.itemId)), summary.meta.dataReference, summary.data.itemBalances.criterio);
+  const balances = summary.data.itemBalances;
+  if (balances?.coverage !== 'AVAILABLE') throw new Error('Missing fixture item source');
+  return fiscalItemsCsv(itemIds.map(id => balances.itens.find(item => item.itemId === id)!), summary.meta.dataReference, balances.criterio);
 }

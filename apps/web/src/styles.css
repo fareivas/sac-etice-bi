@@ -174,3 +174,11 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-items-export button { padding: 8px 12px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--color-accent-soft); color: var(--color-accent); cursor: pointer; }
 .fiscal-dashboard .fiscal-items-export button:disabled { opacity: .5; cursor: default; }
 .fiscal-dashboard .fiscal-items-export button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.fiscal-dashboard .fiscal-item-sort { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.fiscal-dashboard .fiscal-item-sort > div { display: grid; gap: 6px; min-width: 0; flex: 1 1 220px; }
+.fiscal-dashboard .fiscal-item-sort label { color: var(--text-secondary); font-size: .8rem; font-weight: 600; }
+.fiscal-dashboard .fiscal-item-sort select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-card); color: var(--text-primary); }
+.fiscal-dashboard .fiscal-item-sort select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fiscal-dashboard .fiscal-item-sort select:disabled { opacity: .5; }
+.fiscal-dashboard .fiscal-item-sort-note { font-size: .8rem; color: var(--text-secondary); }

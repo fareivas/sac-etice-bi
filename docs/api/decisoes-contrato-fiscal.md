@@ -810,8 +810,8 @@ chamadas ao banco ou API oficial.
 
 ## Exportação CSV dos saldos dos itens do Fiscal
 
-**Exportar itens CSV** usa somente `filteredItems` do recorte local de
-`data.itemBalances.itens`, mantendo ordem e uma linha por item, sem consultas
+**Exportar itens CSV** usa somente o recorte local de `data.itemBalances.itens`,
+na ordem exibida (ordem da resposta por padrão) e uma linha por item, sem consultas
 adicionais ou cálculo de saldo/classificação. Não representa o saldo consolidado
 por contrato. Fonte ausente/`UNAVAILABLE`, carteira sem itens ou recorte sem
 resultados deixam o controle desabilitado. Não modifica filtros, autorização,
@@ -843,3 +843,45 @@ Testes cobrem recorte combinado, campos ausentes/zero/negativos, caracteres
 especiais, critérios medido/quantidade alternativos e manutenção da exportação
 da fila. O roteiro `scripts/test/fiscal-items-csv.visual.mjs` valida downloads,
 teclado, desktop e 390 px com fixtures isoladas e sem acesso ao banco.
+
+
+## Ordenação local dos itens do Fiscal
+
+Os controles **Ordenar itens por** e **Direção da ordenação** afetam somente a
+tabela de itens e a ordem do CSV de itens. O padrão **Ordem da resposta** preserva
+exatamente a lista recebida após os filtros locais, inclusive a multiplicidade.
+Selecionar contrato/item, saldo ou percentual permite crescente/decrescente; a
+ordenação ativa é apresentada em texto anunciado por `role=status`.
+
+- **Contrato / item (IDs)** compara numericamente `contractId`, depois `itemId`.
+  Não interpreta número de contrato, sequência ou descrição como prioridade.
+- **Saldo disponível** usa `valueBalance`/`quantityBalance` na base comprometida
+  ou `valueMeasuredBalance`/`quantityMeasuredBalance` na base medida, conforme
+  `criterio.dimensao`. É o mesmo campo que alimenta a célula Saldo da tabela.
+- **Percentual disponível** usa `pctSaldo` ou `pctSaldoMedido`, conforme a base
+  efetiva da resposta. A razão já foi calculada pelo serviço na dimensão escolhida.
+  Ordena a razão original, antes de sua apresentação percentual.
+
+Não compara textos formatados nem recalcula faixa, saldo ou razão. Nulos ficam
+no final em ambas as direções; empates numéricos e empates entre nulos usam IDs
+de contrato/item em ordem crescente. Empates de identificação conservam a ordem
+relativa da resposta (ordenação estável). Zeros e negativos participam da
+comparação numérica original.
+
+A ordenação copia a lista filtrada e preserva objetos/ordem da resposta original.
+Totais e distribuição continuam usando a lista filtrada anterior à ordenação.
+Filtros, carteira autorizada, fila e seu CSV, classificações e dashboard do
+Gerente permanecem sem mudança funcional. Linhas usam chave de contrato/item;
+detalhes expansíveis continuam associados ao mesmo item após reordenar.
+
+Atualização manual, alteração dos filtros locais ou consulta externa no mesmo
+contexto preservam a escolha. Fonte indisponível temporária não a apaga.
+Mudança de fiscal, unidade, conjunto de contratos consultados ou data de
+referência reinicia para a ordem da resposta. IDs de escopo em ordem diferente
+não definem novo contexto. Limpar filtros não limpa a ordenação.
+
+Testes cobrem números negativos/zero/ausentes, valores próximos que seriam
+iguais no texto arredondado, empates, todas as combinações de base/dimensão,
+filtros combinados, detalhes, preservação/reset e ordem do CSV. O roteiro
+`scripts/test/fiscal-item-sort.visual.mjs` valida teclado e desktop/390 px com
+fixtures isoladas, sem consultas ao banco ou SAC oficial.

@@ -145,3 +145,21 @@ nome/BOM/conteúdo, filtros e card/fila preservados, botão desabilitado sem
 resultados/itens/fonte e layout em desktop/390 px. Capturas/relatório e downloads
 ficam temporários; não alteram o banco. Reexecute também o roteiro da fila para
 validar o codificador CSV compartilhado.
+
+## Ordenação dos saldos dos itens
+
+Com o bundle `items-csv-fixtures.cjs` e preview descritos acima:
+
+```bash
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+  node scripts/test/fiscal-item-sort.visual.mjs \
+  /tmp/sac-fiscal-visual/items-csv-fixtures.cjs /tmp/sac-fiscal-visual/item-sort-captures
+```
+
+Valida ordem original, IDs/saldo/percentual em ambas as direções, zero, negativo,
+nulos no final, filtros combinados, detalhes expandidos no mesmo item, totais e
+distribuição preservados, CSV na ordem visual, atualização preservando escolha
+e reset após escopo/usuário novo. Usa Tab/setas/Enter e foco em desktop/390 px,
+com duas bases/dimensões da API. Todas as respostas são interceptadas; nenhuma
+chamada chega ao backend ou banco. Capturas/relatório ficam temporários.

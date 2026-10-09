@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
+import { fixtures as csvItemFixtures } from '../../../../../scripts/test/fixtures/fiscal-items-csv';
 import { fixture as queueFixture } from '../../../../../scripts/test/fixtures/fiscal-queue-filters';
 import { fiscalItemsCsv } from './item-balances-csv';
 import { countLabel, FiscalDashboard, FiscalDashboardView, queueLabel } from './summary';
@@ -872,6 +873,7 @@ it('refreshes without hiding the previous data, preserves filters and synchronou
     const status = panel.querySelectorAll('select')[1];
     const search = panel.querySelector<HTMLInputElement>('input[type="search"]')!;
     const band = [...view.host.querySelectorAll('.saldo-filters label')].find(label => label.textContent?.startsWith('Faixa'))!.querySelector('select')!;
+    const sort = view.host.querySelector<HTMLSelectElement>('.fiscal-item-sort select')!;
     // Existing helper scopes the item controls, independently from queue controls.
     const itemSelect = [...view.host.querySelectorAll('.saldo-filters label')].find(label => label.textContent?.startsWith('Contrato'))!.querySelector('select')!;
     act(() => {
@@ -879,6 +881,7 @@ it('refreshes without hiding the previous data, preserves filters and synchronou
       itemSelect.value = '2'; itemSelect.dispatchEvent(new Event('change', { bubbles: true }));
       status.value = 'em_tratamento'; status.dispatchEvent(new Event('change', { bubbles: true }));
       band.value = 'adequado'; band.dispatchEvent(new Event('change', { bubbles: true }));
+      sort.value = 'balance'; sort.dispatchEvent(new Event('change', { bubbles: true }));
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'documento');
       search.dispatchEvent(new Event('input', { bubbles: true }));
       view.refresh().click(); view.refresh().click(); view.refresh().click();
@@ -900,6 +903,7 @@ it('refreshes without hiding the previous data, preserves filters and synchronou
     expect(status.value).toBe('em_tratamento');
     expect(search.value).toBe('documento');
     expect(band.value).toBe('adequado');
+    expect(sort.value).toBe('balance');
   } finally { view.cleanup(); }
 });
 it('preserves data, timestamp and filters on refresh failure and recovers on retry', async () => {
@@ -1010,4 +1014,88 @@ it('exports only the combined local item selection and disables item export for 
     view.update(unavailable); expect(button().disabled).toBe(true);
     expect(view.host.querySelector('.fiscal-saldos')!.textContent).toContain('Fonte de saldos por item indisponível');
   } finally { view.unmount(); click.mockRestore(); vi.useRealTimers(); vi.unstubAllGlobals(); }
+});
+
+function itemSortControls(view: ReturnType<typeof mount>) {
+  const select = (index: number, value: string) => {
+    const control = view.host.querySelectorAll<HTMLSelectElement>('.fiscal-item-sort select')[index];
+    act(() => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+  const ids = () => [...view.host.querySelectorAll('.fiscal-saldos tbody tr')].map(row => Number(row.querySelector('button')?.getAttribute('aria-label')?.match(/ID (\d+)/)?.[1]));
+  return { select, ids };
+}
+it('sorts displayed items only, retains expanded details on the correct item and composes local filters without changing aggregates', () => {
+  const data = structuredClone(csvItemFixtures.committedValue);
+  const original = structuredClone(data);
+  const view = mount(data);
+  const sort = itemSortControls(view);
+  try {
+    expect(sort.ids()).toEqual([101, 102, 103, 104, 105]);
+    const totals = view.host.querySelector('.saldo-summary')!.textContent;
+    const distribution = view.section('Distribuição dos itens por faixa');
+    const card = view.host.querySelector('.fiscal-kpis')!.textContent;
+    const queue = view.host.querySelector('.fiscal-action-queue')!.textContent;
+    const details = view.host.querySelector<HTMLButtonElement>('[aria-label="Expandir detalhes do item ID 101"]')!;
+    act(() => details.click());
+    sort.select(0, 'balance');
+    expect(sort.ids()).toEqual([105, 103, 102, 101, 104]);
+    expect(details.getAttribute('aria-expanded')).toBe('true');
+    expect(details.closest('tr')!.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Detalhes do item ID 101');
+    expect(view.host.querySelector('.saldo-summary')!.textContent).toBe(totals);
+    expect(view.section('Distribuição dos itens por faixa')).toBe(distribution);
+    expect(view.host.querySelector('.fiscal-kpis')!.textContent).toBe(card);
+    expect(view.host.querySelector('.fiscal-action-queue')!.textContent).toBe(queue);
+    sort.select(1, 'desc');
+    expect(sort.ids()).toEqual([101, 102, 103, 105, 104]);
+    expect(details.closest('tr')).toBe(view.host.querySelector('.fiscal-saldos tbody tr'));
+    expect(details.getAttribute('aria-expanded')).toBe('true');
+    view.select('Fornecedor', 'Fornecedor de teste'); view.select('Contrato', '2'); view.select('Faixa', 'critico'); view.search('ITEM');
+    expect(sort.ids()).toEqual([103]);
+    expect(view.host.querySelector<HTMLSelectElement>('.fiscal-item-sort select')!.value).toBe('balance');
+    view.clear(); expect(sort.ids()).toEqual([101, 102, 103, 105, 104]);
+    sort.select(0, 'source'); expect(sort.ids()).toEqual([101, 102, 103, 104, 105]);
+    expect(view.host.querySelectorAll<HTMLSelectElement>('.fiscal-item-sort select')[1].disabled).toBe(true);
+    expect(data).toEqual(original);
+  } finally { view.unmount(); }
+});
+it.each(['user', 'unit', 'contracts', 'reference'] as const)('resets item sorting on %s change while retaining it on equivalent refreshes and unavailable coverage', change => {
+  const data = structuredClone(csvItemFixtures.committedValue);
+  const view = mount(data);
+  const sort = itemSortControls(view);
+  try {
+    sort.select(0, 'ratio'); sort.select(1, 'desc');
+    view.update(structuredClone(data));
+    expect([...view.host.querySelectorAll<HTMLSelectElement>('.fiscal-item-sort select')].map(control => control.value)).toEqual(['ratio', 'desc']);
+    const unavailable = structuredClone(data); unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+    view.update(unavailable); view.update(structuredClone(data));
+    expect([...view.host.querySelectorAll<HTMLSelectElement>('.fiscal-item-sort select')].map(control => control.value)).toEqual(['ratio', 'desc']);
+    const changed = structuredClone(data);
+    if (change === 'user') changed.data.fiscal.userId = 88;
+    if (change === 'unit') changed.meta.filtersApplied.unidadeId = 2;
+    if (change === 'contracts') changed.meta.filtersApplied.contratoId = [2];
+    if (change === 'reference') changed.meta.dataReference = '2026-10-09';
+    view.update(changed);
+    expect([...view.host.querySelectorAll<HTMLSelectElement>('.fiscal-item-sort select')].map(control => control.value)).toEqual(['source', 'asc']);
+    expect(sort.ids()).toEqual([101, 102, 103, 104, 105]);
+  } finally { view.unmount(); }
+});
+it('downloads item CSV in exactly the displayed sort order, including after filtering', () => {
+  const data = structuredClone(csvItemFixtures.committedValue);
+  const view = mount(data);
+  const sort = itemSortControls(view);
+  let content = '';
+  vi.stubGlobal('URL', Object.assign(class extends URL {}, { createObjectURL: vi.fn().mockReturnValue('blob:sorted'), revokeObjectURL: vi.fn() }));
+  vi.stubGlobal('Blob', class { constructor(parts: string[]) { content = parts.join(''); } });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  vi.useFakeTimers();
+  try {
+    const balances = data.data.itemBalances;
+    if (balances?.coverage !== 'AVAILABLE') throw new Error('Missing fixture');
+    sort.select(0, 'balance'); sort.select(1, 'desc');
+    act(() => view.host.querySelector<HTMLButtonElement>('.fiscal-items-export button')!.click());
+    expect(content).toBe(fiscalItemsCsv(sort.ids().map(id => balances.itens.find(item => item.itemId === id)!), data.meta.dataReference, balances.criterio));
+    view.select('Fornecedor', 'Fornecedor de teste'); view.select('Contrato', '2'); view.select('Faixa', 'critico');
+    act(() => view.host.querySelector<HTMLButtonElement>('.fiscal-items-export button')!.click());
+    expect(content).toBe(fiscalItemsCsv([balances.itens[2]], data.meta.dataReference, balances.criterio));
+  } finally { vi.runAllTimers(); view.unmount(); click.mockRestore(); vi.useRealTimers(); vi.unstubAllGlobals(); }
 });
