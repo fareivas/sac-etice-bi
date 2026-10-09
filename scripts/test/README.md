@@ -163,3 +163,24 @@ distribuição preservados, CSV na ordem visual, atualização preservando escol
 e reset após escopo/usuário novo. Usa Tab/setas/Enter e foco em desktop/390 px,
 com duas bases/dimensões da API. Todas as respostas são interceptadas; nenhuma
 chamada chega ao backend ou banco. Capturas/relatório ficam temporários.
+
+## Paginação local dos itens
+
+Com o mesmo preview Vite e Playwright:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/fiscal-item-pagination.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/item-pagination-fixture.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+  node scripts/test/fiscal-item-pagination.visual.mjs \
+  /tmp/sac-fiscal-visual/item-pagination-fixture.cjs /tmp/sac-fiscal-visual/item-pagination-captures
+```
+
+A fixture tem 51 itens de dois contratos autorizados, gerados pelo serviço real
+com fontes sintéticas. Todas as consultas são interceptadas no navegador. O
+roteiro verifica teclado/foco em desktop/390 px, tamanhos 10/25/50, limites e
+intervalos, atualização e redução de resultados, reset por filtros/ordenação e
+escopo, totais/distribuição preservados, detalhes no item correto, estados vazios
+e exportação completa na ordem escolhida a partir de página intermediária.
+Capturas/relatório/downloads ficam temporários; não altera o banco.

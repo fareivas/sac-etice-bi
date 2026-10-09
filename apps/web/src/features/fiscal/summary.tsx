@@ -6,6 +6,7 @@ import { downloadFiscalItemsCsv } from './item-balances-csv';
 import { downloadFiscalQueueCsv } from './queue-csv';
 import { queueContractKey, useFiscalQueueFilters } from './use-fiscal-queue-filters';
 import { displayedItemBalance, displayedItemRatio, itemSortLabels, useItemBalanceSort, type ItemSortKey, type ItemSortDirection } from './use-item-balance-sort';
+import { useItemPagination, type ItemPageSize } from './use-item-pagination';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 import { loadFiscalSummary } from '../../lib/api';
 import { displayGeneratedAt } from './generated-at';
@@ -75,6 +76,8 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
   ]) : null;
   const queueFilters = useFiscalQueueFilters(queue, queueContext);
   const itemSort = useItemBalanceSort(filteredItems, itemBalances, queueContext);
+  const pagination = useItemPagination(itemSort.orderedItems, itemBalances?.coverage === 'AVAILABLE', queueContext,
+    JSON.stringify([supplier, contract, band, search, itemSort.key, itemSort.direction]));
   const noRegisteredItems = itemBalances?.coverage === 'AVAILABLE' && items.length === 0;
   const itemTotalLabel = (value: number | null) => noRegisteredItems ? 'Sem itens cadastrados' : money(value);
 
@@ -186,7 +189,7 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
             <button type="button" disabled={itemBalances?.coverage !== 'AVAILABLE' || filteredItems.length === 0}
               aria-describedby={`${queueFilterId}-items-export-note`}
               onClick={() => { if (itemBalances?.coverage === 'AVAILABLE') downloadFiscalItemsCsv(itemSort.orderedItems, summary.meta.dataReference, itemBalances.criterio); }}>Exportar itens CSV</button>
-            <p className="source-note" id={`${queueFilterId}-items-export-note`}>Uma linha por item visível após os filtros locais. A exportação dos itens não representa o saldo consolidado por contrato.</p>
+            <p className="source-note" id={`${queueFilterId}-items-export-note`}>Exporta todos os itens filtrados na ordem escolhida, não apenas a página atual. Uma linha por item; não representa o saldo consolidado por contrato.</p>
           </div>
           {itemBalances?.coverage === 'AVAILABLE' ? <>
             <div className="saldo-filters" aria-label="Filtros dos saldos contratuais">
@@ -223,8 +226,18 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
               </select></div>
             </div>
             <p role="status" className="fiscal-item-sort-note">Ordenação: {itemSortLabels[itemSort.key]}{itemSort.key !== 'source' && ` — ${itemSort.direction === 'asc' ? 'crescente' : 'decrescente'}`}. Valores ausentes ficam no final; empates de saldo ou percentual usam IDs de contrato/item em ordem crescente.</p>
+            <nav className="fiscal-item-pagination" aria-label="Paginação local dos itens">
+              <div><label htmlFor={`${queueFilterId}-item-page-size`}>Itens por página</label><select id={`${queueFilterId}-item-page-size`} value={pagination.size} onChange={event => pagination.setSize(Number(event.target.value) as ItemPageSize)}>
+                <option value="10">10</option><option value="25">25</option><option value="50">50</option>
+              </select></div>
+              <span role="status">Exibindo {pagination.from}–{pagination.to} de {pagination.total} itens filtrados · Página {pagination.total ? pagination.page : 0} de {pagination.pageCount}</span>
+              <div className="fiscal-item-page-buttons">
+                <button type="button" onClick={pagination.previous} disabled={pagination.total === 0 || pagination.page <= 1}>Página anterior</button>
+                <button type="button" onClick={pagination.next} disabled={pagination.total === 0 || pagination.page >= pagination.pageCount}>Próxima página</button>
+              </div>
+            </nav>
             <div className="fiscal-table-wrap"><table><thead><tr><th>Faixa / verificação</th><th>Contrato / fornecedor</th><th>Item contratual</th><th>Total</th><th>Executado</th><th>Saldo</th><th>% saldo</th><th>Orientação ao fiscal</th></tr></thead><tbody>
-              {itemSort.orderedItems.length ? itemSort.orderedItems.map(item => {
+              {pagination.pageItems.length ? pagination.pageItems.map(item => {
                 const quantity = itemBalances.criterio.dimensao === 'quantidade';
                 const total = quantity ? item.quantityContracted : item.valueContracted;
                 const measuredBase = itemBalances.criterio.base === 'medido';

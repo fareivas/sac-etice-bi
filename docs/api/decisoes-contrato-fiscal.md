@@ -885,3 +885,39 @@ iguais no texto arredondado, empates, todas as combinações de base/dimensão,
 filtros combinados, detalhes, preservação/reset e ordem do CSV. O roteiro
 `scripts/test/fiscal-item-sort.visual.mjs` valida teclado e desktop/390 px com
 fixtures isoladas, sem consultas ao banco ou SAC oficial.
+
+## Paginação local da tabela de itens do Fiscal
+
+A sequência de apresentação é **filtros locais → ordenação local → página**.
+**Itens por página** oferece 10, 25 ou 50, com padrão 25. Os controles nativos
+**Página anterior** e **Próxima página** têm limites desabilitados e o intervalo,
+total filtrado e página atual são anunciados em `role=status`. Com recorte vazio,
+a apresentação é “Exibindo 0–0 de 0 itens filtrados · Página 0 de 0”.
+
+Mudar fornecedor, contrato, faixa, busca, ordenação/direção ou tamanho retorna à
+primeira página. Limpar filtros também retorna à primeira página quando altera
+o recorte. Atualização no mesmo contexto preserva página/tamanho; se o total
+diminuir e invalidar a página, ajusta à última disponível. Uma resposta vazia
+válida retorna à primeira página interna. Carregamento/falha de atualização ou
+indisponibilidade temporária não apagam a seleção da página. Mudança de usuário,
+unidade, conjunto de contratos consultados ou data de referência reinicia página
+e tamanho para o padrão (25), no mesmo contexto usado pela ordenação.
+
+A paginação só recorta as linhas renderizadas. Totais, cobertura e distribuição
+por faixa continuam considerando **todos os itens filtrados**, antes da paginação.
+**Exportar itens CSV** exporta **todos os itens filtrados na ordem escolhida**,
+mesmo em outra página; a explicação junto ao botão informa que não exporta apenas
+a página atual e não representa o saldo consolidado por contrato. Não envia
+parâmetros de paginação à API nem modifica autorização, critérios ou classificações.
+
+Linhas mantêm chave de contrato/item. Itens fora da página são desmontados e
+retornam recolhidos, sem transferir o estado dos detalhes para outro item. Os
+estados próprios de carteira sem itens, filtros sem resultados e fonte
+indisponível continuam distintos; a fonte indisponível não apresenta controles
+ou contagens fabricadas. O dashboard do Gerente não usa essa paginação.
+
+Testes cobrem limites de 10/25/50, resultados reduzidos, filtros/ordenação,
+atualização manual, mudança de contexto, detalhes e CSV completo/ordenado. O
+roteiro `scripts/test/fiscal-item-pagination.visual.mjs` usa 51 itens de fixture
+isolada em desktop e 390 px, com Tab/setas/Enter e respostas interceptadas, sem
+consultas ao banco ou SAC oficial.

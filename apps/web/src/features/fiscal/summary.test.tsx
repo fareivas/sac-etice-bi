@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { fixtures as csvItemFixtures } from '../../../../../scripts/test/fixtures/fiscal-items-csv';
+import { fixture as paginationFixture } from '../../../../../scripts/test/fixtures/fiscal-item-pagination';
 import { fixture as queueFixture } from '../../../../../scripts/test/fixtures/fiscal-queue-filters';
 import { fiscalItemsCsv } from './item-balances-csv';
 import { countLabel, FiscalDashboard, FiscalDashboardView, queueLabel } from './summary';
@@ -1098,4 +1099,112 @@ it('downloads item CSV in exactly the displayed sort order, including after filt
     act(() => view.host.querySelector<HTMLButtonElement>('.fiscal-items-export button')!.click());
     expect(content).toBe(fiscalItemsCsv([balances.itens[2]], data.meta.dataReference, balances.criterio));
   } finally { vi.runAllTimers(); view.unmount(); click.mockRestore(); vi.useRealTimers(); vi.unstubAllGlobals(); }
+});
+
+function paginationControls(view: ReturnType<typeof mount>) {
+  const nav = () => view.host.querySelector('.fiscal-item-pagination')!;
+  const size = (value: string) => {
+    const control = nav().querySelector('select')!;
+    act(() => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+  const next = () => act(() => nav().querySelectorAll<HTMLButtonElement>('button')[1].click());
+  const previous = () => act(() => nav().querySelector<HTMLButtonElement>('button')!.click());
+  return { nav, size, next, previous };
+}
+it('paginates after filters/sorting and keeps totals, distribution, correct details and complete sorted CSV independent of the page', () => {
+  const data = structuredClone(paginationFixture);
+  const view = mount(data);
+  const pages = paginationControls(view);
+  const sort = itemSortControls(view);
+  let content = '';
+  vi.stubGlobal('URL', Object.assign(class extends URL {}, { createObjectURL: vi.fn().mockReturnValue('blob:pagination'), revokeObjectURL: vi.fn() }));
+  vi.stubGlobal('Blob', class { constructor(parts: string[]) { content = parts.join(''); } });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  vi.useFakeTimers();
+  try {
+    expect(pages.nav().querySelector('select')!.value).toBe('25');
+    expect(pages.nav().textContent).toContain('Exibindo 1–25 de 51 itens filtrados · Página 1 de 3');
+    expect(sort.ids()).toHaveLength(25);
+    expect(pages.nav().querySelector<HTMLButtonElement>('button')!.disabled).toBe(true);
+    const totals = view.host.querySelector('.saldo-summary')!.textContent;
+    const distribution = view.section('Distribuição dos itens por faixa');
+    pages.next(); expect(pages.nav().textContent).toContain('26–50');
+    const details = view.host.querySelector<HTMLButtonElement>('[aria-label="Expandir detalhes do item ID 1026"]')!;
+    act(() => details.click());
+    expect(details.closest('tr')!.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Detalhes do item ID 1026');
+    pages.next(); pages.next(); expect(sort.ids()).toEqual([1051]);
+    expect(pages.nav().textContent).toContain('Exibindo 51–51 de 51 itens filtrados · Página 3 de 3');
+    expect(pages.nav().querySelectorAll<HTMLButtonElement>('button')[1].disabled).toBe(true);
+    pages.previous(); expect(sort.ids()[0]).toBe(1026);
+    expect(view.host.querySelectorAll('[aria-expanded="true"]')).toHaveLength(0); // No state transferred to another item.
+    expect(view.host.querySelector('.saldo-summary')!.textContent).toBe(totals);
+    expect(view.section('Distribuição dos itens por faixa')).toBe(distribution);
+    sort.select(0, 'identity'); sort.select(1, 'desc');
+    expect(pages.nav().textContent).toContain('Página 1 de 3'); expect(sort.ids()[0]).toBe(1051);
+    pages.next();
+    act(() => view.host.querySelector<HTMLButtonElement>('.fiscal-items-export button')!.click());
+    const balances = data.data.itemBalances;
+    if (balances?.coverage !== 'AVAILABLE') throw new Error('Missing fixture');
+    expect(content).toBe(fiscalItemsCsv([...balances.itens].reverse(), data.meta.dataReference, balances.criterio));
+    expect(content.match(/"2026-10-08";/g)).toHaveLength(51);
+    pages.size('10'); expect(sort.ids()).toHaveLength(10); expect(pages.nav().textContent).toContain('Página 1 de 6');
+    pages.next(); view.select('Fornecedor', 'Fornecedor A');
+    expect(pages.nav().textContent).toContain('Exibindo 1–10 de 30 itens filtrados · Página 1 de 3');
+    pages.next(); view.select('Contrato', '2'); expect(pages.nav().textContent).toContain('Página 1 de 3');
+    pages.next(); view.select('Faixa', 'adequado'); expect(pages.nav().textContent).toContain('Página 1 de 3');
+    pages.next(); view.search('Serviço 01'); expect(sort.ids()).toEqual([1001]); expect(pages.nav().textContent).toContain('Página 1 de 1');
+    view.clear(); expect(pages.nav().textContent).toContain('Página 1 de 6');
+    pages.size('50'); expect(sort.ids()).toHaveLength(50); pages.next(); expect(sort.ids()).toEqual([1001]);
+    expect(pages.nav().textContent).toContain('Exibindo 51–51 de 51 itens filtrados · Página 2 de 2');
+  } finally { vi.runAllTimers(); view.unmount(); click.mockRestore(); vi.useRealTimers(); vi.unstubAllGlobals(); }
+});
+it('preserves valid pages on refresh, clamps to the last available page after reduction and retains page/size across temporary unavailable coverage', () => {
+  const data = structuredClone(paginationFixture);
+  const view = mount(data); const pages = paginationControls(view);
+  try {
+    pages.size('10'); pages.next(); pages.next();
+    view.update(structuredClone(data)); expect(pages.nav().textContent).toContain('Página 3 de 6');
+    const fewer = structuredClone(data);
+    if (fewer.data.itemBalances?.coverage === 'AVAILABLE') fewer.data.itemBalances.itens = fewer.data.itemBalances.itens.slice(0, 21);
+    view.update(fewer); expect(pages.nav().textContent).toContain('Exibindo 21–21 de 21 itens filtrados · Página 3 de 3');
+    if (fewer.data.itemBalances?.coverage === 'AVAILABLE') fewer.data.itemBalances.itens = fewer.data.itemBalances.itens.slice(0, 11);
+    view.update(structuredClone(fewer)); expect(pages.nav().textContent).toContain('Exibindo 11–11 de 11 itens filtrados · Página 2 de 2');
+    const unavailable = structuredClone(fewer); unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+    view.update(unavailable); expect(view.host.querySelector('.fiscal-item-pagination')).toBeNull();
+    view.update(structuredClone(data)); expect(pages.nav().textContent).toContain('Página 2 de 6');
+    if (fewer.data.itemBalances?.coverage === 'AVAILABLE') fewer.data.itemBalances.itens = [];
+    view.update(fewer); expect(pages.nav().textContent).toContain('Exibindo 0–0 de 0 itens filtrados · Página 0 de 0');
+    expect([...pages.nav().querySelectorAll<HTMLButtonElement>('button')].every(button => button.disabled)).toBe(true);
+    expect(view.host.textContent).toContain('Nenhum item contratual cadastrado na carteira.');
+    view.update(data); expect(pages.nav().textContent).toContain('Página 1 de 6');
+    view.search('sem-correspondencia'); expect(pages.nav().textContent).toContain('0–0 de 0');
+    expect(view.host.textContent).toContain('Nenhum item encontrado com os filtros atuais.');
+  } finally { view.unmount(); }
+});
+it.each(['user', 'unit', 'contracts', 'reference'] as const)('resets paging and default size after %s changes', change => {
+  const data = structuredClone(paginationFixture);
+  const view = mount(data); const pages = paginationControls(view);
+  try {
+    pages.size('10'); pages.next();
+    const changed = structuredClone(data);
+    if (change === 'user') changed.data.fiscal.userId = 88;
+    if (change === 'unit') changed.meta.filtersApplied.unidadeId = 2;
+    if (change === 'contracts') changed.meta.filtersApplied.contratoId = [2, 184];
+    if (change === 'reference') changed.meta.dataReference = '2026-10-09';
+    view.update(changed);
+    expect(pages.nav().querySelector('select')!.value).toBe('25');
+    expect(pages.nav().textContent).toContain('Exibindo 1–25 de 51 itens filtrados · Página 1 de 3');
+  } finally { view.unmount(); }
+});
+it('keeps a valid page during and after the real manual-refresh flow', async () => {
+  const response = pendingResponse();
+  const view = await mountedDashboard(vi.fn().mockResolvedValueOnce(okResponse(paginationFixture)).mockReturnValueOnce(response.promise));
+  try {
+    const next = () => view.host.querySelectorAll<HTMLButtonElement>('.fiscal-item-pagination button')[1];
+    act(() => next().click());
+    const previousPage = view.host.querySelector('.fiscal-item-pagination')!.textContent;
+    act(() => view.refresh().click()); expect(view.host.querySelector('.fiscal-item-pagination')!.textContent).toBe(previousPage);
+    await act(async () => response.resolve(okResponse(structuredClone(paginationFixture))));
+    expect(view.host.querySelector('.fiscal-item-pagination')!.textContent).toBe(previousPage);
+  } finally { view.cleanup(); }
 });
