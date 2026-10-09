@@ -225,7 +225,7 @@ describe('composeFiscalDashboardSummary', () => {
 
   it('passes through queue fields including nulls without IPA or heuristic derivation', async () => {
     const queue = [{
-      type: 'SERVICE_ORDER' as const,
+      serviceOrderId: 11, pendencies: [{ pendencyId: 101, description: null, status: 'aberta' as const }], type: 'SERVICE_ORDER' as const,
       severity: null,
       contractId: null,
       contractNumber: null,
@@ -241,6 +241,26 @@ describe('composeFiscalDashboardSummary', () => {
 
     expect(response.data.priorityQueue).toEqual(queue);
     expect(response.data.priorityQueue?.[0]).not.toHaveProperty('ipa');
+  });
+
+  it('preserves supplied queue content without ranking, impact or recommendation enrichment', async () => {
+    const queue = [
+      { serviceOrderId: 11, pendencies: [{ pendencyId: 101, description: 'Documento divergente', status: 'aberta' as const }, { pendencyId: 103, description: null, status: 'em_tratamento' as const }], type: 'SERVICE_ORDER' as const, severity: 'BAIXA', contractId: 184, contractNumber: 'CT-184',
+        supplierName: 'Fornecedor', title: 'Descrição da fonte', dueAt: '2026-09-22T12:00:00-03:00' },
+      { serviceOrderId: 12, pendencies: [{ pendencyId: 102, description: null, status: 'aberta' as const }], type: 'SERVICE_ORDER' as const, severity: 'ALTA', contractId: 184, contractNumber: 'CT-184',
+        supplierName: null, title: null, dueAt: null },
+    ];
+    const repo = repository({ getPriorityQueue: vi.fn(async () => ({ coverage: 'AVAILABLE' as const, items: queue })) });
+    const response = await composeFiscalDashboardSummary(
+      { authenticatedUserId: 77, filters: filters(false) },
+      { repository: repo, kpiSource: kpiSource({ status: 'UNAVAILABLE', externalViolations: null, updatedAt: null }), now },
+    );
+    expect(response.data.priorityQueue).toEqual(queue);
+    for (const item of response.data.priorityQueue!) {
+      expect(item).not.toHaveProperty('impact');
+      expect(item).not.toHaveProperty('recommendedAction');
+      expect(item).not.toHaveProperty('priority');
+    }
   });
 
   it('rejects repository failures, mismatched identity and inconsistent dependency results', async () => {

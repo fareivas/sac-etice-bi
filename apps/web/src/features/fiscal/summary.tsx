@@ -97,7 +97,24 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
           </tbody></table></div>
         </Panel>
         <div className="fiscal-grid-two">
-          <Panel title="Minha fila de ação" subtitle="Ordens de serviço da carteira autorizada."><div className="fiscal-table-wrap"><table><thead><tr><th>Prior.</th><th>Contrato / empresa</th><th>Problema</th><th>Impacto</th><th>Prazo</th><th>Ação recomendada</th></tr></thead><tbody>{queue?.length ? queue.map((item, index) => <tr key={`${item.contractId ?? 'sem-contrato'}-${index}`}><td>{item.severity ?? 'Indisponível'}</td><td><b>{item.contractNumber ?? 'Indisponível'}</b><br />{item.supplierName ?? 'Indisponível'}</td><td>{item.title ?? 'Indisponível'}</td><td>Indisponível</td><td>{displayDate(item.dueAt, summary.meta.timezone)}</td><td>Indisponível</td></tr>) : <tr><td colSpan={6} className="table-empty">{queueLabel(queue ?? null)}</td></tr>}</tbody></table></div></Panel>
+          <Panel className="fiscal-action-queue" title="OS com decisão fiscal pendente na carteira" subtitle="OS cliente dos contratos autorizados, com pendência de decisão fiscal no Processo 1 aberta ou em tratamento.">
+            <p className="source-note">A inclusão nesta lista decorre da carteira contratual; não comprova tarefa atribuída diretamente a você. A ordem das linhas não representa prioridade.</p>
+            <div className="fiscal-table-wrap"><table><caption className="visually-hidden">OS da carteira com decisão fiscal pendente</caption><thead><tr>
+              <th scope="col">OS</th><th scope="col">Severidade</th><th scope="col">Contrato / fornecedor</th><th scope="col">Motivo / descrição</th><th scope="col">Impacto</th><th scope="col">Prazo de decisão</th><th scope="col">Ação recomendada</th>
+            </tr></thead><tbody>{queue?.length ? queue.map(item => <tr key={item.serviceOrderId}>
+              <th scope="row">OS ID {item.serviceOrderId}</th>
+              <td>{item.severity ?? 'Severidade não definida'}</td>
+              <td><b>{item.contractNumber ?? (item.contractId === null ? 'Contrato não identificado' : `Contrato ID ${item.contractId}`)}</b><br />{item.supplierName ?? 'Fornecedor não identificado na fila'}</td>
+              <td><ul>{item.pendencies.map(pendency => <li key={pendency.pendencyId}>
+                {pendency.description?.trim() || 'Decisão fiscal pendente no Processo 1'}
+              </li>)}</ul></td>
+              <td>Impacto não apurado</td>
+              <td>{item.dueAt === null ? 'Prazo de decisão não disponível' : displayDate(item.dueAt, summary.meta.timezone)}</td>
+              <td>Recomendação não definida para esta OS</td>
+            </tr>) : <tr><td colSpan={7} className="table-empty">{queueLabel(queue ?? null)}</td></tr>}</tbody></table></div>
+            <p className="source-note">Não há fonte aprovada de severidade, impacto ou prazo de decisão para estas OS. Valor e saldo do contrato não medem impacto; competência e vigência não são prazo para decidir.</p>
+            <p className="source-note">A resposta da fila não fornece ação recomendada. As decisões são registradas no SAC; este dashboard apenas apresenta a lista e não executa ações no sistema oficial.</p>
+          </Panel>
           <Panel title="Saúde da carteira" subtitle="Indicadores operacionais da carteira."><Unavailable /></Panel>
         </div>
         <div className="fiscal-grid-two">

@@ -20,7 +20,11 @@ import type {
 
 interface ScopeRow { contrato_id: string | bigint }
 interface CountRow { total: string | bigint }
-interface PendingOrderRow { ordem_servico_id: string | bigint; contrato_id: string | bigint; contrato_numero: string | null }
+interface PendingOrderRow {
+  ordem_servico_id: string | bigint; contrato_id: string | bigint; contrato_numero: string | null;
+  pendencia_id: string | bigint; pendencia_descricao: string | null;
+  pendencia_status: 'aberta' | 'em_tratamento';
+}
 
 interface ContractRow {
   contract_id: string | bigint; contract_number: string | null;
@@ -172,15 +176,28 @@ export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository 
     const ids = query.scope.contracts.map((contract) => contract.contractId);
     if (ids.length === 0) return { coverage: 'AVAILABLE', items: [] };
     const rows = await this.db.query<PendingOrderRow>(GET_PENDING_FISCAL_SERVICE_ORDERS, [ids]);
-    const seen = new Set<number>();
-    const items: FiscalPriorityQueueItem[] = [];
+    const byOrder = new Map<number, FiscalPriorityQueueItem>();
+    const seenPendencies = new Map<number, Set<number>>();
+    const allowedContracts = new Set(ids);
     for (const row of rows) {
       const orderId = safeBigintId(row.ordem_servico_id);
-      if (seen.has(orderId)) continue;
-      seen.add(orderId);
-      items.push({ type: 'SERVICE_ORDER', severity: null, contractId: safeBigintId(row.contrato_id),
-        contractNumber: row.contrato_numero, supplierName: null, title: null, dueAt: null });
+      const contractId = safeBigintId(row.contrato_id);
+      if (!allowedContracts.has(contractId)) throw new Error('Queue contract outside authorized scope');
+      let item = byOrder.get(orderId);
+      if (!item) {
+        item = { type: 'SERVICE_ORDER', serviceOrderId: orderId, pendencies: [],
+          severity: null, contractId, contractNumber: row.contrato_numero,
+          supplierName: null, title: null, dueAt: null };
+        byOrder.set(orderId, item);
+        seenPendencies.set(orderId, new Set());
+      }
+      const pendencyId = safeBigintId(row.pendencia_id);
+      const seen = seenPendencies.get(orderId)!;
+      if (seen.has(pendencyId)) continue;
+      seen.add(pendencyId);
+      item.pendencies.push({ pendencyId, description: row.pendencia_descricao?.trim() || null,
+        status: row.pendencia_status });
     }
-    return { coverage: 'AVAILABLE', items };
+    return { coverage: 'AVAILABLE', items: [...byOrder.values()] };
   }
 }

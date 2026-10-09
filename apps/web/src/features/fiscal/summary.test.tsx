@@ -126,7 +126,7 @@ it('distinguishes empty alerts from unavailable coverage', () => {
 });
 
 it('formats queue timestamps in the dashboard timezone', () => {
-  const data = summary(1, [{ type: 'SERVICE_ORDER', severity: null, contractId: 2,
+  const data = summary(1, [{ serviceOrderId: 11, pendencies: [{ pendencyId: 101, description: null, status: 'aberta' as const }], type: 'SERVICE_ORDER', severity: null, contractId: 2,
     contractNumber: '13/2025', supplierName: null, title: null, dueAt: '2026-10-21T01:00:00Z' }]);
   const html = render({ status: 'success', summary: data });
   expect(html).toContain('20/10/2026');
@@ -463,4 +463,95 @@ describe('atualizações dos filtros e agregados', () => {
       expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('1 de 4 itens encontrados');
     } finally { view.unmount(); }
   });
+});
+
+function queuePanel(queue: FiscalDashboardSummaryResponse['data']['priorityQueue']) {
+  const host = document.createElement('div');
+  host.innerHTML = render({ status: 'success', summary: summary(1, queue) });
+  return host.querySelector('.fiscal-action-queue')!;
+}
+const pendingOrder = {
+  serviceOrderId: 11, pendencies: [{ pendencyId: 101, description: null, status: 'aberta' as const }], type: 'SERVICE_ORDER' as const, severity: null, contractId: 184, contractNumber: 'CT-184',
+  supplierName: null, title: null, dueAt: null,
+};
+it('explains portfolio eligibility and each missing queue field without personal attribution or financial guesses', () => {
+  const data = summary(1, [pendingOrder]);
+  data.data.contractBalances = [{ contractId: 184, contractNumber: 'CT-184',
+    contractedValue: 20000, consumedValue: 2060, balanceValue: 17940, balancePct: 89.7 }];
+  data.data.contracts = [{ contractId: 184, contractNumber: 'CT-184', supplierName: 'Empresa do contrato',
+    value: 20000, expiryDate: '2026-10-01' }];
+  const host = document.createElement('div');
+  host.innerHTML = render({ status: 'success', summary: data });
+  const panel = host.querySelector('.fiscal-action-queue')!;
+  const row = panel.querySelector('tbody tr')!;
+  expect(panel.textContent).toContain('OS com decisão fiscal pendente na carteira');
+  expect(panel.textContent).toContain('não comprova tarefa atribuída diretamente a você');
+  expect(panel.textContent).toContain('A ordem das linhas não representa prioridade');
+  expect(panel.textContent).toContain('Valor e saldo do contrato não medem impacto');
+  expect(panel.textContent).toContain('competência e vigência não são prazo para decidir');
+  expect(row.textContent).toContain('Severidade não definida');
+  expect(row.textContent).toContain('Fornecedor não identificado na fila');
+  expect(row.textContent).toContain('Decisão fiscal pendente no Processo 1');
+  expect(row.textContent).toContain('Impacto não apurado');
+  expect(row.textContent).toContain('Prazo de decisão não disponível');
+  expect(row.textContent).toContain('Recomendação não definida para esta OS');
+  for (const inferred of ['17.940', '01/10/2026', 'Empresa do contrato', 'Indisponível', 'P1'])
+    expect(row.textContent).not.toContain(inferred);
+  expect(panel.querySelectorAll('button, a')).toHaveLength(0);
+});
+it('preserves supplied queue fields and source order without inventing a priority ranking', () => {
+  const panel = queuePanel([
+    { ...pendingOrder, contractNumber: 'CT-184', severity: 'BAIXA', title: 'Título da fonte',
+      pendencies: [{ pendencyId: 101, description: 'Descrição da fonte', status: 'aberta' }],
+      supplierName: 'Fornecedor da fonte', dueAt: '2026-09-25T01:00:00Z' },
+    { ...pendingOrder, serviceOrderId: 12, contractId: 205, contractNumber: 'CT-205', severity: 'ALTA' },
+  ]);
+  const rows = panel.querySelectorAll('tbody tr');
+  expect(rows[0].textContent).toContain('BAIXA');
+  expect(rows[0].textContent).toContain('Descrição da fonte');
+  expect(rows[0].textContent).toContain('Fornecedor da fonte');
+  expect(rows[0].textContent).toContain('24/09/2026');
+  expect(rows[1].textContent).toContain('CT-205');
+  expect(rows[1].textContent).toContain('ALTA');
+  expect(panel.querySelector('thead')?.textContent).toContain('Severidade');
+  expect(panel.querySelector('thead')?.textContent).not.toContain('Prior.');
+});
+it('keeps queue availability independent from the pending orders card', () => {
+  expect(queuePanel([]).textContent).toContain('Fila apurada sem ocorrências');
+  expect(queuePanel(null).textContent).toContain('Fila indisponível');
+  expect(queuePanel(null).textContent).not.toContain('Fila apurada sem ocorrências');
+  const data = summary(1, null);
+  data.data.cards.pendingServiceOrders = 2;
+  data.meta.dataCoverage.pendingServiceOrders = 'AVAILABLE';
+  const host = document.createElement('div');
+  host.innerHTML = render({ status: 'success', summary: data });
+  expect(host.querySelector('.fiscal-action-queue')?.textContent).toContain('Fila indisponível');
+});
+
+it('renders all P1 pendency descriptions within one row per OS and falls back only for missing descriptions', () => {
+  const panel = queuePanel([
+    { ...pendingOrder, pendencies: [
+      { pendencyId: 101, description: 'Documento divergente', status: 'aberta' },
+      { pendencyId: 102, description: 'Valor precisa ser conferido', status: 'em_tratamento' },
+      { pendencyId: 103, description: null, status: 'aberta' },
+      { pendencyId: 104, description: '   ', status: 'aberta' },
+      { pendencyId: 105, description: '<script>conteúdo da fonte</script>', status: 'aberta' },
+    ] },
+    { ...pendingOrder, serviceOrderId: 12, pendencies: [
+      { pendencyId: 106, description: 'Motivo da segunda OS', status: 'em_tratamento' },
+    ] },
+  ]);
+  const rows = panel.querySelectorAll('tbody tr');
+  expect(rows).toHaveLength(2);
+  expect(rows[0].querySelector('th')?.textContent).toBe('OS ID 11');
+  expect([...rows[0].querySelectorAll('li')].map(li => li.textContent)).toEqual([
+    'Documento divergente', 'Valor precisa ser conferido',
+    'Decisão fiscal pendente no Processo 1', 'Decisão fiscal pendente no Processo 1',
+    '<script>conteúdo da fonte</script>',
+  ]);
+  expect(panel.querySelector('script')).toBeNull();
+  expect(rows[0].textContent).not.toContain('Motivo da segunda OS');
+  expect(rows[1].textContent).not.toContain('Documento divergente');
+  expect(rows[1].querySelector('th')?.textContent).toBe('OS ID 12');
+  expect(rows[1].textContent).toContain('Motivo da segunda OS');
 });

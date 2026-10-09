@@ -159,17 +159,17 @@ describe('PostgresFiscalSummaryRepository', () => {
 
   it('uses one scoped eligibility predicate for distinct count and queue', async () => {
     const query = vi.fn().mockResolvedValueOnce([{ total: '2' }]).mockResolvedValueOnce([
-      { ordem_servico_id: '11', contrato_id: '184', contrato_numero: 'C-184' },
-      { ordem_servico_id: '11', contrato_id: '184', contrato_numero: 'C-184' },
-      { ordem_servico_id: '12', contrato_id: '184', contrato_numero: 'C-184' },
+      { ordem_servico_id: '11', contrato_id: '184', contrato_numero: 'C-184', pendencia_id: '101', pendencia_descricao: 'Verificar documento', pendencia_status: 'aberta' },
+      { ordem_servico_id: '11', contrato_id: '184', contrato_numero: 'C-184', pendencia_id: '101', pendencia_descricao: 'Verificar documento', pendencia_status: 'aberta' },
+      { ordem_servico_id: '12', contrato_id: '184', contrato_numero: 'C-184', pendencia_id: '103', pendencia_descricao: null, pendencia_status: 'em_tratamento' },
     ]);
     const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
     const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: null }] };
     const scoped = { context: context([184]), scope };
     await expect(repo.getPendingServiceOrders(scoped)).resolves.toEqual({ coverage: 'AVAILABLE', value: 2 });
     await expect(repo.getPriorityQueue(scoped)).resolves.toEqual({ coverage: 'AVAILABLE', items: [
-      { type: 'SERVICE_ORDER', severity: null, contractId: 184, contractNumber: 'C-184', supplierName: null, title: null, dueAt: null },
-      { type: 'SERVICE_ORDER', severity: null, contractId: 184, contractNumber: 'C-184', supplierName: null, title: null, dueAt: null },
+      { type: 'SERVICE_ORDER', serviceOrderId: 11, pendencies: [{ pendencyId: 101, description: 'Verificar documento', status: 'aberta' }], severity: null, contractId: 184, contractNumber: 'C-184', supplierName: null, title: null, dueAt: null },
+      { type: 'SERVICE_ORDER', serviceOrderId: 12, pendencies: [{ pendencyId: 103, description: null, status: 'em_tratamento' }], severity: null, contractId: 184, contractNumber: 'C-184', supplierName: null, title: null, dueAt: null },
     ] });
     expect(query).toHaveBeenNthCalledWith(1, COUNT_PENDING_FISCAL_SERVICE_ORDERS, [[184]]);
     expect(query).toHaveBeenNthCalledWith(2, GET_PENDING_FISCAL_SERVICE_ORDERS, [[184]]);
@@ -181,6 +181,57 @@ describe('PostgresFiscalSummaryRepository', () => {
       expect(sql).toContain('p.entidade_id = os.id');
     }
     expect(COUNT_PENDING_FISCAL_SERVICE_ORDERS).toContain('COUNT(DISTINCT os.id)');
+    // DEC-026 selects the authorized portfolio, not tasks assigned to the user.
+    expect(GET_PENDING_FISCAL_SERVICE_ORDERS).not.toContain('responsavel_id');
+    expect(GET_PENDING_FISCAL_SERVICE_ORDERS).not.toContain('usuario_id');
+    expect(GET_PENDING_FISCAL_SERVICE_ORDERS).toContain('ORDER BY ordem_servico_id');
+
+  });
+
+  it('groups every eligible pendency by OS and deduplicates IDs, not descriptions', async () => {
+    const row = { ordem_servico_id: '11', contrato_id: '184', contrato_numero: 'C-184',
+      pendencia_id: '101', pendencia_descricao: 'Documento divergente', pendencia_status: 'aberta' };
+    const query = vi.fn().mockResolvedValue([
+      row, row,
+      { ...row, pendencia_id: '102', pendencia_status: 'em_tratamento' },
+      { ...row, pendencia_id: '103', pendencia_descricao: '   ' },
+      { ...row, ordem_servico_id: '12', pendencia_id: '104', pendencia_descricao: null },
+    ]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
+    const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: null }] };
+    const result = await repo.getPriorityQueue({ context: context([184]), scope });
+    expect(result.coverage).toBe('AVAILABLE');
+    if (result.coverage !== 'AVAILABLE') throw new Error('Expected available queue');
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0].serviceOrderId).toBe(11);
+    expect(result.items[0].pendencies).toEqual([
+      { pendencyId: 101, description: 'Documento divergente', status: 'aberta' },
+      { pendencyId: 102, description: 'Documento divergente', status: 'em_tratamento' },
+      { pendencyId: 103, description: null, status: 'aberta' },
+    ]);
+    expect(result.items[1].pendencies).toEqual([{ pendencyId: 104, description: null, status: 'aberta' }]);
+    expect(query).toHaveBeenCalledWith(GET_PENDING_FISCAL_SERVICE_ORDERS, [[184]]);
+  });
+
+  it('fails closed if a queue row falls outside the restricted authorized scope', async () => {
+    const query = vi.fn().mockResolvedValue([{ ordem_servico_id: '11', contrato_id: '205',
+      contrato_numero: 'C-205', pendencia_id: '101', pendencia_descricao: 'Fora do recorte', pendencia_status: 'aberta' }]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
+    const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: null }] };
+    await expect(repo.getPriorityQueue({ context: context([184]), scope })).rejects.toThrow('outside authorized scope');
+    expect(query).toHaveBeenCalledWith(GET_PENDING_FISCAL_SERVICE_ORDERS, [[184]]);
+  });
+
+  it('restricts descriptions to P1 fiscal decisions using the same criteria as the OS count', () => {
+    for (const sql of [COUNT_PENDING_FISCAL_SERVICE_ORDERS, GET_PENDING_FISCAL_SERVICE_ORDERS]) {
+      expect(sql).toContain("p.entidade_tipo = 'ordem_servico'");
+      expect(sql).toContain('p.entidade_id = os.id');
+      expect(sql).toContain("p.tipo = 'decisao_fiscal_p1'");
+      expect(sql).toContain("p.status IN ('aberta', 'em_tratamento')");
+      expect(sql).not.toContain('saldo_insuficiente');
+      expect(sql).not.toContain('subordem');
+    }
+    expect(GET_PENDING_FISCAL_SERVICE_ORDERS).toContain('p.descricao AS pendencia_descricao');
   });
 
   it('returns zero and empty queue for current empty scope, unavailable for history', async () => {

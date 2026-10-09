@@ -91,7 +91,17 @@ const fiscalMixedMetaSchema = z.strictObject({
   filtersApplied: fiscalFiltersAppliedSchema.extend({ includeExternal: z.literal(true) }),
 });
 
+const fiscalQueuePendencySchema = z.strictObject({
+  pendencyId: z.number().int().positive().safe(),
+  description: z.string().nullable(),
+  status: z.enum(['aberta', 'em_tratamento']),
+});
 const fiscalPriorityQueueItemSchema = z.strictObject({
+  serviceOrderId: z.number().int().positive().safe(),
+  pendencies: z.array(fiscalQueuePendencySchema).min(1).refine(
+    items => new Set(items.map(item => item.pendencyId)).size === items.length,
+    'Pendências duplicadas na OS',
+  ),
   type: z.literal('SERVICE_ORDER'),
   severity: z.string().nullable(),
   contractId: z.number().int().nullable(),
@@ -178,7 +188,10 @@ const fiscalDataSchema = z.strictObject({
     overdueActions: z.number().int().nullable(),
     externalViolations: z.number().int().nullable(),
   }),
-  priorityQueue: z.array(fiscalPriorityQueueItemSchema).nullable(),
+  priorityQueue: z.array(fiscalPriorityQueueItemSchema).refine(
+    items => new Set(items.map(item => item.serviceOrderId)).size === items.length,
+    'OS duplicadas na fila',
+  ).nullable(),
   contracts: z.array(fiscalContractSchema).nullable(),
   contractBalances: z.array(fiscalContractBalanceSchema).nullable(),
   contractAlerts: z.array(fiscalContractAlertSchema).nullable(),

@@ -88,7 +88,7 @@ const mixedResponse = {
     },
     contracts: [], contractBalances: [], contractAlerts: [],
     priorityQueue: [{
-      type: 'SERVICE_ORDER',
+      serviceOrderId: 11, pendencies: [{ pendencyId: 101, description: null, status: 'aberta' as const }], type: 'SERVICE_ORDER',
       severity: 'ALTA',
       contractId: 184,
       contractNumber: 'CT-2025-0184',
@@ -160,6 +160,39 @@ describe('fiscalDashboardSummaryResponseSchema', () => {
     expect(fiscalDashboardSummaryResponseSchema.safeParse(empty).success).toBe(true);
     expect(fiscalDashboardSummaryResponseSchema.safeParse(unavailable).success).toBe(true);
     expect(fiscalDashboardSummaryResponseSchema.safeParse(absent).success).toBe(false);
+  });
+
+  it('não admite impacto ou recomendação sem extensão formal do contrato da fila', () => {
+    for (const extra of [{ impact: 17940 }, { recommendedAction: 'Aprovar OS' }, { priority: 'P1' }]) {
+      const response = clone(mixedResponse);
+      Object.assign(response.data.priorityQueue[0], extra);
+      expect(fiscalDashboardSummaryResponseSchema.safeParse(response).success).toBe(false);
+    }
+  });
+
+  it('valida OS únicas e todas as pendências elegíveis com identificação e descrição anulável', () => {
+    const response = clone(mixedResponse);
+    Object.assign(response.data.priorityQueue[0], { pendencies: [
+      { pendencyId: 101, description: 'Documento divergente', status: 'aberta' },
+      { pendencyId: 102, description: null, status: 'em_tratamento' },
+    ] });
+    expect(fiscalDashboardSummaryResponseSchema.safeParse(response).success).toBe(true);
+    for (const invalid of [
+      { ...response.data.priorityQueue[0], serviceOrderId: 0 },
+      { ...response.data.priorityQueue[0], serviceOrderId: Number.MAX_SAFE_INTEGER + 1 },
+      { ...response.data.priorityQueue[0], pendencies: [] },
+      { ...response.data.priorityQueue[0], pendencies: undefined },
+      { ...response.data.priorityQueue[0], pendencies: [{ pendencyId: 0, description: null, status: 'aberta' }] },
+      { ...response.data.priorityQueue[0], pendencies: [{ pendencyId: 101, status: 'aberta' }] },
+      { ...response.data.priorityQueue[0], pendencies: [{ pendencyId: 101, description: null, status: 'resolvida' }] },
+      { ...response.data.priorityQueue[0], pendencies: [{ pendencyId: 101, description: null, status: 'cancelada' }] },
+      { ...response.data.priorityQueue[0], pendencies: [response.data.priorityQueue[0].pendencies[0], response.data.priorityQueue[0].pendencies[0]] },
+    ]) {
+      expect(fiscalDashboardSummaryResponseSchema.safeParse({ ...response, data: {
+        ...response.data, priorityQueue: [invalid] } }).success).toBe(false);
+    }
+    expect(fiscalDashboardSummaryResponseSchema.safeParse({ ...response, data: {
+      ...response.data, priorityQueue: [response.data.priorityQueue[0], response.data.priorityQueue[0]] } }).success).toBe(false);
   });
 
   it('exige exatamente uma forma de identificar as fontes', () => {

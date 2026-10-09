@@ -68,7 +68,7 @@ O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-con
 
 #### Regra aprovada para o protótipo no modelo atual (DEC-026/027)
 
-A consulta parametrizada recebe exclusivamente os IDs da carteira atual autorizada, após a validação de `contratoId`. Parte de `ordens.ordem_servico os`, exige `os.lado = 'cliente'` e `os.contrato_id = ANY($1::bigint[])`, liga diretamente `contratos.contrato` por esse `contrato_id` e usa `EXISTS` em `comum.pendencia` com `entidade_tipo = 'ordem_servico'`, `entidade_id = os.id`, `tipo = 'decisao_fiscal_p1'` e `status IN ('aberta', 'em_tratamento')`. O card usa `COUNT(DISTINCT os.id)`; a fila seleciona OS distintas com `contrato.id` e `contrato.numero`, no máximo uma linha por OS. O mesmo predicado SQL é compartilhado.
+A consulta parametrizada recebe exclusivamente os IDs da carteira atual autorizada, após a validação de `contratoId`. Parte de `ordens.ordem_servico os`, exige `os.lado = 'cliente'` e `os.contrato_id = ANY($1::bigint[])`, liga diretamente `contratos.contrato` por esse `contrato_id` e usa `EXISTS` em `comum.pendencia` com `entidade_tipo = 'ordem_servico'`, `entidade_id = os.id`, `tipo = 'decisao_fiscal_p1'` e `status IN ('aberta', 'em_tratamento')`. O card usa `COUNT(DISTINCT os.id)`; na extensão DEC-035, a fila seleciona as pendências elegíveis com `contrato.id` e `contrato.numero`, agrupadas em uma linha por OS pelo repository. Os critérios de pendência são compartilhados entre JOIN da fila e EXISTS do card.
 
 Esta é regra **do protótipo com o modelo atual**, não uma afirmação de cobertura funcional completa do SAC. Exclui `aguardando_fiscal` isolado, OS fornecedor, outros tipos de pendência, vínculo por subordem e OS cliente sem contrato direto. Carteira atual vazia retorna `0` e `[]`. Data passada retorna card `null`/`UNAVAILABLE` e fila `null`, sem consultar estado atual. `supplierName`, `severity`, `title` e `dueAt` permanecem `null` por falta de fonte formal inequívoca; nenhuma ordenação de prioridade foi aprovada.
 
@@ -262,3 +262,76 @@ Antes de escrever SQL/adapters de produção, continuam bloqueantes:
 9. alinhar a instância local `0032` à revisão de migrations oficial `0036` antes de usá-la como validação de uma implementação que dependa das quatro migrations ausentes.
 
 Esses achados não alteram as DEC-001–DEC-023 nem autorizam SQL. O handler do protótipo continua 501.
+
+## Rastreabilidade da fila de OS na apresentação
+
+Análise do protótipo: `apps/web/src/features/fiscal/summary.tsx`,
+`packages/contracts/src/index.ts`, `services/api/src/domains/fiscal/service.ts`,
+`repository.ts`, `postgres-repository.ts`, `queries.ts` e o predicado compartilhado
+`services/api/src/shared/db/fiscal-pending-order.ts`.
+
+| Campo apresentado / HTTP | Origem efetiva | Limite e apresentação |
+| --- | --- | --- |
+| Tipo / `type` | Literal `SERVICE_ORDER` no adapter, após DEC-026 | Somente OS cliente com vínculo direto à carteira e pendência fiscal elegível; não é a Central de Ações completa. |
+| Severidade / `severity` | `null` no adapter real | Sem fonte aprovada; “Severidade não definida”. Não mapear `p1`, status ou posição da linha para prioridade. |
+| Contrato / `contractId` | `contratos.contrato.id`, ligado a `os.contrato_id` | IDs resolvidos por designação fiscal ativa e restringidos por `contratoId`; número ausente permite identificar explicitamente “Contrato ID”, sem fabricar número. |
+| Número / `contractNumber` | `contratos.contrato.numero` | Não derivar da OS. |
+| Fornecedor / `supplierName` | `null` no adapter real | “Fornecedor não identificado na fila”; o fornecedor da lista independente de contratos não foi aprovado como fornecedor canônico da ocorrência. |
+| Motivo / `title` | `null` no adapter real | Fallback visual geral “Decisão fiscal pendente no Processo 1” explica DEC-026, sem substituir texto da fonte na API. Na DEC-035, todas as descrições elegíveis são exibidas por `pendencies`, com uma linha por OS; `title` não determina mais o motivo. |
+| Prazo / `dueAt` | `null` no adapter real | “Prazo de decisão não disponível”; datas da OS/contrato não foram aprovadas como prazo de atuação. Valor preenchido no contrato é datetime com offset e apresentado no fuso solicitado. |
+| Impacto / sem campo HTTP | Antiga célula fixa no frontend | “Impacto não apurado”; não usar valor da OS, saldo global, saldo por item ou glosa como impacto presumido. |
+| Ação recomendada / sem campo HTTP | Antiga célula fixa no frontend | “Recomendação não definida para esta OS”; orientação geral proposta no documento de decisões permanece pendente. Não recomendar resultado da decisão. |
+| Responsável / sem campo HTTP | `comum.pendencia.responsavel_id` existe fisicamente, mas não é selecionado | O fluxo pode preenchê-lo ao assumir/resolver; a fila não comprova tarefa atribuída diretamente ao usuário e não o usa para alterar autorização. |
+
+`getPriorityQueue` lê todas as pendências elegíveis e agrupa por `os.id`, exposto
+como `serviceOrderId` pela DEC-035. A lista `pendencies` preserva cada ID distinto,
+descrição e status. O JOIN da fila e o EXISTS do card compartilham os critérios
+de entidade, vínculo, tipo e status; a contagem continua por OS distinta.
+`ORDER BY ordem_servico_id, p.id` é uma ordem técnica, não prioridade. O serviço
+repassa a lista (ou `null` quando indisponível), sem enriquecer impacto, recomendação,
+severidade, prazo ou fornecedor. O schema estrito mantém os sete campos anteriores
+e acrescenta `serviceOrderId` e `pendencies` obrigatórios.
+
+Fontes: especificação de endpoints §6.1/6.3; requisitos funcionais §4.11/5.4;
+proposta MER §4.4 e SQL proposto §5 (`risco`/`plano_acao`), que não comprovam
+implantação ou vínculo desses atributos às OS atuais; DEC-018 a DEC-027/032.
+
+Conferência adicional somente em leitura no código oficial disponível em
+`/home/fabio/projects/SAC-ETICE`: `backend/migrations/sql/0001_baseline.sql`
+(`comum.pendencia` tem descrição/responsável/status, sem prazo, prioridade,
+impacto ou recomendação; `ordens.ordem_servico` tem datas de emissão, competência
+e vigência); `backend/agentes/p1_ordem_servico/grafo.py::notificar_fiscal`
+(grava descrição com contagens/evidências de validação e evita replay de
+pendência aberta); `backend/api/rotas_ordens.py::decidir_fiscal` (decisão
+aprovar/corrigir resolve pendência e registra o usuário como responsável);
+`backend/api/rotas_operacao.py` (listagem de descrição e responsável, assumir,
+resolver/cancelar pendência). Essas rotas foram lidas como evidência, **não
+consumidas pelo dashboard**. Não foram executadas consultas ou alterações no banco.
+
+Lacunas de múltiplas descrições e identificação da OS resolvidas pela DEC-035.
+Lacunas preservadas: fornecedor canônico da ocorrência; fonte e escala de severidade,
+prioridade/IPA; prazo real e histórico; impacto operacional/financeiro/contratual;
+recomendação específica e atribuição direta. Nenhuma delas autoriza ampliar o
+predicado para status isolado, outros tipos de pendência ou OS fornecedor.
+
+### Extensão DEC-035 — origem das descrições agrupadas
+
+| Campo HTTP | Fonte e seleção |
+| --- | --- |
+| `priorityQueue[].serviceOrderId` | `ordens.ordem_servico.id`; lado cliente e contrato direto nos IDs autorizados/restringidos. |
+| `priorityQueue[].pendencies[].pendencyId` | `comum.pendencia.id`, JOIN pela entidade OS e seu ID. |
+| `priorityQueue[].pendencies[].description` | `comum.pendencia.descricao`, apenas para `decisao_fiscal_p1` aberta/em tratamento; trim e `null` para vazio/ausente. |
+| `priorityQueue[].pendencies[].status` | `comum.pendencia.status`, limitado a `aberta`/`em_tratamento`. |
+
+Critérios conferidos novamente no código oficial apenas em leitura:
+`grafo.py::notificar_fiscal` cria `decisao_fiscal_p1` com entidade OS, ID e descrição
+com as evidências de validação; `rotas_ordens.py::decidir_fiscal` busca exatamente
+esse tipo/vínculo/status para resolver a decisão. A tentativa de evitar replay
+na criação não equivale a restrição de unicidade do banco; por isso todas as
+pendências pertinentes são preservadas, sem escolher uma delas.
+
+A fila não inclui `saldo_insuficiente`, pendências de subordem, outros tipos ou
+entidades, resolvidas/canceladas, OS fornecedor ou contratos fora do recorte.
+Uma pendência não pode servir de motivo de uma OS apenas por compartilhar um
+ID numérico: a entidade, o tipo e o status fazem parte do JOIN obrigatório.
+Nenhuma API oficial foi consumida nem dados do banco foram alterados.

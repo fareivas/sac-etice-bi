@@ -1,4 +1,4 @@
-import { FISCAL_PENDING_ORDER_PREDICATE } from '../../shared/db/fiscal-pending-order';
+import { FISCAL_PENDING_ORDER_PREDICATE, FISCAL_PENDING_DECISION_PREDICATE } from '../../shared/db/fiscal-pending-order';
 
 export const GET_FISCAL_IDENTITY = `
 SELECT id, nome, ativo
@@ -31,10 +31,14 @@ ${ELIGIBLE_FISCAL_SERVICE_ORDERS}
 `;
 
 export const GET_PENDING_FISCAL_SERVICE_ORDERS = `
-SELECT DISTINCT os.id::text AS ordem_servico_id, contrato.id::text AS contrato_id,
-       contrato.numero AS contrato_numero
-${ELIGIBLE_FISCAL_SERVICE_ORDERS}
-ORDER BY ordem_servico_id
+SELECT os.id::text AS ordem_servico_id, contrato.id::text AS contrato_id,
+       contrato.numero AS contrato_numero, p.id::text AS pendencia_id,
+       p.descricao AS pendencia_descricao, p.status AS pendencia_status
+FROM ordens.ordem_servico os
+JOIN contratos.contrato contrato ON contrato.id = os.contrato_id
+JOIN comum.pendencia p ON ${FISCAL_PENDING_DECISION_PREDICATE}
+WHERE os.contrato_id = ANY($1::bigint[]) AND os.lado = 'cliente'
+ORDER BY ordem_servico_id, p.id
 `;
 
 // Scope IDs have already been authorized and restricted by contratoId.

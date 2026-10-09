@@ -486,3 +486,103 @@ O resumo Fiscal inclui `data.itemBalances`. `coverage: "UNAVAILABLE"` indica dat
 `criterio` informa `base` (`comprometido|medido`), `dimensao` (`valor|quantidade`) e limiares em escala 0–1. Padrões: `comprometido`, `valor`, `0.60` e `0.10`, configuráveis por `SALDO_FAIXA_BASE`, `SALDO_FAIXA_DIMENSAO`, `SALDO_LIMIAR_ATENCAO` e `SALDO_LIMIAR_CRITICO`. A faixa usa razão decimal não arredondada; `pctSaldo` e `pctSaldoMedido` são razões arredondadas a quatro casas. `resumo` conta todos os itens retornados.
 
 Cada item contém identificação do contrato, fornecedor e item; sequência, especificação, unidade; quantidades e valores contratados, consumidos, medidos e saldo; `valueMeasuredBalance` e `quantityMeasuredBalance` calculados no backend; percentuais; faixa e status cadastral de verificação. `blockedAt` e `blockReason` são `null` enquanto o banco local não disponibilizar as colunas da migration oficial 0043. Cada agregado monetário é `null` se algum item carecer de um valor necessário para aquele agregado; medido nulo é tratado como zero quando o contratado existe, conforme a regra oficial. Os agregados usam os decimais originais do PostgreSQL, com arredondamento final ao centavo (meio para longe de zero) e rejeição de valores fora da precisão segura. `itemCount`, `contractedValueRows`, `committedBalanceRows` e `measuredBalanceRows` expõem coberturas independentes; `completeValueRows` permanece por compatibilidade. A lista considera apenas contratos vigentes da carteira autorizada. O ciclo financeiro permanece indisponível sem fontes comprovadas para suas etapas.
+
+## Apresentação da fila de OS — análise de fontes e limitações
+
+A seção antes intitulada “Minha fila de ação” passa a se chamar **OS com decisão
+fiscal pendente na carteira**. Não é uma nova regra de elegibilidade: conserva
+DEC-026/027/032. A carteira autorizada não equivale a tarefas atribuídas ao usuário;
+`comum.pendencia.responsavel_id` não participa da seleção. “Severidade” substitui
+“Prior.”, pois `severity` não é prioridade ou IPA. A ordem recebida é preservada,
+sem classificação de urgência ou ranking.
+
+Na revisão inicial, quando `title` era nulo, a tela explicava o motivo geral de inclusão: **Decisão fiscal
+pendente no Processo 1**, diretamente sustentado pelo predicado DEC-026. Isso não
+preenche `title` na API nem inventa título/descrição individual. A extensão DEC-035 abaixo passa a usar as descrições de `pendencies` como motivo;
+`title` é preservado no contrato, mas deixa de determinar o texto da célula.
+Severidade, fornecedor e prazo fornecidos continuam sem transformação de negócio. `dueAt` usa o fuso solicitado somente para apresentação.
+
+“Impacto” e “Ação recomendada” eram células fixas com “Indisponível”: **não existem
+campos correspondentes no contrato HTTP**. Passam a explicar “Impacto não apurado”
+e “Recomendação não definida para esta OS”. Não há fonte aprovada para severidade,
+impacto, prazo de decisão ou recomendação individual. Saldo/valor de contrato ou
+OS não representam impacto financeiro; competência, emissão, criação e vigência
+não representam prazo de decisão. O tipo `decisao_fiscal_p1` não significa
+prioridade P1. A fila continua diferenciando `[]` de `null`, independentemente
+do card `pendingServiceOrders`.
+
+### Propostas e lacunas identificadas na revisão inicial
+
+- Orientação geral para `decisao_fiscal_p1`: “Analisar a OS e registrar a decisão
+  fiscal no SAC”, sem recomendar aprovar/corrigir. Depende de aprovação funcional;
+  não autoriza chamada de escrita nem integração com a API oficial.
+- Motivo específico: lacuna resolvida pela DEC-035, após pedido explícito de
+  apresentar todas as pendências elegíveis por OS. Não escolher a primeira ou
+  mais recente implicitamente. DEC-027 continua fixando `title: null` no adapter real.
+- Identificação da OS resolvida pela DEC-035. Fornecedor canônico, responsável direto, prazo, prioridade
+  e impactos exigem mapeamentos ou extensões aprovados antes de preencher a fila.
+  Um responsável registrado ao assumir/resolver pendência não altera automaticamente
+  o escopo da carteira nem comprova uma atribuição prévia ao fiscal.
+
+A rastreabilidade completa está em `mapeamento-fisico-resumo-fiscal.md`, seção
+“Rastreabilidade da fila de OS na apresentação”. Apenas o protótipo BI e seus
+testes/documentos foram alterados; nenhuma API, serviço ou dado do SAC oficial
+foi modificado. Não há botões de aprovação/correção nem chamadas de escrita.
+
+## DEC-035 — Descrições das pendências de decisão fiscal agrupadas por OS
+
+**Status:** APROVADA pelo pedido de apresentar todas as pendências pertinentes,
+com uma linha por OS. Extensão local do resumo Fiscal; não altera o SAC oficial.
+
+Vínculo confirmado por DEC-026, mapeamento físico e código oficial de
+`notificar_fiscal`/`decidir_fiscal`: `comum.pendencia.entidade_tipo = 'ordem_servico'`
+e `entidade_id = ordens.ordem_servico.id`. Somente `tipo = 'decisao_fiscal_p1'` e
+`status IN ('aberta', 'em_tratamento')` são elegíveis. Pendências de saldo,
+mapeamento, outros processos/tipos, entidades diferentes, resolvidas e canceladas
+não entram como motivo. O lado cliente e o contrato direto na carteira autorizada
+continuam obrigatórios. Nenhuma pendência é selecionada pelo responsável.
+
+Cada item `priorityQueue[]` acrescenta propriedades obrigatórias:
+
+- `serviceOrderId`: inteiro positivo seguro, de `ordens.ordem_servico.id`.
+- `pendencies`: array não vazio de objetos estritos com `pendencyId` (inteiro
+  positivo seguro, de `comum.pendencia.id`), `description` (`string | null`, de
+  `comum.pendencia.descricao`) e `status` (`aberta | em_tratamento`).
+
+Mantém os sete campos HTTP anteriores, inclusive `title: null` no adapter real.
+A seleção retorna todas as pendências elegíveis, sem limite ou escolha por
+recência. O repository agrupa por OS e deduplica pendências somente por ID;
+descrições iguais de IDs distintos são preservadas. Descrições são aparadas nas
+bordas; ausentes ou vazias tornam-se `null`. A ordem técnica é por ID da OS
+(como anteriormente) e ID da pendência; não indica prioridade. O schema rejeita
+OS repetidas na fila e pendências repetidas dentro da mesma OS.
+
+A consulta da fila usa JOIN com os mesmos critérios da pendência usados pelo
+EXISTS do card, centralizados no predicado compartilhado. O card mantém
+`COUNT(DISTINCT os.id)`, não conta pendências. IDs de contrato já autorizados e
+restringidos por `contratoId` são o único parâmetro da consulta; uma eventual
+linha fora desse conjunto é rejeitada pelo adapter, sem expor conteúdo.
+
+A tabela mostra o ID da OS e todas as descrições, como texto escapado, dentro de
+uma única linha por OS. Para cada descrição ausente/vazia, mantém “Decisão fiscal
+pendente no Processo 1”. Não usa `title` para substituir as descrições nem altera
+fornecedor, severidade, prazo, impacto ou recomendação. Carteira continua distinta
+de atribuição pessoal. Lista vazia e indisponibilidade histórica mantêm DEC-032;
+nenhuma consulta atual é feita para histórico não reconstruível.
+
+Exemplo parcial do item (campos anteriores omitidos apenas neste trecho):
+
+```json
+{
+  "serviceOrderId": 11,
+  "pendencies": [
+    { "pendencyId": 101, "description": "Documento divergente", "status": "aberta" },
+    { "pendencyId": 102, "description": null, "status": "em_tratamento" }
+  ]
+}
+```
+
+A proposta de orientação geral permanece pendente. Nenhuma prioridade, prazo,
+impacto ou recomendação foi acrescentada. Alterações apenas no protótipo BI,
+seus contratos de resposta, testes e documentação; sem escrita no banco nem
+chamadas a APIs oficiais de decisão.
