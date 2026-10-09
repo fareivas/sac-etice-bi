@@ -694,3 +694,51 @@ séculos), valores ausentes/inválidos e referência diferente do relógio atual
 O roteiro `scripts/test/fiscal-contract-expiry.visual.mjs` usa o Vite existente,
 com respostas interceptadas apenas no navegador, em desktop e 390 px, com
 fusos opostos e relógio fixado em 2040. Não acessa nem modifica o banco.
+
+## Filtros locais da fila fiscal agrupada por OS
+
+A seção **OS com decisão fiscal pendente na carteira** usa somente
+`data.priorityQueue` já recebida: não envia filtros adicionais à API, não
+consulta novas fontes e não modifica a contagem global `pendingServiceOrders`.
+Contrato, status (`todos`, `aberta`, `em_tratamento`) e busca são independentes
+dos filtros de itens e dos demais painéis. A elegibilidade DEC-026/035 e a
+distinção entre carteira autorizada e atribuição pessoal permanecem.
+
+- Contrato usa `contractId`; opções são extraídas da fila original e exibem o
+  número quando disponível e o ID. Números iguais não unem contratos distintos.
+  O contrato não identificado é tratado apenas se vier como `null` na resposta.
+- Busca textual ignora caixa/acentos e espaços nas bordas. Usa `serviceOrderId`
+  (ID bruto ou identificação “OS ID”), `contractId`, `contractNumber`,
+  `supplierName` e `pendencies[].description`. Não inventa número de OS, não
+  pesquisa título legado ou textos de fallback como se fossem dados da fonte.
+- Se a busca corresponde a OS/contrato/fornecedor, mostra as pendências que
+  passam pelo status selecionado. Se corresponde apenas a descrições, mostra
+  somente as pendências que correspondem à descrição **e** ao status.
+  Correspondências em pendências diferentes não são combinadas para admitir a OS.
+- A OS só aparece quando há pelo menos uma pendência correspondente. Mantém uma
+  linha por `serviceOrderId` e a ordem da resposta, sem inferir prioridade.
+  Cada pendência visível mostra seu status; outras pendências da mesma OS são
+  indicadas pela quantidade oculta pelos filtros. Dados da resposta não são
+  apagados, modificados ou deduplicados novamente.
+
+“X de Y OS” conta OS visíveis versus OS da fila recebida, não pendências nem o
+card global. O botão **Limpar filtros da fila** restaura apenas esse recorte
+local. Não amplia o escopo autorizado pelo servidor.
+
+Consulta válida com `[]` apresenta “Fila apurada sem ocorrências” e “0 de 0 OS”.
+Fila com OS e recorte local vazio apresenta “Nenhuma OS encontrada com os filtros
+atuais” e “0 de Y OS”. Fila `null` apresenta “Fila indisponível”, sem controles
+ou contagem zero inventada, independentemente do card global (DEC-032).
+
+Usuário, unidade, conjunto de contratos consultados e `meta.dataReference`
+identificam o contexto da fila; sua mudança reinicia os três filtros. Ordenação
+dos IDs do filtro de contrato não muda o contexto. Atualização no mesmo contexto
+preserva os filtros; contrato que deixa de existir nas opções é limpo. Carga ou
+indisponibilidade temporária não apaga seleções do mesmo contexto. Alterar a
+consulta externa de KPIs não define novo contexto da fila.
+
+Controles nativos têm rótulos, navegação por teclado e foco visível. O roteiro
+`scripts/test/fiscal-queue-filters.visual.mjs` intercepta respostas válidas de
+fixtures isoladas e valida múltiplas OS/pendências, filtro combinado, card e
+outros painéis intactos, reinício por usuário/escopo, estados vazios e tela de
+390 px. Nenhum dado do banco ou serviço/API oficial foi alterado.

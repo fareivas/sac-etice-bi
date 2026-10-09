@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { FiscalContractExpiry, FiscalExpiryReferenceNote } from './contract-expiry';
 import { FiscalItemBalanceDetails } from './item-balance-details';
+import { queueContractKey, useFiscalQueueFilters } from './use-fiscal-queue-filters';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 import { loadFiscalSummary } from '../../lib/api';
 import { displayDate } from '../../lib/display-date';
@@ -48,6 +49,7 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
   includeExternal: boolean;
   onIncludeExternalChange: (value: boolean) => void;
 }) {
+  const queueFilterId = useId();
   const summary = state.status === 'success' ? state.summary : null;
   const partial = summary && Object.values(summary.meta.dataCoverage).includes('UNAVAILABLE');
   const kpiSource = summary && 'sources' in summary.meta
@@ -62,6 +64,11 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
   ]) : null;
   const { items, suppliers, contracts, supplier, contract, band, search, setFilter, activeFilters,
     filteredItems, distribution, aggregates, allItemsSelected, clearFilters } = useItemBalanceFilters(itemBalances, context);
+  const queueContext = summary ? JSON.stringify([
+    summary.data.fiscal.userId, summary.meta.filtersApplied.unidadeId,
+    [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b), summary.meta.dataReference,
+  ]) : null;
+  const queueFilters = useFiscalQueueFilters(queue, queueContext);
   const noRegisteredItems = itemBalances?.coverage === 'AVAILABLE' && items.length === 0;
   const itemTotalLabel = (value: number | null) => noRegisteredItems ? 'Sem itens cadastrados' : money(value);
 
@@ -105,19 +112,37 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
         <div className="fiscal-grid-two">
           <Panel className="fiscal-action-queue" title="OS com decisão fiscal pendente na carteira" subtitle="OS cliente dos contratos autorizados, com pendência de decisão fiscal no Processo 1 aberta ou em tratamento.">
             <p className="source-note">A inclusão nesta lista decorre da carteira contratual; não comprova tarefa atribuída diretamente a você. A ordem das linhas não representa prioridade.</p>
+            {queue !== null && queue !== undefined && <>
+              <div className="fiscal-queue-filters" role="group" aria-label="Filtros locais da fila fiscal">
+                <div><label htmlFor={`${queueFilterId}-contract`}>Contrato da fila</label><select id={`${queueFilterId}-contract`} value={queueFilters.contract} onChange={event => queueFilters.setFilter({ contract: event.target.value })}>
+                  <option value="">Todos os contratos</option>{queueFilters.contracts.map(([id, number]) => <option key={queueContractKey(id)} value={queueContractKey(id)}>
+                    {id === null ? 'Contrato não identificado' : `${number ?? 'Contrato sem número'} (ID ${id})`}
+                  </option>)}
+                </select></div>
+                <div><label htmlFor={`${queueFilterId}-status`}>Status da pendência</label><select id={`${queueFilterId}-status`} value={queueFilters.status} onChange={event => queueFilters.setFilter({ status: event.target.value as '' | 'aberta' | 'em_tratamento' })}>
+                  <option value="">Todos</option><option value="aberta">Aberta</option><option value="em_tratamento">Em tratamento</option>
+                </select></div>
+                <div><label htmlFor={`${queueFilterId}-search`}>Busca na fila</label><input id={`${queueFilterId}-search`} type="search" value={queueFilters.search} placeholder="OS ID, contrato, fornecedor ou descrição"
+                  onChange={event => queueFilters.setFilter({ search: event.target.value })} /></div>
+              </div>
+              <div className="fiscal-queue-filter-meta"><span role="status">{queueFilters.visible.length} de {queueFilters.totalOrders} OS</span>
+                <button type="button" onClick={queueFilters.clearFilters} disabled={!queueFilters.activeFilters}>Limpar filtros da fila</button>
+              </div>
+            </>}
             <div className="fiscal-table-wrap"><table><caption className="visually-hidden">OS da carteira com decisão fiscal pendente</caption><thead><tr>
               <th scope="col">OS</th><th scope="col">Severidade</th><th scope="col">Contrato / fornecedor</th><th scope="col">Motivo / descrição</th><th scope="col">Impacto</th><th scope="col">Prazo de decisão</th><th scope="col">Ação recomendada</th>
-            </tr></thead><tbody>{queue?.length ? queue.map(item => <tr key={item.serviceOrderId}>
+            </tr></thead><tbody>{queueFilters.visible.length ? queueFilters.visible.map(({ item, pendencies, hiddenCount }) => <tr key={item.serviceOrderId}>
               <th scope="row">OS ID {item.serviceOrderId}</th>
               <td>{item.severity ?? 'Severidade não definida'}</td>
               <td><b>{item.contractNumber ?? (item.contractId === null ? 'Contrato não identificado' : `Contrato ID ${item.contractId}`)}</b><br />{item.supplierName ?? 'Fornecedor não identificado na fila'}</td>
-              <td><ul>{item.pendencies.map(pendency => <li key={pendency.pendencyId}>
+              <td><ul>{pendencies.map(pendency => <li key={pendency.pendencyId}>
                 {pendency.description?.trim() || 'Decisão fiscal pendente no Processo 1'}
-              </li>)}</ul></td>
+                <small className="fiscal-queue-pendency-status">Status: {pendency.status === 'aberta' ? 'Aberta' : 'Em tratamento'}</small>
+              </li>)}</ul>{hiddenCount > 0 && <small className="fiscal-queue-hidden">{hiddenCount} {hiddenCount === 1 ? 'pendência oculta' : 'pendências ocultas'} pelos filtros</small>}</td>
               <td>Impacto não apurado</td>
               <td>{item.dueAt === null ? 'Prazo de decisão não disponível' : displayDate(item.dueAt, summary.meta.timezone)}</td>
               <td>Recomendação não definida para esta OS</td>
-            </tr>) : <tr><td colSpan={7} className="table-empty">{queueLabel(queue ?? null)}</td></tr>}</tbody></table></div>
+            </tr>) : <tr><td colSpan={7} className="table-empty">{queue === null || queue === undefined ? queueLabel(null) : queue.length === 0 ? queueLabel([]) : 'Nenhuma OS encontrada com os filtros atuais.'}</td></tr>}</tbody></table></div>
             <p className="source-note">Não há fonte aprovada de severidade, impacto ou prazo de decisão para estas OS. Valor e saldo do contrato não medem impacto; competência e vigência não são prazo para decidir.</p>
             <p className="source-note">A resposta da fila não fornece ação recomendada. As decisões são registradas no SAC; este dashboard apenas apresenta a lista e não executa ações no sistema oficial.</p>
           </Panel>

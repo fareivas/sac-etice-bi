@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
+import { fixture as queueFixture } from '../../../../../scripts/test/fixtures/fiscal-queue-filters';
 import { countLabel, FiscalDashboardView, queueLabel } from './summary';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -228,12 +229,12 @@ function mount(data: FiscalDashboardSummaryResponse) {
   const update = (next: FiscalDashboardSummaryResponse) => act(() => root.render(<FiscalDashboardView state={{ status: 'success', summary: next }} includeExternal={false} onIncludeExternalChange={() => {}} />));
   update(data);
   const select = (label: string, value: string) => {
-    const control = [...host.querySelectorAll('label')].find(node => node.textContent?.startsWith(label))?.querySelector('select');
+    const control = [...host.querySelectorAll('.saldo-filters label')].find(node => node.textContent?.startsWith(label))?.querySelector('select');
     if (!control) throw new Error(`Select ausente: ${label}`);
     act(() => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })); });
   };
   const search = (value: string) => {
-    const control = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const control = host.querySelector<HTMLInputElement>('.saldo-filters input[type="search"]')!;
     act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(control, value);
       control.dispatchEvent(new Event('input', { bubbles: true }));
@@ -241,8 +242,8 @@ function mount(data: FiscalDashboardSummaryResponse) {
   };
   const clear = () => act(() => { host.querySelector<HTMLButtonElement>('.saldo-filter-meta button')!.click(); });
   const section = (title: string) => [...host.querySelectorAll('section.fiscal-panel')].find(node => node.querySelector('h2')?.textContent === title)?.textContent ?? '';
-  const selected = (label: string) => [...host.querySelectorAll('label')].find(node => node.textContent?.startsWith(label))?.querySelector('select')?.value;
-  const query = () => host.querySelector<HTMLInputElement>('input[type="search"]')?.value;
+  const selected = (label: string) => [...host.querySelectorAll('.saldo-filters label')].find(node => node.textContent?.startsWith(label))?.querySelector('select')?.value;
+  const query = () => host.querySelector<HTMLInputElement>('.saldo-filters input[type="search"]')?.value;
   return { host, update, select, search, clear, section, selected, query, unmount: () => { act(() => root.unmount()); host.remove(); } };
 }
 
@@ -515,7 +516,9 @@ it('explains portfolio eligibility and each missing queue field without personal
   expect(row.textContent).toContain('Recomendação não definida para esta OS');
   for (const inferred of ['17.940', '01/10/2026', 'Empresa do contrato', 'Indisponível', 'P1'])
     expect(row.textContent).not.toContain(inferred);
-  expect(panel.querySelectorAll('button, a')).toHaveLength(0);
+  expect(panel.querySelectorAll('a')).toHaveLength(0);
+  expect(panel.querySelectorAll('button')).toHaveLength(1);
+  expect(panel.querySelector('button')?.disabled).toBe(true);
 });
 it('preserves supplied queue fields and source order without inventing a priority ranking', () => {
   const panel = queuePanel([
@@ -562,7 +565,7 @@ it('renders all P1 pendency descriptions within one row per OS and falls back on
   const rows = panel.querySelectorAll('tbody tr');
   expect(rows).toHaveLength(2);
   expect(rows[0].querySelector('th')?.textContent).toBe('OS ID 11');
-  expect([...rows[0].querySelectorAll('li')].map(li => li.textContent)).toEqual([
+  expect([...rows[0].querySelectorAll('li')].map(li => li.firstChild?.textContent)).toEqual([
     'Documento divergente', 'Valor precisa ser conferido',
     'Decisão fiscal pendente no Processo 1', 'Decisão fiscal pendente no Processo 1',
     '<script>conteúdo da fonte</script>',
@@ -671,4 +674,131 @@ it('keeps unavailable historical contract and alert lists without manufacturing 
   expect(host.querySelectorAll('.fiscal-contract-expiry')).toHaveLength(0);
   expect(host.textContent).not.toContain('Vence hoje');
   expect(host.textContent).not.toContain('Vencido há');
+});
+
+function queueControls(view: ReturnType<typeof mount>) {
+  const panel = () => view.host.querySelector('.fiscal-action-queue')!;
+  const select = (index: number, value: string) => {
+    const control = panel().querySelectorAll<HTMLSelectElement>('.fiscal-queue-filters select')[index];
+    act(() => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+  const search = (value: string) => {
+    const control = panel().querySelector<HTMLInputElement>('.fiscal-queue-filters input')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(control, value);
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+  const clear = () => act(() => panel().querySelector<HTMLButtonElement>('.fiscal-queue-filter-meta button')!.click());
+  return { panel, select, search, clear };
+}
+it('filters OS and their pendencies locally, counts OS and preserves the global card and every other panel', () => {
+  const data = structuredClone(queueFixture);
+  const original = structuredClone(data);
+  const view = mount(data);
+  const controls = queueControls(view);
+  try {
+    const otherPanels = [...view.host.querySelectorAll('.fiscal-panel:not(.fiscal-action-queue)')].map(panel => panel.textContent);
+    const cards = view.host.querySelector('.fiscal-kpis')!.textContent;
+    controls.select(1, 'em_tratamento');
+    controls.search('DÓCUMENTO');
+    expect(controls.panel().textContent).toContain('1 de 4 OS');
+    expect(controls.panel().querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(controls.panel().textContent).toContain('OS ID 12');
+    expect(controls.panel().textContent).toContain('Documento em revisão');
+    expect(controls.panel().textContent).not.toContain('Documento ausente');
+    expect(controls.panel().textContent).not.toContain('Conferir valor');
+    expect(controls.panel().textContent).toContain('1 pendência oculta pelos filtros');
+    expect(view.host.querySelector('.fiscal-kpis')!.textContent).toBe(cards);
+    expect([...view.host.querySelectorAll('.fiscal-panel:not(.fiscal-action-queue)')].map(panel => panel.textContent)).toEqual(otherPanels);
+    expect(data).toEqual(original);
+    controls.clear();
+    expect(controls.panel().textContent).toContain('4 de 4 OS');
+    expect(controls.panel().querySelectorAll('tbody tr')).toHaveLength(4);
+    expect(controls.panel().textContent).not.toContain('pendência oculta pelos filtros');
+    expect(controls.panel().querySelector('.fiscal-queue-filter-meta button')?.getAttribute('disabled')).not.toBeNull();
+  } finally { view.unmount(); }
+});
+it('keeps contract IDs distinct even when numbers repeat and combines all three queue filters', () => {
+  const view = mount(structuredClone(queueFixture));
+  const controls = queueControls(view);
+  try {
+    const options = controls.panel().querySelectorAll('.fiscal-queue-filters select')[0].querySelectorAll('option');
+    expect([...options].map(option => option.value)).toEqual(['', '184', '205', '317']);
+    expect(options[1].textContent).toContain('13/2025 (ID 184)');
+    expect(options[2].textContent).toContain('13/2025 (ID 205)');
+    controls.select(0, '184');
+    controls.select(1, 'aberta');
+    controls.search('documento');
+    expect(controls.panel().textContent).toContain('1 de 4 OS');
+    expect(controls.panel().textContent).toContain('OS ID 11');
+    expect(controls.panel().textContent).toContain('2 pendências ocultas pelos filtros');
+    expect(controls.panel().textContent).not.toContain('Conferir valor');
+    expect(controls.panel().textContent).not.toContain('Decisão fiscal pendente no Processo 1');
+  } finally { view.unmount(); }
+});
+it('distinguishes empty queue, filters with no matches and unavailable source', () => {
+  const view = mount(structuredClone(queueFixture));
+  const controls = queueControls(view);
+  try {
+    controls.search('sem-correspondencia');
+    expect(controls.panel().textContent).toContain('0 de 4 OS');
+    expect(controls.panel().textContent).toContain('Nenhuma OS encontrada com os filtros atuais.');
+    expect(controls.panel().textContent).not.toContain('Fila apurada sem ocorrências');
+    const empty = structuredClone(queueFixture);
+    empty.data.priorityQueue = [];
+    view.update(empty);
+    expect(controls.panel().textContent).toContain('0 de 0 OS');
+    expect(controls.panel().textContent).toContain('Fila apurada sem ocorrências');
+    const unavailable = structuredClone(empty);
+    unavailable.data.priorityQueue = null;
+    view.update(unavailable);
+    expect(controls.panel().textContent).toContain('Fila indisponível');
+    expect(controls.panel().textContent).not.toContain('0 de 0 OS');
+    expect(controls.panel().querySelector('.fiscal-queue-filters')).toBeNull();
+  } finally { view.unmount(); }
+});
+it.each(['user', 'unit', 'contracts', 'reference'] as const)('resets queue filters on a change to %s', change => {
+  const view = mount(structuredClone(queueFixture));
+  const controls = queueControls(view);
+  try {
+    controls.select(0, '184'); controls.select(1, 'aberta'); controls.search('Documento');
+    const next = structuredClone(queueFixture);
+    if (change === 'user') next.data.fiscal.userId = 88;
+    if (change === 'unit') next.meta.filtersApplied.unidadeId = 2;
+    if (change === 'contracts') {
+      next.meta.filtersApplied.contratoId = [184];
+      next.data.priorityQueue = next.data.priorityQueue!.filter(item => item.contractId === 184);
+      next.data.cards.pendingServiceOrders = 2;
+    }
+    if (change === 'reference') next.meta.dataReference = '2026-10-09';
+    view.update(next);
+    expect([...controls.panel().querySelectorAll('select')].map(select => select.value)).toEqual(['', '']);
+    expect(controls.panel().querySelector<HTMLInputElement>('input')!.value).toBe('');
+    expect(controls.panel().textContent).toContain(change === 'contracts' ? '2 de 2 OS' : '4 de 4 OS');
+    if (change === 'contracts') {
+      controls.search('documento'); controls.clear();
+      expect(controls.panel().textContent).not.toContain('OS ID 12');
+      expect(controls.panel().textContent).not.toContain('OS ID 14');
+    }
+  } finally { view.unmount(); }
+});
+it('preserves queue filters across unavailable coverage with the same scope and clears vanished contract options', () => {
+  const view = mount(structuredClone(queueFixture));
+  const controls = queueControls(view);
+  try {
+    controls.select(0, '205'); controls.select(1, 'em_tratamento'); controls.search('documento');
+    const unavailable = structuredClone(queueFixture);
+    unavailable.data.priorityQueue = null;
+    view.update(unavailable);
+    view.update(structuredClone(queueFixture));
+    expect([...controls.panel().querySelectorAll('select')].map(select => select.value)).toEqual(['205', 'em_tratamento']);
+    expect(controls.panel().querySelector<HTMLInputElement>('input')!.value).toBe('documento');
+    const changed = structuredClone(queueFixture);
+    changed.data.priorityQueue = changed.data.priorityQueue!.filter(item => item.contractId !== 205);
+    view.update(changed);
+    expect(controls.panel().querySelector('select')!.value).toBe('');
+    expect(controls.panel().querySelector<HTMLInputElement>('input')!.value).toBe('documento');
+    expect(controls.panel().textContent).toContain('0 de 3 OS');
+  } finally { view.unmount(); }
 });

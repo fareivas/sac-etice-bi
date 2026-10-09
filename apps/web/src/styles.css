@@ -148,3 +148,15 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-item-details dd { margin: 0; font-weight: 600; }
 
 .fiscal-dashboard .fiscal-contract-expiry > small { display: block; margin-top: 4px; font-size: inherit; color: var(--text-secondary); line-height: 1.4; }
+
+.fiscal-dashboard .fiscal-queue-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fiscal-dashboard .fiscal-queue-filters > div { display: grid; gap: 6px; min-width: 0; }
+.fiscal-dashboard .fiscal-queue-filters label { color: var(--text-secondary); font-size: .8rem; font-weight: 600; }
+.fiscal-dashboard .fiscal-queue-filters > div:last-child { grid-column: 1 / -1; }
+.fiscal-dashboard .fiscal-queue-filters input, .fiscal-dashboard .fiscal-queue-filters select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-card); color: var(--text-primary); }
+.fiscal-dashboard .fiscal-queue-filter-meta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin: 12px 0; font-size: .8rem; }
+.fiscal-dashboard .fiscal-queue-filter-meta button { padding: 8px 12px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--color-accent-soft); color: var(--color-accent); cursor: pointer; }
+.fiscal-dashboard .fiscal-queue-filter-meta button:disabled { opacity: .5; cursor: default; }
+.fiscal-dashboard .fiscal-queue-filters input:focus-visible, .fiscal-dashboard .fiscal-queue-filters select:focus-visible, .fiscal-dashboard .fiscal-queue-filter-meta button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fiscal-dashboard .fiscal-queue-pendency-status, .fiscal-dashboard .fiscal-queue-hidden { display: block; font-size: inherit; color: var(--text-secondary); margin-top: 4px; }
+@media (max-width: 600px) { .fiscal-dashboard .fiscal-queue-filters { grid-template-columns: 1fr; } }

@@ -66,3 +66,32 @@ em relação à referência da fixture (2026 ou 2024), conferindo a independênc
 do relógio/fuso e a nota de que vigência não é prazo de decisão. Preserva a
 rolagem horizontal local das tabelas em telas estreitas e gera capturas dos
 dois painéis e `report.json` no diretório temporário de saída.
+
+## Filtros locais da fila fiscal
+
+Com o mesmo preview Vite e Chromium acima:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/fiscal-queue-filters.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/queue-fixture.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+  node scripts/test/fiscal-queue-filters.visual.mjs \
+  /tmp/sac-fiscal-visual/queue-fixture.cjs /tmp/sac-fiscal-visual/queue-captures
+```
+
+A fixture contém quatro OS, múltiplas pendências abertas/em tratamento,
+descrições e fornecedor ausentes e contratos com o mesmo número, mas IDs
+diferentes. Usa apenas os campos existentes da resposta e valida o schema HTTP.
+Os refreshes testados recebem respostas sintéticas pelo navegador; a consulta
+externa é apenas um disparador do carregamento já existente e nunca chega ao
+backend ou Projeto de KPIs.
+
+O roteiro confere filtros combinados, correspondência na mesma pendência,
+quantidade oculta, contagem por OS, card e demais painéis preservados, ausência
+de requisições adicionais pelos filtros, teclado (setas/Tab/Enter), foco visível,
+preservação no mesmo contexto, reinício por usuário/escopo, não ampliação da
+carteira ao limpar filtros, fonte indisponível, fila vazia e recorte sem resultado.
+Roda em desktop e 390 px, gera capturas e `report.json` somente no diretório
+informado e não acessa o banco. Testes de unidade também cobrem unidade/data de
+referência, busca sem acentos, pendências nulas e opções de contrato removidas.
