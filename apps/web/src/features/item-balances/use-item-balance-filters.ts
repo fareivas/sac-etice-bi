@@ -63,15 +63,21 @@ export function useItemBalanceFilters(itemBalances: FiscalItemBalances | undefin
   const missingContract = Boolean(contract && itemBalances?.coverage === 'AVAILABLE' && !contracts.some(([id]) => String(id) === contract));
   const setFilter = (change: Partial<ItemFilters>) => setFilters(current => ({ ...current, ...change }));
   const activeFilters = Boolean(supplier || contract || band || search.trim());
-  const filteredItems = useMemo(() => {
+  const itemsBeforeBand = useMemo(() => {
     const query = normalize(search.trim());
     return items.filter(item =>
       (!supplier || item.supplierName === supplier) &&
       (!contract || String(item.contractId) === contract) &&
-      (!band || item.faixa === band) &&
       (!query || [item.specification, item.contractNumber, item.supplierName, item.sequence === null ? null : String(item.sequence)]
         .some(value => value !== null && normalize(value).includes(query))));
-  }, [items, supplier, contract, band, search]);
+  }, [items, supplier, contract, search]);
+  const filteredItems = useMemo(() => band ? itemsBeforeBand.filter(item => item.faixa === band) : itemsBeforeBand, [itemsBeforeBand, band]);
+  const distributionBeforeBand = useMemo(() => ({
+    adequado: itemsBeforeBand.filter(item => item.faixa === 'adequado').length,
+    atencao: itemsBeforeBand.filter(item => item.faixa === 'atencao').length,
+    critico: itemsBeforeBand.filter(item => item.faixa === 'critico').length,
+    nao_verificavel: itemsBeforeBand.filter(item => item.faixa === 'nao_verificavel').length,
+  }), [itemsBeforeBand]);
   const distribution = useMemo(() => ({
     adequado: filteredItems.filter(item => item.faixa === 'adequado').length,
     atencao: filteredItems.filter(item => item.faixa === 'atencao').length,
@@ -85,5 +91,5 @@ export function useItemBalanceFilters(itemBalances: FiscalItemBalances | undefin
       : filteredAggregates(filteredItems), [filteredItems, itemBalances, allItemsSelected]);
   const clearFilters = () => setFilters(emptyFilters(context));
   return { items, suppliers, contracts, missingSupplier, missingContract, supplier, contract, band, search, setFilter, activeFilters,
-    filteredItems, distribution, aggregates, allItemsSelected, clearFilters };
+    filteredItems, distribution, distributionBeforeBand, aggregates, allItemsSelected, clearFilters };
 }

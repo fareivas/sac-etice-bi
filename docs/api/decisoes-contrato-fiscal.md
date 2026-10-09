@@ -869,7 +869,8 @@ relativa da resposta (ordenação estável). Zeros e negativos participam da
 comparação numérica original.
 
 A ordenação copia a lista filtrada e preserva objetos/ordem da resposta original.
-Totais e distribuição continuam usando a lista filtrada anterior à ordenação.
+Totais continuam usando a lista filtrada anterior à ordenação. As contagens da
+seção de distribuição usam o recorte anterior à faixa, descrito abaixo.
 Filtros, carteira autorizada, fila e seu CSV, classificações e dashboard do
 Gerente permanecem sem mudança funcional. Linhas usam chave de contrato/item;
 detalhes expansíveis continuam associados ao mesmo item após reordenar.
@@ -903,8 +904,10 @@ indisponibilidade temporária não apagam a seleção da página. Mudança de us
 unidade, conjunto de contratos consultados ou data de referência reinicia página
 e tamanho para o padrão (25), no mesmo contexto usado pela ordenação.
 
-A paginação só recorta as linhas renderizadas. Totais, cobertura e distribuição
-por faixa continuam considerando **todos os itens filtrados**, antes da paginação.
+A paginação só recorta as linhas renderizadas. Totais e cobertura continuam
+considerando **todos os itens filtrados**, antes da paginação. As contagens da
+seção de distribuição usam fornecedor/contrato/busca antes da faixa, conforme
+a seção abaixo.
 **Exportar itens CSV** exporta **todos os itens filtrados na ordem escolhida**,
 mesmo em outra página; a explicação junto ao botão informa que não exporta apenas
 a página atual e não representa o saldo consolidado por contrato. Não envia
@@ -921,3 +924,40 @@ atualização manual, mudança de contexto, detalhes e CSV completo/ordenado. O
 roteiro `scripts/test/fiscal-item-pagination.visual.mjs` usa 51 itens de fixture
 isolada em desktop e 390 px, com Tab/setas/Enter e respostas interceptadas, sem
 consultas ao banco ou SAC oficial.
+
+
+## Faixas clicáveis e contagens anteriores ao filtro de faixa
+
+Na seção **Distribuição dos itens por faixa**, os quatro botões reutilizam o
+mesmo `band`/`setFilter` usado pelo seletor local de faixa da tabela. Selecionar
+aplica a faixa; selecionar a ativa novamente remove somente esse filtro; mudar
+pelo seletor também sincroniza o botão ativo. Preserva fornecedor, contrato,
+busca e ordenação, e a paginação existente retorna à primeira página quando a
+faixa muda.
+
+As contagens dessa seção usam todos os itens que correspondem a **fornecedor,
+contrato e busca**, **antes da faixa e da paginação**, contados diretamente por
+`item.faixa` retornada pelo serviço. O escopo é informado na própria seção. Não
+recalcula classificações, razões ou critérios. A faixa ativa não faz as demais
+contagens desaparecerem: inclusive uma faixa com contagem zero pode ser escolhida
+ou removida, mantendo o estado de filtros sem resultados.
+
+Tabela, totais dos itens, contadores de críticos/não verificáveis junto aos
+totais e CSV completo continuam usando o filtro de faixa aplicado. Indicadores
+globais, saldo consolidado por contrato, fila e APIs permanecem inalterados.
+O hook compartilhado fornece adicionalmente a distribuição anterior à faixa;
+a distribuição já existente mantém seu significado pós-faixa para o Gerente,
+sem mudança funcional nesse dashboard.
+
+Botões nativos têm `aria-pressed`, rótulo de faixa/contagem, foco visível, borda
+ativa e indicação textual **✓ Selecionada**, sem depender só de cor. Carteira
+sem itens apresenta a explicação própria e quatro contagens zero com botões
+desabilitados. Fonte indisponível mantém **Indisponível**, sem botões ou zeros
+inventados. Atualização no mesmo contexto conserva o filtro existente; mudança
+de usuário/escopo mantém os resets já documentados.
+
+Testes cobrem seleção, remoção, troca, sincronização, filtros combinados,
+contagens antes da faixa, paginação, totais/CSV e estados sem dados. O roteiro
+`scripts/test/fiscal-band-distribution.visual.mjs` usa fixture isolada com 96
+itens de dois contratos da carteira autorizada, Tab/Espaço/Enter e desktop/390 px, sem
+acessar o banco ou SAC oficial.

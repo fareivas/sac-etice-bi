@@ -184,3 +184,25 @@ intervalos, atualização e redução de resultados, reset por filtros/ordenaç�
 escopo, totais/distribuição preservados, detalhes no item correto, estados vazios
 e exportação completa na ordem escolhida a partir de página intermediária.
 Capturas/relatório/downloads ficam temporários; não altera o banco.
+
+## Distribuição de faixas clicável
+
+Com o mesmo preview Vite e Playwright:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/fiscal-band-distribution.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/band-distribution-fixture.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+  node scripts/test/fiscal-band-distribution.visual.mjs \
+  /tmp/sac-fiscal-visual/band-distribution-fixture.cjs /tmp/sac-fiscal-visual/band-distribution-captures
+```
+
+A fixture tem 96 itens em dois contratos autorizados, com as quatro faixas
+calculadas pelo serviço a partir de fontes sintéticas. O roteiro intercepta
+as APIs e valida Tab/Espaço/Enter, foco/aria-pressed/destaque textual, seleção,
+remoção e troca sincronizadas com o seletor, contagens por fornecedor/contrato/
+busca antes da faixa, preservação da ordenação, reset de página, CSV completo
+após o filtro e indicadores globais intactos, em desktop/390 px. Confere também
+contagens zero para filtros sem resultados, carteira sem itens e fonte
+indisponível. PNGs/relatório/downloads ficam temporários; não usa o banco.

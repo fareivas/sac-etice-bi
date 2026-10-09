@@ -69,7 +69,7 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
     [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b),
   ]) : null;
   const { items, suppliers, contracts, missingSupplier, missingContract, supplier, contract, band, search, setFilter, activeFilters,
-    filteredItems, distribution, aggregates, allItemsSelected, clearFilters } = useItemBalanceFilters(itemBalances, context, true);
+    filteredItems, distribution, distributionBeforeBand, aggregates, allItemsSelected, clearFilters } = useItemBalanceFilters(itemBalances, context, true);
   const queueContext = summary ? JSON.stringify([
     summary.data.fiscal.userId, summary.meta.filtersApplied.unidadeId,
     [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b), summary.meta.dataReference,
@@ -180,9 +180,17 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
               </tr>) : <tr><td colSpan={5} className="table-empty">{summary.data.contractBalances === null ? 'Indisponível' : 'Nenhum contrato vigente na carteira'}</td></tr>}
             </tbody></table></div>
           </Panel>
-          <Panel title="Distribuição dos itens por faixa" subtitle="Classificação dos saldos contratuais.">{itemBalances?.coverage === 'AVAILABLE'
-            ? <p>Adequado: {distribution.adequado} · Atenção: {distribution.atencao} · Crítico: {distribution.critico} · Não verificável: {distribution.nao_verificavel}</p>
-            : <Unavailable />}</Panel>
+          <Panel title="Distribuição dos itens por faixa" subtitle="Classificações retornadas para os itens do recorte." className="fiscal-band-distribution">{itemBalances?.coverage === 'AVAILABLE' ? <>
+            <p className="source-note" id={`${queueFilterId}-band-scope`}>Contagens considerando fornecedor, contrato e busca, antes de aplicar o filtro de faixa. Selecione uma faixa para filtrar; clique novamente na faixa selecionada para remover somente esse filtro.</p>
+            {noRegisteredItems && <p role="status">Sem itens cadastrados na carteira.</p>}
+            <div className="fiscal-band-buttons">
+              {([['adequado', 'Adequado'], ['atencao', 'Atenção'], ['critico', 'Crítico'], ['nao_verificavel', 'Não verificável']] as const).map(([value, label]) => <button
+                key={value} type="button" data-band={value} aria-pressed={band === value} aria-describedby={`${queueFilterId}-band-scope`} disabled={noRegisteredItems}
+                onClick={() => setFilter({ band: band === value ? '' : value })}>
+                <span>{label}: {distributionBeforeBand[value]}</span>{band === value && <strong>✓ Selecionada</strong>}
+              </button>)}
+            </div>
+          </> : <Unavailable />}</Panel>
         </div>
         <Panel title="Gestão dos Saldos dos Itens Contratuais" subtitle="Total contratado, execução acumulada, saldo e ação do fiscal." className="fiscal-saldos">
           <div className="fiscal-items-export">

@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { fixtures as csvItemFixtures } from '../../../../../scripts/test/fixtures/fiscal-items-csv';
+import { fixture as bandFixture } from '../../../../../scripts/test/fixtures/fiscal-band-distribution';
 import { fixture as paginationFixture } from '../../../../../scripts/test/fixtures/fiscal-item-pagination';
 import { fixture as queueFixture } from '../../../../../scripts/test/fixtures/fiscal-queue-filters';
 import { fiscalItemsCsv } from './item-balances-csv';
@@ -309,7 +310,7 @@ describe('filtros interativos dos saldos', () => {
       expect(filtered).toContain('R$ 100,00');
       expect(filtered).toContain('R$ 70,00');
       expect(filtered).toContain('R$ 80,00');
-      expect(view.section('Distribuição dos itens por faixa')).toContain('Adequado: 1 · Atenção: 0 · Crítico: 0');
+      expect([...view.host.querySelectorAll('.fiscal-band-buttons button span')].map(span => span.textContent)).toEqual(['Adequado: 1', 'Atenção: 0', 'Crítico: 0', 'Não verificável: 0']);
       expect(view.section('Saldo consolidado por contrato')).toContain('R$ 999,00');
       expect(view.host.textContent).toContain('Contratos sob fiscalização');
       view.clear();
@@ -1207,4 +1208,74 @@ it('keeps a valid page during and after the real manual-refresh flow', async () 
     await act(async () => response.resolve(okResponse(structuredClone(paginationFixture))));
     expect(view.host.querySelector('.fiscal-item-pagination')!.textContent).toBe(previousPage);
   } finally { view.cleanup(); }
+});
+
+function bandControls(view: ReturnType<typeof mount>) {
+  const button = (band: string) => view.host.querySelector<HTMLButtonElement>(`.fiscal-band-buttons button[data-band="${band}"]`)!;
+  const click = (band: string) => act(() => button(band).click());
+  const counts = () => [...view.host.querySelectorAll('.fiscal-band-buttons button span')].map(span => Number(span.textContent?.split(': ')[1]));
+  return { button, click, counts };
+}
+it('selects, removes and switches bands while retaining pre-band counts, other filters and ordering, resetting the page and exporting the applied filter', () => {
+  const data = structuredClone(bandFixture); const original = structuredClone(data);
+  const view = mount(data); const bands = bandControls(view); const pages = paginationControls(view); const sort = itemSortControls(view);
+  let content = '';
+  vi.stubGlobal('URL', Object.assign(class extends URL {}, { createObjectURL: vi.fn().mockReturnValue('blob:bands'), revokeObjectURL: vi.fn() }));
+  vi.stubGlobal('Blob', class { constructor(parts: string[]) { content = parts.join(''); } });
+  const downloadClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {}); vi.useFakeTimers();
+  try {
+    expect(bands.counts()).toEqual([24, 24, 24, 24]);
+    const cards = view.host.querySelector('.fiscal-kpis')!.textContent;
+    const queue = view.host.querySelector('.fiscal-action-queue')!.textContent;
+    view.select('Fornecedor', 'Fornecedor A'); view.select('Contrato', '2'); view.search('SERVIÇO GRUPO A');
+    expect(bands.counts()).toEqual([12, 12, 12, 12]);
+    expect(view.host.querySelector('.fiscal-band-distribution')!.textContent).toContain('antes de aplicar o filtro de faixa');
+    sort.select(0, 'identity'); sort.select(1, 'desc'); pages.size('10'); pages.next();
+    expect(pages.nav().textContent).toContain('Página 2 de 5');
+    bands.click('adequado');
+    expect(view.selected('Faixa')).toBe('adequado'); expect(bands.button('adequado').getAttribute('aria-pressed')).toBe('true');
+    expect(bands.button('adequado').textContent).toContain('✓ Selecionada');
+    expect(bands.counts()).toEqual([12, 12, 12, 12]); expect(pages.nav().textContent).toContain('Página 1 de 2');
+    expect(view.host.querySelector('.saldo-summary')!.textContent).toContain('R$ 12.000,00');
+    pages.next(); bands.click('adequado');
+    expect(view.selected('Faixa')).toBe(''); expect(bands.button('adequado').getAttribute('aria-pressed')).toBe('false');
+    expect(pages.nav().textContent).toContain('Página 1 de 5');
+    bands.click('atencao'); pages.next(); bands.click('critico');
+    expect(view.selected('Faixa')).toBe('critico'); expect(bands.button('atencao').getAttribute('aria-pressed')).toBe('false');
+    expect(bands.button('critico').getAttribute('aria-pressed')).toBe('true'); expect(pages.nav().textContent).toContain('Página 1 de 2');
+    expect(bands.counts()).toEqual([12, 12, 12, 12]);
+    expect(view.selected('Fornecedor')).toBe('Fornecedor A'); expect(view.selected('Contrato')).toBe('2'); expect(view.query()).toBe('SERVIÇO GRUPO A');
+    expect([...view.host.querySelectorAll<HTMLSelectElement>('.fiscal-item-sort select')].map(control => control.value)).toEqual(['identity', 'desc']);
+    expect(view.host.querySelector('.fiscal-kpis')!.textContent).toBe(cards); expect(view.host.querySelector('.fiscal-action-queue')!.textContent).toBe(queue);
+    pages.next(); act(() => view.host.querySelector<HTMLButtonElement>('.fiscal-items-export button')!.click());
+    const balances = data.data.itemBalances;
+    if (balances?.coverage !== 'AVAILABLE') throw new Error('Missing fixture');
+    const selected = balances.itens.filter(item => item.contractId === 2 && item.faixa === 'critico').reverse();
+    expect(content).toBe(fiscalItemsCsv(selected, data.meta.dataReference, balances.criterio));
+    expect(content.match(/"2026-10-08";/g)).toHaveLength(12);
+    view.select('Faixa', 'nao_verificavel');
+    expect(bands.button('nao_verificavel').getAttribute('aria-pressed')).toBe('true'); expect(bands.button('critico').getAttribute('aria-pressed')).toBe('false');
+    view.search('sem correspondencia'); expect(bands.counts()).toEqual([0, 0, 0, 0]);
+    expect(bands.button('nao_verificavel').disabled).toBe(false); bands.click('nao_verificavel');
+    expect(view.selected('Faixa')).toBe(''); expect(view.query()).toBe('sem correspondencia');
+    expect(data).toEqual(original);
+  } finally { vi.runAllTimers(); view.unmount(); downloadClick.mockRestore(); vi.useRealTimers(); vi.unstubAllGlobals(); }
+});
+it('keeps zero pre-band buttons on an empty portfolio distinct from unavailable source and reapplies the stored selection after refresh', () => {
+  const view = mount(structuredClone(bandFixture)); const bands = bandControls(view);
+  try {
+    bands.click('atencao'); view.update(structuredClone(bandFixture));
+    expect(bands.button('atencao').getAttribute('aria-pressed')).toBe('true'); expect(bands.counts()).toEqual([24, 24, 24, 24]);
+    const unavailable = structuredClone(bandFixture); unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+    view.update(unavailable);
+    expect(view.host.querySelectorAll('.fiscal-band-buttons button')).toHaveLength(0);
+    expect(view.host.querySelector('.fiscal-band-distribution')!.textContent).toContain('Indisponível');
+    view.update(structuredClone(bandFixture)); expect(bands.button('atencao').getAttribute('aria-pressed')).toBe('true');
+    const empty = structuredClone(bandFixture);
+    if (empty.data.itemBalances?.coverage === 'AVAILABLE') empty.data.itemBalances.itens = [];
+    view.update(empty); expect(bands.counts()).toEqual([0, 0, 0, 0]);
+    expect([...view.host.querySelectorAll<HTMLButtonElement>('.fiscal-band-buttons button')].every(button => button.disabled)).toBe(true);
+    expect(view.host.querySelector('.fiscal-band-distribution')!.textContent).toContain('Sem itens cadastrados na carteira.');
+    expect(view.host.textContent).toContain('Sem itens cadastrados');
+  } finally { view.unmount(); }
 });

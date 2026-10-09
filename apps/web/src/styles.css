@@ -192,3 +192,11 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-item-pagination button { background: var(--color-accent-soft); color: var(--color-accent); cursor: pointer; }
 .fiscal-dashboard .fiscal-item-pagination button:disabled { opacity: .5; cursor: default; }
 .fiscal-dashboard .fiscal-item-pagination button:focus-visible, .fiscal-dashboard .fiscal-item-pagination select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.fiscal-dashboard .fiscal-band-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.fiscal-dashboard .fiscal-band-buttons button { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 12px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-card); color: var(--text-primary); cursor: pointer; text-align: left; }
+.fiscal-dashboard .fiscal-band-buttons button[aria-pressed="true"] { border: 2px solid var(--color-accent); font-weight: 700; background: var(--color-accent-soft); }
+.fiscal-dashboard .fiscal-band-buttons button strong { font-size: .8rem; }
+.fiscal-dashboard .fiscal-band-buttons button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fiscal-dashboard .fiscal-band-buttons button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 600px) { .fiscal-dashboard .fiscal-band-buttons { grid-template-columns: 1fr; } }
