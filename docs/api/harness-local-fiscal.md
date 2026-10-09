@@ -121,3 +121,28 @@ node scripts/dev/fiscal-fixture-cleanup.mjs
 O cleanup remove somente registros identificados pela fixture. Ambos os comandos
 recusam `NODE_ENV=production`, exigem `ALLOW_LOCAL_DB_FIXTURES=true` e
 configuração `SAC_DB_*` válida.
+
+## Diagnóstico de indisponibilidade local
+
+Antes de associar HTTP 500 a uma alteração do frontend, confirme o status das
+chamadas no navegador e a disponibilidade do PostgreSQL configurado. Um banco
+parado gera falha de conexão (`ECONNREFUSED`) e o handler mantém o envelope
+público `INTERNAL_ERROR`, sem expor detalhes internos ou credenciais. Restabeleça
+somente a dependência local necessária, sem executar migrações ou fixtures no
+banco compartilhado, e recarregue a página.
+
+Confirme também que a porta do navegador serve este BI: a aplicação SAC local
+pode ocupar 5173. Para um preview separado, use o comando do workspace diretamente
+(o script da raiz não encaminha estes argumentos ao Vite corretamente):
+
+```bash
+npm run dev --workspace @sac-etice-bi/web -- --host 127.0.0.1 --port 5181 --strictPort
+```
+
+A investigação de 08/10/2026 encontrou PostgreSQL local parado e HTTP 500; após
+restabelecer o contêiner já existente, as APIs fiscal e gerente retornaram 200.
+O fiscal abriu com fila `[]`, itens disponíveis sem registros e saldo consolidado
+do contrato preservado. Nenhuma mudança no código de produção foi necessária.
+O teste de recuperação HTTP 500 → resposta válida cobre esse carregamento com
+fila/carteira de itens vazias e exportação desabilitada. A validação CSV continua
+isolada no roteiro descrito em `scripts/test/README.md`.

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { fixture as queueFixture } from '../../../../../scripts/test/fixtures/fiscal-queue-filters';
-import { countLabel, FiscalDashboardView, queueLabel } from './summary';
+import { countLabel, FiscalDashboard, FiscalDashboardView, queueLabel } from './summary';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -804,4 +804,40 @@ it('preserves queue filters across unavailable coverage with the same scope and 
     expect(controls.panel().querySelector<HTMLInputElement>('input')!.value).toBe('documento');
     expect(controls.panel().textContent).toContain('0 de 3 OS');
   } finally { view.unmount(); }
+});
+
+
+it('recovers from an API 500 to an empty queue and item portfolio without invoking CSV download', async () => {
+  const data = structuredClone(queueFixture);
+  data.data.priorityQueue = [];
+  data.data.cards.pendingServiceOrders = 0;
+  if (data.data.itemBalances?.coverage === 'AVAILABLE') {
+    data.data.itemBalances.itens = [];
+    data.data.itemBalances.resumo = { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 };
+    data.data.itemBalances.agregados = { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0,
+      itemCount: 0, completeValueRows: 0, contractedValueRows: 0, committedBalanceRows: 0, measuredBalanceRows: 0 };
+  }
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce({ ok: false, status: 500 })
+    .mockResolvedValueOnce({ ok: true, json: async () => data });
+  vi.stubGlobal('fetch', fetchMock);
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => { root.render(<FiscalDashboard />); });
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('HTTP 500');
+    expect(host.querySelector('.fiscal-action-queue')).toBeNull();
+    // Remount after the dependency is restored, as a browser reload would do.
+    await act(async () => { root.render(<FiscalDashboard key="restored" />); });
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(host.querySelector('.fiscal-action-queue')?.textContent).toContain('0 de 0 OS');
+    expect(host.querySelector('.fiscal-action-queue')?.textContent).toContain('Fila apurada sem ocorrências');
+    expect(host.textContent).toContain('Sem itens cadastrados');
+    expect([...host.querySelectorAll('button')].find(button => button.textContent === 'Exportar CSV')?.disabled).toBe(true);
+    expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
+      '/api/v1/fiscais/me/dashboard/resumo?includeExternal=false',
+      '/api/v1/fiscais/me/dashboard/resumo?includeExternal=false',
+    ]);
+  } finally { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
 });
