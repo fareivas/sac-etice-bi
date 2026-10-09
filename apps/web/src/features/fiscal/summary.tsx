@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { FiscalContractExpiry, FiscalExpiryReferenceNote } from './contract-expiry';
 import { FiscalItemBalanceDetails } from './item-balance-details';
+import { downloadFiscalQueueCsv } from './queue-csv';
 import { queueContractKey, useFiscalQueueFilters } from './use-fiscal-queue-filters';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 import { loadFiscalSummary } from '../../lib/api';
@@ -129,6 +130,12 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
                 <button type="button" onClick={queueFilters.clearFilters} disabled={!queueFilters.activeFilters}>Limpar filtros da fila</button>
               </div>
             </>}
+            <div className="fiscal-queue-export">
+              <button type="button" disabled={queue == null || !queueFilters.visible.length}
+                aria-describedby={`${queueFilterId}-export-note`}
+                onClick={() => downloadFiscalQueueCsv(queueFilters.visible, summary.meta.dataReference)}>Exportar CSV</button>
+              <p id={`${queueFilterId}-export-note`} className="source-note">Exporta somente o recorte visível. Cada linha representa uma pendência; uma OS pode ocupar várias linhas.</p>
+            </div>
             <div className="fiscal-table-wrap"><table><caption className="visually-hidden">OS da carteira com decisão fiscal pendente</caption><thead><tr>
               <th scope="col">OS</th><th scope="col">Severidade</th><th scope="col">Contrato / fornecedor</th><th scope="col">Motivo / descrição</th><th scope="col">Impacto</th><th scope="col">Prazo de decisão</th><th scope="col">Ação recomendada</th>
             </tr></thead><tbody>{queueFilters.visible.length ? queueFilters.visible.map(({ item, pendencies, hiddenCount }) => <tr key={item.serviceOrderId}>

@@ -517,7 +517,7 @@ it('explains portfolio eligibility and each missing queue field without personal
   for (const inferred of ['17.940', '01/10/2026', 'Empresa do contrato', 'Indisponível', 'P1'])
     expect(row.textContent).not.toContain(inferred);
   expect(panel.querySelectorAll('a')).toHaveLength(0);
-  expect(panel.querySelectorAll('button')).toHaveLength(1);
+  expect(panel.querySelectorAll('button')).toHaveLength(2);
   expect(panel.querySelector('button')?.disabled).toBe(true);
 });
 it('preserves supplied queue fields and source order without inventing a priority ranking', () => {
@@ -743,12 +743,14 @@ it('distinguishes empty queue, filters with no matches and unavailable source', 
   try {
     controls.search('sem-correspondencia');
     expect(controls.panel().textContent).toContain('0 de 4 OS');
+    expect([...controls.panel().querySelectorAll('button')].find(b => b.textContent === 'Exportar CSV')?.disabled).toBe(true);
     expect(controls.panel().textContent).toContain('Nenhuma OS encontrada com os filtros atuais.');
     expect(controls.panel().textContent).not.toContain('Fila apurada sem ocorrências');
     const empty = structuredClone(queueFixture);
     empty.data.priorityQueue = [];
     view.update(empty);
     expect(controls.panel().textContent).toContain('0 de 0 OS');
+    expect([...controls.panel().querySelectorAll('button')].find(b => b.textContent === 'Exportar CSV')?.disabled).toBe(true);
     expect(controls.panel().textContent).toContain('Fila apurada sem ocorrências');
     const unavailable = structuredClone(empty);
     unavailable.data.priorityQueue = null;
@@ -756,6 +758,7 @@ it('distinguishes empty queue, filters with no matches and unavailable source', 
     expect(controls.panel().textContent).toContain('Fila indisponível');
     expect(controls.panel().textContent).not.toContain('0 de 0 OS');
     expect(controls.panel().querySelector('.fiscal-queue-filters')).toBeNull();
+    expect([...controls.panel().querySelectorAll('button')].find(b => b.textContent === 'Exportar CSV')?.disabled).toBe(true);
   } finally { view.unmount(); }
 });
 it.each(['user', 'unit', 'contracts', 'reference'] as const)('resets queue filters on a change to %s', change => {

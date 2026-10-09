@@ -95,3 +95,12 @@ carteira ao limpar filtros, fonte indisponível, fila vazia e recorte sem result
 Roda em desktop e 390 px, gera capturas e `report.json` somente no diretório
 informado e não acessa o banco. Testes de unidade também cobrem unidade/data de
 referência, busca sem acentos, pendências nulas e opções de contrato removidas.
+
+O mesmo roteiro também valida **Exportar CSV** por teclado em desktop e 390 px:
+confere nome com a data de referência, bytes do BOM UTF-8, linha da pendência
+visível após filtros combinados, ausência das pendências ocultas e manutenção
+de filtros/contagem/card sem novas requisições. Verifica botão desabilitado nos
+três estados sem dados exportáveis. O download é lido no armazenamento
+temporário do Playwright, sem ser incorporado ao projeto. Os testes
+`queue-csv.test.ts` cobrem múltiplas pendências, campos ausentes, fallback,
+acentos, aspas, separadores, quebras de linha e proteção contra fórmulas.

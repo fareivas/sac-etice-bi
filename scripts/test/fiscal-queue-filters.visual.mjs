@@ -1,6 +1,6 @@
 // Local Vite + browser-only fixtures. Intercepts all API requests, never the shared database.
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
@@ -28,6 +28,7 @@ try {
     const contract = panel.getByLabel('Contrato da fila', { exact: true });
     const status = panel.getByLabel('Status da pendência', { exact: true });
     const search = panel.getByLabel('Busca na fila', { exact: true });
+    const exportCsv = panel.getByRole('button', { name: 'Exportar CSV', exact: true });
     const clear = panel.getByRole('button', { name: 'Limpar filtros da fila' });
     const count = panel.locator('.fiscal-queue-filter-meta [role="status"]');
     const waitCount = expected => page.waitForFunction(expected => document.querySelector('.fiscal-queue-filter-meta [role="status"]')?.textContent === expected, expected);
@@ -73,6 +74,23 @@ try {
     await panel.locator('tbody tr td').nth(2).scrollIntoViewIfNeeded();
     await panel.screenshot({ path: `${output}/${screen}-description-status.png` });
     assert.equal(await pendingCard.innerText(), '4');
+    await exportCsv.focus();
+    assert.equal(await exportCsv.evaluate(el => el === document.activeElement), true);
+    assert.notEqual(await exportCsv.evaluate(el => getComputedStyle(el).outlineStyle), 'none');
+    const downloadEvent = page.waitForEvent('download');
+    await page.keyboard.press('Enter');
+    const download = await downloadEvent;
+    assert.equal(download.suggestedFilename(), `fila-fiscal-${current.meta.dataReference}.csv`);
+    assert.equal(await download.failure(), null);
+    const downloaded = await readFile(await download.path());
+    assert.deepEqual([...downloaded.subarray(0, 3)], [239, 187, 191]);
+    const csv = downloaded.toString('utf8');
+    assert.equal(csv.split('\r\n').length, 3);
+    assert.ok(csv.includes('"12";"205";"13/2025";"Zeta";"202";"Documento em revisão";"em_tratamento"'));
+    assert.ok(!csv.includes('Documento ausente'));
+    assert.equal(await count.textContent(), '1 de 4 OS');
+    assert.equal(await search.inputValue(), 'DÓCUMENTO');
+    assert.equal(await pendingCard.innerText(), '4');
     assert.equal(apiRequests, initialRequests);
     const refresh = async () => {
       await page.getByLabel('Consultar fonte externa').click();
@@ -100,6 +118,7 @@ try {
     assert.equal(await search.inputValue(), '');
     await search.fill('sem correspondência'); await waitCount('0 de 2 OS');
     assert.ok((await panel.innerText()).includes('Nenhuma OS encontrada com os filtros atuais.'));
+    assert.equal(await exportCsv.isDisabled(), true);
     await panel.screenshot({ path: `${output}/${screen}-no-results.png` });
     await clear.click(); await waitCount('2 de 2 OS');
     assert.ok(!(await panel.innerText()).includes('OS ID 12'));
@@ -108,19 +127,21 @@ try {
     current.data.priorityQueue = []; current.data.cards.pendingServiceOrders = 0;
     await refresh(); await waitCount('0 de 0 OS');
     assert.ok((await panel.innerText()).includes('Fila apurada sem ocorrências'));
+    assert.equal(await exportCsv.isDisabled(), true);
     await panel.screenshot({ path: `${output}/${screen}-empty.png` });
     current.data.priorityQueue = null; current.data.cards.pendingServiceOrders = 2;
     await refresh();
     assert.ok((await panel.innerText()).includes('Fila indisponível'));
     assert.equal(await panel.locator('.fiscal-queue-filters').count(), 0);
     assert.equal(await count.count(), 0);
+    assert.equal(await exportCsv.isDisabled(), true);
     assert.equal(await pendingCard.innerText(), '2');
     await panel.screenshot({ path: `${output}/${screen}-unavailable.png` });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(errors, []);
     report.push({ screen, viewport: `${width}x${height}`, result: 'PASS', filtersViaKeyboard: true,
       hiddenPendencies: true, independentPanels: true, sourceScopeRespected: true, threeEmptyStates: true,
-      noBackendCalls: true });
+      csvDownloadViaKeyboard: true, csvBomAndFilteredContent: true, noBackendCalls: true });
     await page.close();
   }
 } finally { await browser.close(); }

@@ -742,3 +742,26 @@ Controles nativos têm rótulos, navegação por teclado e foco visível. O rote
 fixtures isoladas e valida múltiplas OS/pendências, filtro combinado, card e
 outros painéis intactos, reinício por usuário/escopo, estados vazios e tela de
 390 px. Nenhum dado do banco ou serviço/API oficial foi alterado.
+
+## Exportação local CSV da fila fiscal
+
+**Exportar CSV** usa somente OS e pendências visíveis após os filtros locais,
+sem consulta adicional, mudança de contrato HTTP ou indicadores globais. Cada
+linha representa uma pendência; a mesma OS pode ocupar várias linhas. As colunas
+são `meta.dataReference`, `serviceOrderId`, `contractId`, `contractNumber`,
+`supplierName`, `pendencyId`, `description` e `status` (valor recebido da API).
+Campos ausentes ficam vazios, exceto descrição sem conteúdo, que preserva o
+motivo geral “Decisão fiscal pendente no Processo 1”. O gerador preserva uma
+linha com esse motivo e ID/status de pendência vazios se receber uma OS sem
+detalhes; isso é defensivo, pois o contrato HTTP vigente exige ao menos uma
+pendência detalhada e continua inalterado.
+
+O download no navegador chama-se `fila-fiscal-AAAA-MM-DD.csv`, usando a referência
+da resposta. CSV UTF-8 com BOM, separador ponto e vírgula e linhas CRLF; células
+entre aspas, aspas internas duplicadas e quebras de linha preservadas. Textos
+iniciados por `=`, `+`, `-` ou `@`, inclusive após espaços/caracteres de controle,
+recebem apóstrofo inicial para evitar interpretação como fórmula em planilhas.
+A exportação fica desabilitada com fonte indisponível, fila vazia ou filtros
+sem resultados. Mantém o escopo autorizado, filtros e a distinção entre carteira
+e atribuição pessoal. Fixtures e downloads da validação ficam fora do fluxo
+normal da aplicação; nenhuma alteração no banco ou API oficial.
