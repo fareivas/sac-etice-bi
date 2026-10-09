@@ -615,3 +615,41 @@ O painel **Saldo consolidado por contrato** continua independente, com valores
 de `contratos.vw_saldo_contrato`; seu saldo não substitui os totais por item.
 A mudança é exclusiva da apresentação Fiscal; não altera o dashboard do gerente,
 o hook compartilhado, consultas, serviços, dados do banco ou regras de faixas.
+
+## Detalhes expansíveis dos itens no Fiscal
+
+Cada item do recorte local pode expandir seus dados já retornados pela API:
+`valueContracted`, `valueConsumed`, `valueMeasured`, `valueBalance` e
+`valueMeasuredBalance`; `quantityContracted`, `quantityConsumed`,
+`quantityMeasured`, `quantityBalance` e `quantityMeasuredBalance`; `unit` e
+`statusVerificacao`. Valores zero são exibidos numericamente; valores ausentes
+permanecem “Não informado”, sem substituir dados por saldo global ou estimativas.
+
+A explicação usa `faixa` e `criterio` da resposta, conforme
+`services/api/src/shared/item-balances.ts::classifyBalance/composeItemBalances`.
+Na dimensão `valor`, compara saldo/valor contratado; em `quantidade`, compara
+saldo/quantidade contratada. A base `comprometido` usa `valueBalance` ou
+`quantityBalance`; a base `medido` usa os saldos medidos já calculados pelo
+serviço. A classificação exige contratado positivo e saldo informado:
+
+- `critico`: razão ≤ `limiar_critico`.
+- `adequado`: razão ≥ `limiar_atencao`.
+- `atencao`: razão estritamente entre os dois limiares.
+- `nao_verificavel`: saldo ou contratado ausentes, ou contratado não positivo.
+
+A interface identifica os limiares como provisórios e usa os valores efetivamente
+retornados, sem fixar 10%/60%. Não reclassifica o item a partir de valores
+monetários/percentuais arredondados: o serviço decide com a razão decimal
+original. `pctSaldo` ou `pctSaldoMedido` são exibidos conforme a base selecionada.
+O status cadastral de verificação é mostrado separadamente e não determina a
+faixa. Quando a medição é ausente, explica a convenção existente do serviço:
+medição ausente é zero para calcular saldo medido quando há contratado; o campo
+original de medição permanece ausente.
+
+A expansão usa botão nativo, operável por teclado, com `aria-expanded`,
+`aria-controls`, nome identificando o item e região associada; o foco fica no
+botão ao expandir/recolher. Não realiza novas chamadas ou ações de negócio.
+Filtros, agregados, carteira autorizada e estados de ausência de itens, fonte
+indisponível e saldo real zero permanecem. A implementação e os estilos são
+restritos ao Fiscal; nenhuma alteração no dashboard do gerente, no hook
+compartilhado, contrato HTTP, backend ou banco. Não acrescenta recomendações.

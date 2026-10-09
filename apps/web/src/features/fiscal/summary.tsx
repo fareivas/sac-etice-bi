@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
+import { FiscalItemBalanceDetails } from './item-balance-details';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 import { loadFiscalSummary } from '../../lib/api';
 import { displayDate } from '../../lib/display-date';
@@ -170,7 +171,9 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
                 const format = quantity ? (value: number | null) => value === null ? 'Não calculável' : `${value} ${item.unit ?? ''}` : money;
                 return <tr key={item.itemId}><td>{item.faixa}{item.statusVerificacao && <> <small>Verificação: {item.statusVerificacao}</small></>}{item.blockedAt && <small> Bloqueado: {item.blockReason ?? 'motivo indisponível'}</small>}</td>
                   <td>{item.contractNumber ?? 'Contrato sem número'}<br />{item.supplierName ?? 'Fornecedor indisponível'}</td>
-                  <td>{item.sequence ?? '—'} · {item.specification ?? 'Sem especificação'}</td>
+                  <td>{item.sequence ?? '—'} · {item.specification ?? 'Sem especificação'}
+                    <FiscalItemBalanceDetails item={item} criteria={itemBalances.criterio} />
+                  </td>
                   <td>{format(total)}</td><td>{format(executed)}</td>
                   <td>{format(balance)}{balance !== null && balance < 0 && <strong> · Saldo negativo</strong>}</td>
                   <td>{percentage((itemBalances.criterio.base === 'medido' ? item.pctSaldoMedido : item.pctSaldo) === null ? null : (itemBalances.criterio.base === 'medido' ? item.pctSaldoMedido! : item.pctSaldo!) * 100)}</td>

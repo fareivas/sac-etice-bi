@@ -600,3 +600,34 @@ it('keeps real zero balances monetary and distinct from a filter with no results
     expect(section()).not.toContain('recorte sem resultados');
   } finally { view.unmount(); }
 });
+
+it('expands item details without changing filters, totals, portfolio balances or empty states', () => {
+  const data = withItems(sampleItems());
+  const original = structuredClone(data);
+  const view = mount(data);
+  try {
+    view.select('Fornecedor', 'Árvore');
+    const before = view.host.querySelector('.saldo-summary')!.textContent;
+    const balances = view.section('Saldo consolidado por contrato');
+    const expand = view.host.querySelector<HTMLButtonElement>('.fiscal-item-details button')!;
+    act(() => expand.click());
+    expect(expand.getAttribute('aria-expanded')).toBe('true');
+    expect(view.selected('Fornecedor')).toBe('Árvore');
+    expect(view.host.querySelector('.saldo-summary')!.textContent).toBe(before);
+    expect(view.section('Saldo consolidado por contrato')).toBe(balances);
+    expect(data).toEqual(original);
+    view.search('inexistente');
+    expect(view.host.querySelector('.fiscal-item-details')).toBeNull();
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('recorte sem resultados');
+    view.clear();
+    expect(view.host.querySelector('.fiscal-item-details button')?.getAttribute('aria-expanded')).toBe('false');
+    const unavailable = structuredClone(data);
+    unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+    view.update(unavailable);
+    expect(view.host.querySelector('.fiscal-item-details')).toBeNull();
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Fonte de saldos por item indisponível');
+    view.update(withItems([]));
+    expect(view.host.querySelector('.fiscal-item-details')).toBeNull();
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Sem itens cadastrados');
+  } finally { view.unmount(); }
+});

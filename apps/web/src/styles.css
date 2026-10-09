@@ -136,3 +136,13 @@ button, input, select { font: inherit; }
 .manager-fiscal-chart-wrap svg { color: var(--text-primary); font-size: 12px; }
 .manager-fiscal-chart-wrap .manager-fiscal-name { font-weight: 600; }
 @media (max-width: 700px) { .manager-kpis { grid-template-columns: 1fr; } }
+
+/* Item expansion belongs only to the Fiscal dashboard. */
+.fiscal-dashboard .fiscal-item-details { margin-top: 10px; }
+.fiscal-dashboard .fiscal-item-details > button { border: 1px solid var(--border-default); border-radius: 8px; background: var(--color-accent-soft); color: var(--color-accent); padding: 8px 12px; cursor: pointer; }
+.fiscal-dashboard .fiscal-item-details > button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fiscal-dashboard .fiscal-item-details > [role="region"] { min-width: 260px; padding: 12px; margin-top: 10px; background: var(--surface-subtle); border: 1px solid var(--border-soft); border-radius: 8px; overflow-wrap: anywhere; }
+.fiscal-dashboard .fiscal-item-details h3 { font-size: .8rem; margin: 12px 0 8px; }
+.fiscal-dashboard .fiscal-item-details dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; }
+.fiscal-dashboard .fiscal-item-details dt { color: var(--text-secondary); }
+.fiscal-dashboard .fiscal-item-details dd { margin: 0; font-weight: 600; }
