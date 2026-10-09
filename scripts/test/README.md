@@ -41,3 +41,28 @@ local. Gera capturas de cada faixa aberta, foco por teclado e viewport, além de
 Para outra porta, configure `FISCAL_PREVIEW_URL`. Os PNGs e respostas compiladas
 ficam apenas no diretório de saída temporário; não contêm dados reais nem
 credenciais. Encerre o Vite de teste ao concluir a revisão.
+
+## Vigência contratual relativa à referência
+
+Com o mesmo Vite, Playwright e Chromium acima, execute:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/fiscal-contract-expiry.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/expiry-fixtures.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+  node scripts/test/fiscal-contract-expiry.visual.mjs \
+  /tmp/sac-fiscal-visual/expiry-fixtures.cjs /tmp/sac-fiscal-visual/expiry-captures
+```
+
+As fixtures validam ontem/hoje/amanhã, virada de ano, ano bissexto e data ausente
+nos dois painéis, além de listas históricas indisponíveis. São respostas
+sintéticas válidas no contrato HTTP, nunca enviadas ao backend. Datas inválidas
+são testadas diretamente no componente/helper porque o schema HTTP já as rejeita.
+
+O navegador roda em desktop e 390 px, com fusos America/Los_Angeles e
+Pacific/Kiritimati, e relógio fixado em 2040. Compara datas e textos esperados
+em relação à referência da fixture (2026 ou 2024), conferindo a independência
+do relógio/fuso e a nota de que vigência não é prazo de decisão. Preserva a
+rolagem horizontal local das tabelas em telas estreitas e gera capturas dos
+dois painéis e `report.json` no diretório temporário de saída.

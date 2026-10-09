@@ -653,3 +653,44 @@ Filtros, agregados, carteira autorizada e estados de ausência de itens, fonte
 indisponível e saldo real zero permanecem. A implementação e os estilos são
 restritos ao Fiscal; nenhuma alteração no dashboard do gerente, no hook
 compartilhado, contrato HTTP, backend ou banco. Não acrescenta recomendações.
+
+## Apresentação relativa da vigência contratual no Fiscal
+
+As células de vencimento em **Alertas contratuais** e **Contratos fiscalizados**
+preservam `expiryDate` em formato `DD/MM/YYYY` e acrescentam a situação em
+relação a `summary.meta.dataReference`:
+
+- Data futura: “Vence em N dias”.
+- Mesma data: “Vence hoje”.
+- Data passada: “Vencido há N dias”.
+- Data ausente ou inválida: “Data de vigência indisponível”.
+
+Usa “dia” no singular para N = 1. A comparação valida rigorosamente os dois
+valores `YYYY-MM-DD` e calcula a diferença de dias de calendário. Usa uma
+representação UTC apenas para aritmética do calendário, sem converter a data
+para o fuso do navegador. Não consulta o relógio atual, `generatedAt`, data de
+criação da pendência ou fim de outro contrato; referência inválida também fica
+indisponível, sem fallback para hoje.
+
+Datas impossíveis (como 31 de fevereiro), formatos ambíguos ou timestamps não
+são tratados como vencimento válido. A validação HTTP vigente não foi alterada:
+respostas malformadas continuam sujeitas à rejeição pelo schema. A defesa na
+apresentação não normaliza automaticamente datas inválidas.
+
+A nota nos dois painéis identifica a data de referência e esclarece que essa
+contagem se refere à **vigência contratual**, não ao prazo de decisão fiscal.
+Não cria severidade, faixas de risco, alertas ou recomendações. Não remove nem
+acrescenta linhas segundo o vencimento: conserva o conjunto enviado pela API,
+a seleção de alertas DEC-034 e a carteira DEC-033. Assim, um contrato retornado
+com status vigente pode ter vencimento passado sem que a tela o reclassifique.
+
+Listas vazias continuam vazias; cobertura histórica insuficiente continua
+`null/UNAVAILABLE`, sem consultar ou apresentar a fotografia atual. Nenhuma
+alteração em consultas, serviço, contrato HTTP, autorização, fila fiscal,
+saldo ou dashboard do gerente. Estilos adicionais são restritos ao Fiscal.
+
+Validação: testes de ontem/hoje/amanhã, virada de mês e ano, bissextos (inclusive
+séculos), valores ausentes/inválidos e referência diferente do relógio atual.
+O roteiro `scripts/test/fiscal-contract-expiry.visual.mjs` usa o Vite existente,
+com respostas interceptadas apenas no navegador, em desktop e 390 px, com
+fusos opostos e relógio fixado em 2040. Não acessa nem modifica o banco.

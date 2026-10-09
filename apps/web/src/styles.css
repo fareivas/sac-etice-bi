@@ -146,3 +146,5 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-item-details dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; }
 .fiscal-dashboard .fiscal-item-details dt { color: var(--text-secondary); }
 .fiscal-dashboard .fiscal-item-details dd { margin: 0; font-weight: 600; }
+
+.fiscal-dashboard .fiscal-contract-expiry > small { display: block; margin-top: 4px; font-size: inherit; color: var(--text-secondary); line-height: 1.4; }

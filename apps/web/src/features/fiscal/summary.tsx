@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
+import { FiscalContractExpiry, FiscalExpiryReferenceNote } from './contract-expiry';
 import { FiscalItemBalanceDetails } from './item-balance-details';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 import { loadFiscalSummary } from '../../lib/api';
@@ -87,17 +88,19 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Descrição</th><th>Vencimento do contrato</th></tr></thead><tbody>
             {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts?.length ? summary.data.contractAlerts.map(alert => <tr key={alert.alertId}>
               <td>{alert.contractNumber ?? 'Indisponível'}</td><td>{alert.description ?? 'Indisponível'}</td>
-              <td>{displayDate(alert.expiryDate, summary.meta.timezone)}</td>
+              <td><FiscalContractExpiry expiryDate={alert.expiryDate} reference={summary.meta.dataReference} timezone={summary.meta.timezone} /></td>
             </tr>) : <tr><td colSpan={3} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
           </tbody></table></div>
+          <FiscalExpiryReferenceNote reference={summary.meta.dataReference} />
         </Panel>
         <Panel title="Contratos fiscalizados" subtitle="Contratos vigentes da carteira autorizada atual.">
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Valor atual</th><th>Fim da vigência</th></tr></thead><tbody>
             {summary.data.contracts?.length ? summary.data.contracts.map(contract => <tr key={contract.contractId}>
               <td>{contract.contractNumber ?? 'Indisponível'}</td><td>{contract.supplierName ?? 'Indisponível'}</td>
-              <td>{money(contract.value)}</td><td>{displayDate(contract.expiryDate, summary.meta.timezone)}</td>
+              <td>{money(contract.value)}</td><td><FiscalContractExpiry expiryDate={contract.expiryDate} reference={summary.meta.dataReference} timezone={summary.meta.timezone} /></td>
             </tr>) : <tr><td colSpan={4} className="table-empty">{summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente na carteira'}</td></tr>}
           </tbody></table></div>
+          <FiscalExpiryReferenceNote reference={summary.meta.dataReference} />
         </Panel>
         <div className="fiscal-grid-two">
           <Panel className="fiscal-action-queue" title="OS com decisão fiscal pendente na carteira" subtitle="OS cliente dos contratos autorizados, com pendência de decisão fiscal no Processo 1 aberta ou em tratamento.">

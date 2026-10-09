@@ -631,3 +631,44 @@ it('expands item details without changing filters, totals, portfolio balances or
     expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Sem itens cadastrados');
   } finally { view.unmount(); }
 });
+
+it('shows calendar-relative expiry in existing alert and contract rows without changing their inclusion or queue deadlines', () => {
+  const data = summary(4, [{ ...pendingOrder, dueAt: '2026-10-09T01:00:00Z' }]);
+  data.meta.dataReference = '2026-10-08';
+  const dates = ['2026-10-07', '2026-10-08', '2026-10-09', null];
+  data.data.contracts = dates.map((expiryDate, index) => ({ contractId: index + 1, contractNumber: `CT-${index + 1}`,
+    supplierName: 'Fornecedor', value: 100, expiryDate }));
+  data.data.contractAlerts = dates.map((expiryDate, index) => ({ alertId: index + 1, contractId: index + 1,
+    contractNumber: `CT-${index + 1}`, description: 'Pendência já retornada pela API', expiryDate, createdAt: null }));
+  const original = structuredClone(data);
+  const host = document.createElement('div');
+  host.innerHTML = render({ status: 'success', summary: data });
+  for (const title of ['Alertas contratuais', 'Contratos fiscalizados']) {
+    const panel = [...host.querySelectorAll('.fiscal-panel')].find(panel => panel.querySelector('h2')?.textContent === title)!;
+    expect(panel.querySelectorAll('tbody tr')).toHaveLength(4);
+    expect([...panel.querySelectorAll('.fiscal-contract-expiry small')].map(node => node.textContent)).toEqual([
+      'Vencido há 1 dia', 'Vence hoje', 'Vence em 1 dia', 'Data de vigência indisponível',
+    ]);
+    expect(panel.textContent).toContain('07/10/2026');
+    expect(panel.textContent).toContain('08/10/2026');
+    expect(panel.textContent).toContain('09/10/2026');
+    expect(panel.textContent).toContain('vigência contratual, não ao prazo de decisão fiscal');
+    expect(panel.textContent).toContain('referência 08/10/2026');
+  }
+  expect(host.querySelector('.fiscal-action-queue')?.textContent).not.toContain('Vence em');
+  expect(data).toEqual(original);
+});
+
+it('keeps unavailable historical contract and alert lists without manufacturing expiry rows', () => {
+  const data = summary(1, null);
+  data.meta.dataReference = '2024-02-28';
+  data.data.contracts = null;
+  data.data.contractAlerts = null;
+  data.meta.dataCoverage.contracts = 'UNAVAILABLE';
+  data.meta.dataCoverage.contractAlerts = 'UNAVAILABLE';
+  const host = document.createElement('div');
+  host.innerHTML = render({ status: 'success', summary: data });
+  expect(host.querySelectorAll('.fiscal-contract-expiry')).toHaveLength(0);
+  expect(host.textContent).not.toContain('Vence hoje');
+  expect(host.textContent).not.toContain('Vencido há');
+});
