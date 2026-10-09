@@ -60,6 +60,8 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
   ]) : null;
   const { items, suppliers, contracts, supplier, contract, band, search, setFilter, activeFilters,
     filteredItems, distribution, aggregates, allItemsSelected, clearFilters } = useItemBalanceFilters(itemBalances, context);
+  const noRegisteredItems = itemBalances?.coverage === 'AVAILABLE' && items.length === 0;
+  const itemTotalLabel = (value: number | null) => noRegisteredItems ? 'Sem itens cadastrados' : money(value);
 
   return <main className="fiscal-dashboard">
     <header className="fiscal-header"><div className="fiscal-header-inner">
@@ -139,10 +141,13 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
               <label>Busca textual<input type="search" placeholder="Buscar item, contrato ou fornecedor..." value={search} onChange={event => setFilter({ search: event.target.value })} /></label>
             </div>
             <div className="saldo-filter-meta"><span role="status">{filteredItems.length} de {items.length} itens encontrados</span><button type="button" onClick={clearFilters} disabled={!activeFilters}>Limpar todos os filtros</button></div>
+            {noRegisteredItems
+              ? <p className="source-note" role="status">Não há dados de itens cadastrados na carteira para avaliar o saldo. O saldo consolidado por contrato é apresentado separadamente.</p>
+              : filteredItems.length === 0 && <p className="source-note" role="status">Os totais dos itens representam um recorte sem resultados. Ajuste ou limpe os filtros para avaliar os itens cadastrados na carteira.</p>}
             <div className="saldo-summary">
-              <div><span>Total contratado dos itens</span><strong>{money(aggregates.totalContratado)}</strong></div>
-              <div><span>Saldo comprometido dos itens</span><strong>{money(aggregates.saldoComprometido)}</strong></div>
-              <div><span>Saldo medido dos itens</span><strong>{money(aggregates.saldoMedido)}</strong></div>
+              <div><span>Total contratado dos itens</span><strong>{itemTotalLabel(aggregates.totalContratado)}</strong></div>
+              <div><span>Saldo comprometido dos itens</span><strong>{itemTotalLabel(aggregates.saldoComprometido)}</strong></div>
+              <div><span>Saldo medido dos itens</span><strong>{itemTotalLabel(aggregates.saldoMedido)}</strong></div>
               <div><span>Itens críticos</span><strong>{distribution.critico}</strong></div>
               <div><span>Não verificáveis</span><strong>{distribution.nao_verificavel}</strong></div>
             </div>

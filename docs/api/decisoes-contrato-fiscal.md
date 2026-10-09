@@ -586,3 +586,32 @@ A proposta de orientação geral permanece pendente. Nenhuma prioridade, prazo,
 impacto ou recomendação foi acrescentada. Alterações apenas no protótipo BI,
 seus contratos de resposta, testes e documentação; sem escrita no banco nem
 chamadas a APIs oficiais de decisão.
+
+## Apresentação dos saldos dos itens — ausência, filtros e zero real
+
+A apresentação Fiscal distingue quatro estados sem alterar o contrato HTTP,
+os cálculos da API ou o hook compartilhado `useItemBalanceFilters`:
+
+- Fonte disponível e `itens: []`: os três totais financeiros mostram **Sem itens
+  cadastrados**, com explicação de que não há dados de itens da carteira para
+  avaliar o saldo. Contagens continuam zero; a API conserva seus agregados.
+- Fonte disponível, carteira com itens e filtro local sem resultados: mantém
+  os totais do recorte vazio calculados pelo hook e explica que representam um
+  recorte sem resultados, orientando ajustar/limpar filtros. Não rotula a carteira
+  como sem itens cadastrados.
+- Fonte indisponível: mantém a mensagem própria e esconde totais e controles.
+  Não representa indisponibilidade como carteira vazia ou saldo zero.
+- Itens existentes com valores calculáveis iguais a zero: mostra **R$ 0,00**,
+  sem mensagem de ausência de itens. Nulos, cobertura incompleta e limites de
+  precisão mantêm o comportamento anterior.
+
+A identificação de carteira vazia usa a lista completa recebida no recorte
+API autorizado, antes dos filtros locais. Filtros válidos são preservados entre
+atualizações; fornecedor/contrato inválidos são limpos, enquanto faixa/busca
+podem permanecer. Fonte indisponível não apaga seleções válidas; mudança de
+fiscal ou do escopo explícito reinicia os filtros, conforme comportamento atual.
+
+O painel **Saldo consolidado por contrato** continua independente, com valores
+de `contratos.vw_saldo_contrato`; seu saldo não substitui os totais por item.
+A mudança é exclusiva da apresentação Fiscal; não altera o dashboard do gerente,
+o hook compartilhado, consultas, serviços, dados do banco ou regras de faixas.

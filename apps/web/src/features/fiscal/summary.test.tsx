@@ -139,13 +139,27 @@ it('distinguishes a valid empty item portfolio from an unavailable source', () =
     resumo: { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 },
     agregados: { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0, itemCount: 0, completeValueRows: 0,
       contractedValueRows: 0, committedBalanceRows: 0, measuredBalanceRows: 0 }, itens: [] };
+  data.data.contractBalances = [{ contractId: 2, contractNumber: '13/2025',
+    contractedValue: 300000, consumedValue: 0, balanceValue: 300000, balancePct: 100 }];
+  const original = structuredClone(data);
   const empty = render({ status: 'success', summary: data });
   expect(empty).toContain('Nenhum item contratual cadastrado na carteira.');
+  const host = document.createElement('div');
+  host.innerHTML = empty;
+  const financialTotals = [...host.querySelectorAll('.saldo-summary strong')].slice(0, 3);
+  expect(financialTotals.map(node => node.textContent)).toEqual(Array(3).fill('Sem itens cadastrados'));
+  expect(host.querySelector('.fiscal-saldos')?.textContent).toContain('Não há dados de itens cadastrados na carteira para avaliar o saldo');
+  expect(host.querySelector('.fiscal-saldos')?.textContent).not.toContain('R$');
+  const consolidated = [...host.querySelectorAll('.fiscal-panel')].find(panel => panel.querySelector('h2')?.textContent === 'Saldo consolidado por contrato');
+  expect(consolidated?.textContent).toContain('13/2025');
+  expect(consolidated?.textContent).toContain('300.000,00');
+  expect(data).toEqual(original);
   expect(empty).toContain('60%');
   data.data.itemBalances = { coverage: 'UNAVAILABLE' };
   const unavailable = render({ status: 'success', summary: data });
   expect(unavailable).toContain('Fonte de saldos por item indisponível');
   expect(unavailable).not.toContain('Nenhum item contratual cadastrado na carteira.');
+  expect(unavailable).not.toContain('Sem itens cadastrados');
 });
 
 it('shows item critical count separately from the legacy criticalItems card', () => {
@@ -306,6 +320,8 @@ describe('filtros interativos dos saldos', () => {
       view.select('Faixa', 'adequado');
       expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item encontrado com os filtros atuais.');
       expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('R$ 0,00');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Os totais dos itens representam um recorte sem resultados');
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).not.toContain('Sem itens cadastrados');
       const unavailable = withItems([]);
       unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
       view.update(unavailable);
@@ -313,6 +329,8 @@ describe('filtros interativos dos saldos', () => {
       expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Fonte de saldos por item indisponível');
       view.update(withItems([]));
       expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item contratual cadastrado na carteira.');
+      expect([...view.host.querySelectorAll('.saldo-summary strong')].slice(0, 3).map(node => node.textContent)).toEqual(Array(3).fill('Sem itens cadastrados'));
+      expect(view.section('Gestão dos Saldos dos Itens Contratuais')).not.toContain('recorte sem resultados');
       expect(view.host.querySelector<HTMLSelectElement>('.saldo-filters select')!.value).toBe('');
     } finally { view.unmount(); }
   });
@@ -554,4 +572,31 @@ it('renders all P1 pendency descriptions within one row per OS and falls back on
   expect(rows[1].textContent).not.toContain('Documento divergente');
   expect(rows[1].querySelector('th')?.textContent).toBe('OS ID 12');
   expect(rows[1].textContent).toContain('Motivo da segunda OS');
+});
+
+it('keeps real zero balances monetary and distinct from a filter with no results', () => {
+  const data = withItems([item(1, 2, 'Fornecedor', 'critico', {
+    contractNumber: '13/2025', valueContracted: 100, valueConsumed: 100, valueMeasured: 100,
+    valueBalance: 0, valueMeasuredBalance: 0, pctSaldo: 0, pctSaldoMedido: 0,
+  })]);
+  if (data.data.itemBalances?.coverage !== 'AVAILABLE') throw new Error('Expected available items');
+  data.data.itemBalances.agregados = { ...data.data.itemBalances.agregados,
+    totalContratado: 100, saldoComprometido: 0, saldoMedido: 0 };
+  const view = mount(data);
+  try {
+    const totals = () => [...view.host.querySelectorAll('.saldo-summary strong')].slice(0, 3).map(node => node.textContent);
+    expect(totals()).toEqual(['R$ 100,00', 'R$ 0,00', 'R$ 0,00']);
+    const section = () => view.section('Gestão dos Saldos dos Itens Contratuais');
+    expect(section()).toContain('1 de 1 itens encontrados');
+    expect(section()).not.toContain('Sem itens cadastrados');
+    expect(section()).not.toContain('recorte sem resultados');
+    view.search('item inexistente');
+    expect(section()).toContain('0 de 1 itens encontrados');
+    expect(section()).toContain('recorte sem resultados');
+    expect(section()).not.toContain('Sem itens cadastrados');
+    expect(totals()).toEqual(Array(3).fill('R$ 0,00'));
+    view.clear();
+    expect(totals()).toEqual(['R$ 100,00', 'R$ 0,00', 'R$ 0,00']);
+    expect(section()).not.toContain('recorte sem resultados');
+  } finally { view.unmount(); }
 });
