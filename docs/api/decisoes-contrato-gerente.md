@@ -282,3 +282,85 @@ seguintes valores quando é `UNAVAILABLE`:
 O frontend explica os três motivos. Não muda a precedência das faixas nem usa
 saldo global como substituto. Não há alteração de consultas ou dados do banco;
 falhas SQL continuam erros HTTP, conforme GC-027.
+
+## GC-032 — Alinhamento visual e operacional do dashboard gerencial
+
+**Escopo:** apresentação no frontend, sem mudança de contrato HTTP, consulta, cálculo
+ou regra GC-027 a GC-031. Referência visual:
+`docs/reference/prototypes/ETICE_Dashboard_Gerente_Contratos_Autocontido_v4_ABC.html`.
+Os dados numéricos do protótipo são demonstrativos e não são usados no SAC BI.
+
+A tela organiza escopo autorizado, seis indicadores executivos, matriz de risco e
+fiscais, intervenções, forecast/exposição/qualidade, ciclo financeiro,
+fornecedores e detalhamentos. Os seis cards mostram contratos ativos, contratos
+com ao menos uma dimensão crítica na matriz, valor atual da carteira ativa,
+vencimentos nos próximos 120 dias, quantidade de alertas contratuais e SLA
+abaixo da meta. A contagem de contratos com dimensão crítica é apenas uma
+contagem factual das células recebidas, nunca índice geral, score ou ranking.
+O card de vencimentos não afirma renovação atrasada. SLA depende do Projeto de
+KPIs e aparece como **Indisponível**. Qualquer cobertura ausente permanece
+indisponível, inclusive em fotografia histórica.
+
+O heatmap mantém as seis dimensões e os status de GC-031. A pesquisa local por
+contrato ou fornecedor combina com dimensão e classificação. Os contadores
+representam células da matriz no recorte visível; as linhas são ordenadas pela
+maior criticidade presente, com desempate por número/ID do contrato. A ordem
+é somente visual e não produz pontuação. Motivos de indisponibilidade do Saldo
+e cobertura parcial continuam textuais. Os controles não alteram a resposta da
+API nem os filtros dos itens contratuais.
+
+Intervenções exibem alertas efetivos e observações das células críticas de
+Saldo ou Vigência. A recomendação é avaliar o contrato e o encaminhamento
+cabível; não há prioridade P1/P2, impacto, responsável ou prazo calculado.
+Contratos e OS dos fiscais continuam associados por designação na carteira;
+OS não representam necessariamente atribuição individual e não se somam
+entre fiscais. Capacidade e sobrecarga não são calculadas.
+
+Forecast de 180 dias, exposição financeira e volumes/tempos do ciclo financeiro
+são painéis de indisponibilidade até existir fonte e regra aprovada. Saldo
+contratual não é exposição financeira. Os dois indicadores preventivos mantêm
+seus anéis e detalhamentos próprios. O painel de fornecedores preserva o valor
+vigente e exibe ABC indisponível: a classe exige pagamentos efetivos acumulados
+em 12 meses e regra aprovada. A apresentação não reutiliza o valor vigente
+como base ABC.
+
+Os filtros e tabelas de saldos, itens, contratos e renovações permanecem
+independentes dos controles locais da matriz. Estilos visuais são limitados a
+`.manager-dashboard`, inclusive pontos de quebra para desktop, tablet e telas
+de 390 px. Estados vazios/indisponíveis, rótulos e foco visível são textuais.
+
+## GC-033 — Refinamento visual da primeira tela gerencial
+
+**Escopo:** frontend, estilos, testes e documentação. A referência visual segue
+`docs/reference/prototypes/ETICE_Dashboard_Gerente_Contratos_Autocontido_v4_ABC.html`.
+Os campos, cálculos, coberturas, filtros e regras GC-027 a GC-032 permanecem os
+mesmos. Dados simulados e métricas conceituais do protótipo não entram na tela.
+
+O cabeçalho, escopo, seis cards, controles e painéis iniciais usam menor altura,
+padding e espaçamento. Em largura suficiente, a matriz mostra as seis dimensões
+lado a lado; em telas estreitas, sua tabela rola horizontalmente dentro do
+painel. A célula exibe somente **Crítico**, **Atenção**, **OK** ou
+**Indisponível**. Contrato, fornecedor, dimensão, classificação, motivo de
+indisponibilidade e cobertura parcial aparecem no painel aberto ao selecionar
+a célula. Isso mantém íntegra a explicação do Saldo prevista em GC-031.
+
+Cada célula é um botão com rótulo acessível, foco visível e estado de seleção.
+A seleção funciona por mouse e teclado; Esc ou o botão de fechamento ocultam o
+painel. O fechamento por botão devolve o foco à célula. Os filtros combináveis,
+contadores e ordenação da GC-032 continuam locais à matriz; os contadores
+aparecem como indicadores compactos. A explicação longa das contagens dos
+fiscais permanece disponível em um bloco expansível, reduzindo a altura do
+painel quando a carteira não tem fiscais designados.
+
+Foram definidos ajustes responsivos para 1440 px, 768 px e 390 px. A rolagem
+horizontal fica no conteúdo da matriz quando as sete colunas não cabem; as
+informações da célula continuam acessíveis por seleção, sem depender de hover.
+
+### GC-033 — Correções finais de layout e formatação
+
+A coluna Contrato da matriz tem largura fixa no layout da tabela e quebra
+nomes longos de fornecedores dentro da própria célula. Em 390 px, a rolagem
+horizontal pertence apenas à tabela da matriz; as seis dimensões continuam
+acessíveis. O painel selecionável mantém o nome integral do fornecedor.
+`cards.activePortfolioValue` é exibido em BRL com duas casas decimais, mantendo
+`null` como **Indisponível** e zero disponível como `R$ 0,00`.

@@ -200,3 +200,118 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-band-buttons button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .fiscal-dashboard .fiscal-band-buttons button:disabled { opacity: .5; cursor: default; }
 @media (max-width: 600px) { .fiscal-dashboard .fiscal-band-buttons { grid-template-columns: 1fr; } }
+
+/* GC-032: visual language scoped to the manager dashboard. */
+.manager-dashboard { --color-accent: #0f766e; --color-accent-soft: #e9f5f3; --text-primary: #162033; --text-secondary: #475569; --text-muted: #526479; --border-default: #dbe3ef; --border-soft: #e7edf4; --surface-page: #f4f7fb; --surface-subtle: #f8fafc; --surface-table-head: #f8fafc; --shadow-card: 0 8px 24px #0f172a14; background: var(--surface-page); }
+.manager-dashboard .manager-header { background: linear-gradient(120deg,#0f172a,#164e63); box-shadow: 0 4px 14px #00000026; }
+.manager-dashboard .fiscal-header-inner, .manager-dashboard .fiscal-page { max-width: 1500px; }
+.manager-dashboard .fiscal-header h1 { font-size: clamp(1.4rem, 2.5vw, 1.9rem); }
+.manager-dashboard .fiscal-filters, .manager-dashboard .fiscal-panel, .manager-dashboard .fiscal-kpi { border-radius: 14px; }
+.manager-dashboard .fiscal-filters { border-color: transparent; }
+.manager-dashboard .manager-kpis { grid-template-columns: repeat(6,minmax(0,1fr)); gap: 12px; }
+.manager-dashboard .manager-kpis .fiscal-kpi { border-top: 4px solid #164e63; min-height: 145px; }
+.manager-dashboard .manager-kpis .fiscal-kpi:nth-child(2), .manager-dashboard .manager-kpis .fiscal-kpi:nth-child(5) { border-top-color: #b45309; }
+.manager-dashboard .manager-kpis .fiscal-kpi:nth-child(6) { border-top-color: #64748b; }
+.manager-dashboard .manager-kpis .fiscal-kpi strong { font-size: clamp(1.12rem,1.7vw,1.6rem); overflow-wrap: anywhere; }
+.manager-dashboard .manager-kpis .fiscal-kpi strong.unavailable-value { font-size: 1rem; }
+.manager-dashboard .panel-heading h2 { font-size: 1.06rem; color: #164e63; }
+.manager-dashboard .fiscal-panel { box-shadow: var(--shadow-card); }
+.manager-dashboard .manager-risk-panel { border-top: 3px solid #0f766e; }
+.manager-dashboard .manager-risk-table { border-collapse: separate; border-spacing: 4px; }
+.manager-dashboard .manager-risk-table th, .manager-dashboard .manager-risk-table td { border: 1px solid var(--border-default); border-radius: 8px; }
+.manager-dashboard .manager-risk-table td:has(.manager-risk-critical) { background: #fff1f1; }
+.manager-dashboard .manager-risk-table td:has(.manager-risk-attention) { background: #fff8e8; }
+.manager-dashboard .manager-risk-table td:has(.manager-risk-ok) { background: #edf9f0; }
+.manager-dashboard .manager-risk-table td:has(.manager-risk-unavailable) { background: #f5f7fa; }
+.manager-matrix-controls { display: grid; grid-template-columns: 2fr repeat(2,minmax(0,1fr)); gap: 12px; margin: 0 0 10px; }
+.manager-matrix-controls label { display: grid; gap: 5px; font-size: .8rem; font-weight: 700; color: var(--text-secondary); }
+.manager-matrix-controls input, .manager-matrix-controls select { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border-default); border-radius: 9px; background: white; color: var(--text-primary); }
+.manager-matrix-controls :is(input,select):focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
+.manager-matrix-counts { color: var(--text-secondary); font-size: .78rem; line-height: 1.5; }
+.manager-insight-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-bottom: 16px; }
+.manager-insight-grid > .fiscal-panel { margin: 0; }
+.manager-unavailable { display: grid; gap: 8px; align-content: center; min-height: 190px; padding: 18px; border-left: 5px solid #b45309; background: #fffaf0; border-radius: 10px; color: #624515; }
+.manager-unavailable strong { font-size: 1.1rem; }
+.manager-unavailable span { font-size: .84rem; line-height: 1.5; }
+.manager-insight-grid .manager-quality-visual { padding: 10px; gap: 6px; margin: 0; background: #eaf6f3; }
+.manager-insight-grid .manager-quality-ring { width: min(46%,145px); }
+.manager-cycle-flow { display: grid; grid-template-columns: repeat(7,minmax(130px,1fr)); gap: 8px; overflow-x: auto; }
+.manager-cycle-flow > div { display: grid; align-content: space-between; gap: 18px; min-height: 95px; padding: 11px; background: #f8fafc; border: 1px solid var(--border-default); border-radius: 10px; }
+.manager-cycle-flow span { color: var(--text-secondary); font-size: .78rem; font-weight: 700; }
+.manager-cycle-flow strong { font-size: .79rem; color: var(--text-muted); }
+.manager-dashboard :is(a,button,input,select):focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
+@media (max-width: 1200px) { .manager-dashboard .manager-kpis { grid-template-columns: repeat(3,minmax(0,1fr)); } .manager-insight-grid { grid-template-columns: 1fr; } .manager-cycle-flow { grid-template-columns: repeat(4,minmax(130px,1fr)); } }
+@media (max-width: 700px) { .manager-dashboard .manager-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } .manager-matrix-controls { grid-template-columns: 1fr; } .manager-cycle-flow { display: flex; } .manager-cycle-flow > div { min-width: 145px; } }
+@media (max-width: 420px) { .manager-dashboard .manager-kpis { grid-template-columns: 1fr; } .manager-dashboard .fiscal-page { padding-left: 12px; padding-right: 12px; } .manager-dashboard .manager-quality-ring { width: min(45%,140px); } }
+.manager-primary-grid { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap: 14px; margin-bottom: 16px; align-items: start; }
+.manager-primary-grid > .fiscal-panel { margin: 0; }
+.manager-risk-observations { padding: 12px 14px; margin-bottom: 16px; border-left: 4px solid #b91c1c; border-radius: 9px; background: #fff7f7; }
+.manager-risk-observations h3 { margin: 0 0 8px; font-size: .9rem; }
+.manager-risk-observations ul { margin: 0; padding-left: 20px; line-height: 1.55; font-size: .82rem; }
+.manager-risk-observations li + li { margin-top: 6px; }
+.manager-risk-observations span { color: var(--text-secondary); }
+@media (max-width: 1100px) { .manager-primary-grid { grid-template-columns: 1fr; } }
+.manager-suppliers { border-top: 3px solid #164e63; }
+.manager-abc-note { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 12px; margin-bottom: 14px; padding: 12px 14px; border: 1px dashed #9ab9c1; border-radius: 10px; background: #eef4f8; color: #164e63; font-size: .83rem; }
+.manager-abc-note span { color: var(--text-secondary); }
+
+/* GC-033: compact first viewport, with details available by keyboard and pointer. */
+.manager-dashboard .manager-header { padding: 17px 0; }
+.manager-dashboard .fiscal-header h1 { margin: 3px 0 2px; font-size: clamp(1.25rem, 2vw, 1.45rem); line-height: 1.2; }
+.manager-dashboard .fiscal-header p { font-size: .82rem; }
+.manager-dashboard .fiscal-brand { font-size: .72rem; }
+.manager-dashboard .header-meta { gap: 4px; font-size: .77rem; }
+.manager-dashboard .header-chip { padding: 5px 10px; }
+.manager-dashboard .fiscal-page { padding-top: 14px; }
+.manager-dashboard .fiscal-filters { padding: 10px 14px; margin-bottom: 11px; }
+.manager-dashboard .filter-values > span { padding: 6px 9px; }
+.manager-dashboard .manager-kpis { gap: 9px; margin-bottom: 11px; }
+.manager-dashboard .manager-kpis .fiscal-kpi { min-height: 0; padding: 11px 12px 10px; border-top-width: 3px; }
+.manager-dashboard .manager-kpis .fiscal-kpi > span { line-height: 1.25; }
+.manager-dashboard .manager-kpis .fiscal-kpi strong { margin: 5px 0 3px; line-height: 1.15; }
+.manager-dashboard .manager-kpis .fiscal-kpi small { line-height: 1.25; }
+.manager-dashboard .manager-primary-grid { gap: 10px; margin-bottom: 11px; }
+.manager-dashboard .manager-primary-grid > .fiscal-panel { padding: 13px; }
+.manager-dashboard .panel-heading h2 { margin-bottom: 3px; font-size: 1rem; line-height: 1.3; }
+.manager-dashboard .panel-heading p { margin-bottom: 9px; line-height: 1.35; }
+.manager-dashboard .manager-matrix-controls { gap: 7px; margin-bottom: 8px; }
+.manager-dashboard .manager-matrix-controls label { gap: 3px; font-size: .73rem; }
+.manager-dashboard .manager-matrix-controls :is(input, select) { padding: 6px 8px; font-size: .78rem; }
+.manager-dashboard .manager-matrix-counts { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-bottom: 8px; font-size: .7rem; }
+.manager-dashboard .manager-matrix-counts > span { padding: 3px 7px; border-radius: 999px; border: 1px solid var(--border-default); background: #f8fafc; white-space: nowrap; }
+.manager-dashboard .manager-matrix-counts .manager-count-critical { color: #8b292f; background: #fae9e9; border-color: #f3cece; }
+.manager-dashboard .manager-matrix-counts .manager-count-attention { color: #765515; background: #fff3d6; border-color: #ead8a8; }
+.manager-dashboard .manager-matrix-counts .manager-count-ok { color: #126449; background: #e0f2e9; border-color: #b9dfca; }
+.manager-dashboard .manager-matrix-counts small { flex-basis: 100%; color: var(--text-secondary); line-height: 1.25; }
+.manager-dashboard .manager-risk-table { width: 100%; min-width: 690px; table-layout: fixed; border-spacing: 3px; font-size: .72rem; }
+.manager-dashboard .manager-risk-table th, .manager-dashboard .manager-risk-table td { padding: 0; border: 0; background: transparent; }
+.manager-dashboard .manager-risk-table thead th { padding: 7px 4px; border: 1px solid var(--border-default); border-radius: 6px; text-align: center; }
+.manager-dashboard .manager-risk-table thead th:first-child { width: 150px; }
+.manager-dashboard .manager-risk-table th[scope="row"] { padding: 6px 7px; border: 1px solid var(--border-default); border-radius: 6px; background: #f8fafc; font-size: .72rem; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.manager-dashboard .manager-risk-table th[scope="row"] small { display: block; max-width: 100%; margin-top: 2px; font-size: .67rem; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.manager-dashboard .manager-risk-table td:has(.manager-risk-cell) { background: transparent; }
+.manager-risk-cell { display: block; width: 100%; min-height: 39px; padding: 5px 3px; border: 1px solid transparent; border-radius: 6px; font-size: .68rem; font-weight: 700; line-height: 1.2; text-align: center; cursor: pointer; }
+.manager-risk-cell.manager-risk-critical { color: #8b292f; background: #fae9e9; border-color: #f3cece; }
+.manager-risk-cell.manager-risk-attention { color: #765515; background: #fff3d6; border-color: #ead8a8; }
+.manager-risk-cell.manager-risk-ok { color: #126449; background: #e0f2e9; border-color: #b9dfca; }
+.manager-risk-cell.manager-risk-unavailable { color: #43546a; background: #edf1f5; border-color: #d5dee8; }
+.manager-risk-cell.is-selected { box-shadow: inset 0 0 0 2px #164e63; }
+.manager-dashboard .manager-risk-cell:focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
+.manager-risk-detail:not(:empty) { margin-top: 10px; padding: 12px; border: 1px solid #9ab9c1; border-radius: 9px; background: #f4faf9; }
+.manager-risk-detail-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.manager-risk-detail h3 { margin: 0; font-size: .88rem; }
+.manager-risk-detail-head button { padding: 6px 9px; border: 1px solid #0f766e; border-radius: 7px; background: #fff; color: #0b5c55; cursor: pointer; font-size: .76rem; font-weight: 700; }
+.manager-risk-detail dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px 12px; margin: 0; }
+.manager-risk-detail dl > div { min-width: 0; }
+.manager-risk-detail dt { color: var(--text-secondary); font-size: .7rem; }
+.manager-risk-detail dd { margin: 2px 0 0; font-size: .78rem; font-weight: 700; overflow-wrap: anywhere; }
+.manager-fiscal-explanation { margin-bottom: 9px; color: var(--text-secondary); font-size: .76rem; line-height: 1.4; }
+.manager-fiscal-explanation summary { color: #164e63; cursor: pointer; font-weight: 700; }
+.manager-fiscal-explanation p { margin: 7px 0 0; }
+.manager-fiscals-panel > p[role="status"], .manager-fiscals-panel > p[role="alert"] { margin: 6px 0 0; padding: 9px 11px; border-radius: 7px; background: #f8fafc; color: var(--text-secondary); font-size: .8rem; }
+.manager-dashboard .manager-fiscal-chart-wrap { margin: 6px 0 10px; }
+@media (max-width: 700px) { .manager-dashboard .manager-header { padding: 14px 0; } .manager-dashboard .manager-matrix-controls { grid-template-columns: 1fr; } .manager-risk-detail dl { grid-template-columns: 1fr; } }
+@media (max-width: 420px) { .manager-dashboard .manager-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); } .manager-dashboard .manager-kpis .fiscal-kpi { padding: 9px; } .manager-dashboard .manager-kpis .fiscal-kpi strong { font-size: 1.08rem; } }
+.manager-dashboard { max-width: 100%; overflow-x: clip; }
+.manager-dashboard .manager-primary-grid, .manager-dashboard .manager-risk-panel { min-width: 0; max-width: 100%; }
+.manager-dashboard .manager-risk-scroll { display: block; width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }

@@ -51,11 +51,11 @@ it('renders the contract risk matrix with distinct states and partial balance co
   expect([...panel.querySelectorAll('tbody tr')]).toHaveLength(2);
   expect(panel.textContent).toContain('CT-7');
   expect(panel.textContent).toContain('Fornecedor X');
-  expect(panel.textContent).toContain('Cobertura parcial: há itens não verificáveis');
+  expect(panel.querySelector('.manager-risk-table tbody td')?.textContent).toBe('Crítico');
   expect(panel.textContent).toContain('Contrato ID 8');
   for (const label of ['Crítico', 'Atenção', 'OK', 'Indisponível']) expect(panel.textContent).toContain(label);
-  expect(panel.querySelectorAll('button, a')).toHaveLength(0);
-  expect(host.innerHTML.indexOf('Matriz Contrato × Dimensão de Risco')).toBeLessThan(host.innerHTML.indexOf('Alertas contratuais'));
+  expect(panel.querySelectorAll('.manager-risk-cell')).toHaveLength(12);
+  expect(host.innerHTML.indexOf('Matriz Contrato × Dimensão de Risco')).toBeLessThan(host.innerHTML.indexOf('Intervenções gerenciais'));
   const unavailable = structuredClone(base);
   unavailable.meta.dataCoverage.contractRiskMatrix = 'UNAVAILABLE';
   unavailable.data.contractRiskMatrix = null;
@@ -71,12 +71,20 @@ it.each([
   summary.data.contractRiskMatrix = [{ contractId: 29, contractNumber: '20/2022', supplierName: null,
     saldo: { status: 'UNAVAILABLE', partialCoverage, reason }, vigencia: 'OK',
     sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
-  const host = document.createElement('div');
-  host.innerHTML = render(summary);
-  const cell = host.querySelector('.manager-risk-table tbody td')!;
-  expect(cell.textContent).toContain('Indisponível');
-  expect(cell.textContent).toContain(explanation);
-  expect(cell.textContent?.includes('Cobertura parcial')).toBe(partialCoverage);
+  const view = mount(summary);
+  try {
+    const cell = view.host.querySelector<HTMLButtonElement>('.manager-risk-table tbody td button')!;
+    expect(cell.textContent).toBe('Indisponível');
+    expect(cell.getAttribute('aria-pressed')).toBe('false');
+    act(() => cell.click());
+    const detail = view.host.querySelector('.manager-risk-detail')!;
+    expect(detail.textContent).toContain(explanation);
+    expect(detail.textContent?.includes('Cobertura parcial')).toBe(partialCoverage);
+    expect(cell.getAttribute('aria-pressed')).toBe('true');
+    act(() => view.host.querySelector<HTMLButtonElement>('.manager-risk-detail-head button')!.click());
+    expect(detail.textContent).toBe('');
+    expect(document.activeElement).toBe(cell);
+  } finally { view.unmount(); }
 });
 it('renders the actual count and summary list without renewal claims', () => {
   const summary: ManagerDashboardSummaryResponse = { ...base,
@@ -260,14 +268,15 @@ it('renders preventive quality values without rounding the API counts or treatin
       missingByField: { objeto: 1, valor_total: 1, data_assinatura: 1, vigencia_inicio: 0, vigencia_fim: 0 } },
   };
   const html = render(summary).replaceAll('\u00a0', ' ');
-  const section = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const section = html.match(/Qualidade da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const details = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
   expect(section).toContain('66,67%');
   expect(section).toContain('33,33%');
-  expect(section).toContain('Mede a disciplina operacional antes da materialização dos riscos.');
+  expect(details).toContain('Mede a disciplina operacional antes da materialização dos riscos.');
   expect(section).toContain('data-quality-ring="Dados completos"');
   expect(section).toContain('data-quality-ring="Decisões D-90"');
   expect(section.indexOf('data-quality-ring="Dados completos"')).toBeLessThan(section.indexOf('data-quality-ring="Decisões D-90"'));
-  const detailCards = section.match(/<div class="manager-quality-grid">([\s\S]*?)<\/div><p class="source-note">/)?.[1] ?? '';
+  const detailCards = details.match(/<div class="manager-quality-grid">([\s\S]*?)<\/div><p class="source-note">/)?.[1] ?? '';
   expect(detailCards.indexOf('<h3>Dados completos</h3>')).toBeLessThan(detailCards.indexOf('<h3>Decisões D-90</h3>'));
   expect(detailCards).not.toMatch(/\d+(?:,\d+)?%/);
   expect(section.match(/66,67%/g)).toHaveLength(1);
@@ -279,10 +288,10 @@ it('renders preventive quality values without rounding the API counts or treatin
   expect(Number(arcs[1][1]) / Number(arcs[1][2])).toBeCloseTo(2 / 3);
   for (const label of ['Contratos elegíveis', 'Contratos decididos', 'Intenções de prorrogar', 'Intenções de não renovar', 'Contratos sem decisão',
     'Contratos completos', 'Contratos vigentes', 'Sem objeto', 'Sem valor total', 'Sem data de assinatura',
-    'Sem início da vigência', 'Sem fim da vigência']) expect(section).toContain(label);
-  for (const value of ['>3</dd>', '>2</dd>', '>1</dd>', '>0</dd>']) expect(section).toContain(value);
-  expect(section).toContain('intenção de prorrogar não significa prorrogação concluída');
-  expect(html.indexOf('Qualidade preventiva da gestão')).toBeLessThan(html.indexOf('Alertas contratuais'));
+    'Sem início da vigência', 'Sem fim da vigência']) expect(details).toContain(label);
+  for (const value of ['>3</dd>', '>2</dd>', '>1</dd>', '>0</dd>']) expect(details).toContain(value);
+  expect(details).toContain('intenção de prorrogar não significa prorrogação concluída');
+  expect(html.indexOf('Intervenções gerenciais')).toBeLessThan(html.indexOf('Qualidade preventiva da gestão'));
   expect(html).toContain('Gestão dos Saldos dos Itens Contratuais');
 });
 
@@ -296,10 +305,11 @@ it('distinguishes empty populations, independent unavailable coverage and main l
   unavailable.meta.dataCoverage.renewalDecisionsD90 = 'UNAVAILABLE';
   unavailable.data.preventiveQuality.renewalDecisionsD90 = null;
   const html = render(unavailable);
-  const section = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
-  expect(section).toContain('Fonte indisponível para esta referência');
-  expect(section).toContain('Sem contratos vigentes');
-  expect(section).not.toContain('Sem população elegível');
+  const section = html.match(/Qualidade da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const details = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  expect(details).toContain('Fonte indisponível para esta referência');
+  expect(details).toContain('Sem contratos vigentes');
+  expect(details).not.toContain('Sem população elegível');
   expect(section).not.toContain('manager-quality-ring-progress');
   expect(section).not.toContain('0%');
   const loadingError = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'error', message: 'HTTP 500' }} />);
@@ -335,18 +345,18 @@ function mount(data: ManagerDashboardSummaryResponse) {
   const update = (next: ManagerDashboardSummaryResponse) => act(() => root.render(<ManagerDashboardView state={{ status: 'success', summary: next }} />));
   update(data);
   const select = (label: string, value: string) => {
-    const control = [...host.querySelectorAll('label')].find(node => node.textContent?.startsWith(label))?.querySelector('select');
+    const control = [...host.querySelectorAll('.fiscal-saldos label')].find(node => node.textContent?.startsWith(label))?.querySelector('select');
     if (!control) throw new Error(`Select ausente: ${label}`);
     act(() => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })); });
   };
   const search = (value: string) => {
-    const control = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const control = host.querySelector<HTMLInputElement>('.fiscal-saldos input[type="search"]')!;
     act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(control, value);
       control.dispatchEvent(new Event('input', { bubbles: true })); });
   };
   const section = (title: string) => [...host.querySelectorAll('section.fiscal-panel')]
     .find(node => node.querySelector('h2')?.textContent === title)?.textContent ?? '';
-  const selected = (label: string) => [...host.querySelectorAll('label')]
+  const selected = (label: string) => [...host.querySelectorAll('.fiscal-saldos label')]
     .find(node => node.textContent?.startsWith(label))?.querySelector('select')?.value;
   return { host, update, select, search, section, selected,
     clear: () => act(() => host.querySelector<HTMLButtonElement>('.saldo-filter-meta button')!.click()),
@@ -417,14 +427,14 @@ it('preserves valid selections, invalidates missing options and resets on manage
     expect(view.selected('Fornecedor')).toBe('');
     expect(view.selected('Contrato')).toBe('');
     expect(view.selected('Faixa')).toBe('adequado');
-    expect(view.host.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('FIBRA');
+    expect(view.host.querySelector<HTMLInputElement>('.fiscal-saldos input[type="search"]')?.value).toBe('FIBRA');
     view.update(data);
     expect(view.selected('Fornecedor')).toBe('');
     const other = structuredClone(data);
     other.data.manager.userId = 2;
     view.update(other);
     expect(view.selected('Faixa')).toBe('');
-    expect(view.host.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('');
+    expect(view.host.querySelector<HTMLInputElement>('.fiscal-saldos input[type="search"]')?.value).toBe('');
     view.select('Contrato', '1');
     const scoped = structuredClone(other);
     scoped.meta.filtersApplied.contratoId = [1];
@@ -477,5 +487,118 @@ it('shows absent measurement as unavailable while retaining calculable measured 
     const quantityCells = [...view.host.querySelectorAll('.fiscal-saldos tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent));
     expect(quantityCells[0][4]).toBe('Não calculável');
     expect(quantityCells[1][4]).toBe('0 un');
+  } finally { view.unmount(); }
+});
+
+it('shows six factual executive cards and explicit gaps without prototype values', () => {
+  const summary = structuredClone(base);
+  summary.data.cards.activeContracts = 1;
+  summary.data.cards.activePortfolioValue = 1250;
+  summary.data.cards.renewalsWithin120Days = 1;
+  summary.data.contractRiskMatrix = [{ contractId: 7, contractNumber: 'CT-7', supplierName: 'Fornecedor X',
+    saldo: { status: 'CRITICAL', partialCoverage: false, reason: null }, vigencia: 'OK',
+    sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
+  const host = document.createElement('div'); host.innerHTML = render(summary);
+  const cards = host.querySelectorAll('.manager-kpis .fiscal-kpi');
+  expect(cards).toHaveLength(6);
+  expect(cards[1].textContent).toContain('Contratos com dimensão crítica1');
+  expect(cards[3].textContent).toContain('Vencimento nos próximos 120 dias1');
+  expect(cards[5].textContent).toContain('SLA abaixo da metaIndisponível');
+  expect(host.textContent).toContain('Forecast 180 dias');
+  expect(host.textContent).toContain('Saldo contratual não representa exposição');
+  expect(host.textContent).toContain('Classificação ABC indisponível');
+  expect(host.textContent).not.toContain('R$ 214 mi');
+});
+
+it('combines matrix filters, counts visible cells and sorts critical contracts first', () => {
+  const summary = structuredClone(base);
+  summary.data.contractRiskMatrix = [
+    { contractId: 1, contractNumber: 'A-1', supplierName: 'Alfa', saldo: { status: 'OK', partialCoverage: false, reason: null },
+      vigencia: 'OK', sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' },
+    { contractId: 2, contractNumber: 'B-2', supplierName: 'Beta', saldo: { status: 'CRITICAL', partialCoverage: false, reason: null },
+      vigencia: 'ATTENTION', sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' },
+  ];
+  const view = mount(summary);
+  try {
+    const panel = view.host.querySelector('.manager-risk-panel')!;
+    expect(panel.querySelector('tbody tr th')?.textContent).toContain('B-2');
+    expect([...panel.querySelectorAll('.manager-matrix-counts span')].map(node => node.textContent)).toEqual(['2 de 2 contratos', 'Crítico 1', 'Atenção 1', 'OK 2', 'Indisponível 8']);
+    const select = (index: number, value: string) => {
+      const control = panel.querySelectorAll<HTMLSelectElement>('.manager-matrix-controls select')[index];
+      act(() => { control.value = value; control.dispatchEvent(new Event('change', { bubbles: true })); });
+    };
+    select(0, 'saldo'); select(1, 'CRITICAL');
+    expect(panel.querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(panel.textContent).toContain('1 de 2 contratos');
+    expect([...panel.querySelectorAll('.manager-matrix-counts span')].map(node => node.textContent)).toEqual(['1 de 2 contratos', 'Crítico 1', 'Atenção 0', 'OK 0', 'Indisponível 0']);
+    const search = panel.querySelector<HTMLInputElement>('.manager-matrix-controls input')!;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'Alfa');
+      search.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(panel.textContent).toContain('Nenhum contrato encontrado com os filtros da matriz');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('0 de 0 itens encontrados');
+  } finally { view.unmount(); }
+});
+
+it('selects heatmap cells accessibly and closes details with Escape', () => {
+  const summary = structuredClone(base);
+  summary.data.contractRiskMatrix = [{ contractId: 4, contractNumber: 'CT-4', supplierName: 'Fornecedor Alfa',
+    saldo: { status: 'ATTENTION', partialCoverage: true, reason: null }, vigencia: 'UNAVAILABLE',
+    sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
+  const view = mount(summary);
+  try {
+    const cells = view.host.querySelectorAll<HTMLButtonElement>('.manager-risk-table tbody td button');
+    expect(cells).toHaveLength(6);
+    expect([...cells].map(cell => cell.textContent)).toEqual(['Atenção', 'Indisponível', 'Indisponível', 'Indisponível', 'Indisponível', 'Indisponível']);
+    cells[0].focus();
+    expect(document.activeElement).toBe(cells[0]);
+    act(() => cells[0].click());
+    const detail = view.host.querySelector('.manager-risk-detail')!;
+    expect(detail.textContent).toContain('CT-4');
+    expect(detail.textContent).toContain('Fornecedor Alfa');
+    expect(detail.textContent).toContain('Saldo');
+    expect(detail.textContent).toContain('Atenção');
+    expect(detail.textContent).toContain('Cobertura parcial');
+    expect(cells[0].getAttribute('aria-pressed')).toBe('true');
+    act(() => cells[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(detail.textContent).toBe('');
+    expect(cells[0].getAttribute('aria-pressed')).toBe('false');
+    act(() => cells[1].click());
+    expect(detail.textContent).toContain('Data de fim da vigência indisponível');
+    act(() => cells[2].click());
+    expect(detail.textContent).toContain('Fonte aprovada indisponível para esta dimensão');
+  } finally { view.unmount(); }
+});
+
+it('formats the active portfolio as BRL with cents and preserves unavailable and zero', () => {
+  const summary = structuredClone(base);
+  summary.data.cards.activePortfolioValue = 1234.56;
+  const card = (data: ManagerDashboardSummaryResponse) => {
+    const host = document.createElement('div'); host.innerHTML = render(data);
+    return host.querySelectorAll('.manager-kpis .fiscal-kpi')[2].querySelector('strong')!.textContent!.replaceAll('\u00a0', ' ');
+  };
+  expect(card(summary)).toBe('R$ 1.234,56');
+  summary.data.cards.activePortfolioValue = 0;
+  expect(card(summary)).toBe('R$ 0,00');
+  summary.data.cards.activePortfolioValue = null;
+  summary.meta.dataCoverage.activePortfolioValue = 'UNAVAILABLE';
+  expect(card(summary)).toBe('Indisponível');
+});
+
+it('keeps a long supplier in the contract cell and full name in selectable details', () => {
+  const summary = structuredClone(base);
+  const supplier = 'Fornecedor de Tecnologia e Serviços de Infraestrutura Extraordinariamente Longo Sem EspaçosSuperlongos123456789';
+  summary.data.contractRiskMatrix = [{ contractId: 12, contractNumber: 'CT-12', supplierName: supplier,
+    saldo: { status: 'OK', partialCoverage: false, reason: null }, vigencia: 'ATTENTION',
+    sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
+  const view = mount(summary);
+  try {
+    const panel = view.host.querySelector('.manager-risk-panel')!;
+    expect(panel.querySelector('.manager-risk-scroll')).not.toBeNull();
+    expect(panel.querySelectorAll('.manager-risk-table thead th')).toHaveLength(7);
+    expect(panel.querySelector('.manager-risk-table th[scope="row"] small')?.textContent).toBe(supplier);
+    expect(panel.querySelector('.manager-risk-table tbody td')?.textContent).toBe('OK');
+    act(() => panel.querySelector<HTMLButtonElement>('.manager-risk-table tbody td button')!.click());
+    expect(panel.querySelector('.manager-risk-detail dd')?.textContent).toBe('CT-12');
+    expect([...panel.querySelectorAll('.manager-risk-detail dd')].map(node => node.textContent)).toContain(supplier);
   } finally { view.unmount(); }
 });

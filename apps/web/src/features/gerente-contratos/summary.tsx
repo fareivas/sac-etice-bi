@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse, ManagerSuppliersResponse } from '@sac-etice-bi/contracts';
 import { loadManagerSummary, loadManagerFiscalLoad, loadManagerSuppliers } from '../../lib/api';
 import { displayDate } from '../../lib/display-date';
@@ -10,7 +10,7 @@ type State = { status: 'loading' } | { status: 'error'; message: string } |
 const money = (value: number | null) => value === null ? 'Indisponível' :
   new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
 const count = (value: number | null) => value === null ? 'Indisponível' : String(value);
-const currency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+const currency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 const percentage = (value: number | null) => value === null ? 'Indisponível' : `${money(value)}%`;
 
 function QualityRing({ label, value }: { label: string; value: number | null }) {
@@ -22,7 +22,7 @@ function QualityRing({ label, value }: { label: string; value: number | null }) 
         strokeDasharray={`${circumference * value / 100} ${circumference}`} />}
     </svg>
     <span className="manager-quality-ring-label">{label}</span>
-    <strong>{value === null ? '—' : percentage(value)}</strong>
+    <strong>{value === null ? 'Indisponível' : percentage(value)}</strong>
   </div>;
 }
 
@@ -32,9 +32,6 @@ const balanceReasonLabels = {
   ITEM_SOURCE_UNAVAILABLE: 'Fonte de itens indisponível para classificar o saldo',
 } as const;
 const riskLabels = { CRITICAL: 'Crítico', ATTENTION: 'Atenção', OK: 'OK', UNAVAILABLE: 'Indisponível' } as const;
-function RiskTag({ status }: { status: keyof typeof riskLabels }) {
-  return <span className={`manager-risk-tag manager-risk-${status.toLowerCase()}`}>{riskLabels[status]}</span>;
-}
 
 export function PortfolioFinancialChart({ balances }: { balances: NonNullable<ManagerDashboardSummaryResponse['data']['contractBalances']> }) {
   const values = balances.flatMap(item => [item.contractedValue, item.consumedValue, item.balanceValue]);
@@ -103,11 +100,46 @@ export function ManagerDashboardView({ state }: { state: State }) {
   const itemBalances = summary?.data.itemBalances;
   const context = summary ? JSON.stringify([summary.data.manager.userId,
     [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b)]) : null;
+  const [matrixSearch, setMatrixSearch] = useState('');
+  const [matrixDimension, setMatrixDimension] = useState('all');
+  const [matrixClass, setMatrixClass] = useState('all');
+  const [selectedRisk, setSelectedRisk] = useState<{ contractId: number; dimension: 'saldo' | 'vigencia' | 'sla' | 'medicao' | 'pagamento' | 'indice' } | null>(null);
+  const selectedCellRef = useRef<HTMLButtonElement | null>(null);
   const { items, suppliers, contracts, supplier, contract, band, search, setFilter, activeFilters,
     filteredItems, distribution, aggregates, allItemsSelected, clearFilters } = useItemBalanceFilters(itemBalances, context);
+  const matrix = summary?.data.contractRiskMatrix;
+  const dimensions = ['saldo', 'vigencia', 'sla', 'medicao', 'pagamento', 'indice'] as const;
+  const matrixStatus = (row: NonNullable<typeof matrix>[number], dimension: typeof dimensions[number]) =>
+    dimension === 'saldo' ? row.saldo.status : row[dimension];
+  const severity = { CRITICAL: 3, ATTENTION: 2, OK: 1, UNAVAILABLE: 0 };
+  const matrixRows = (matrix ?? []).filter(row => {
+    const searchMatch = `${row.contractNumber ?? row.contractId} ${row.supplierName ?? ''}`.toLocaleLowerCase('pt-BR')
+      .includes(matrixSearch.toLocaleLowerCase('pt-BR').trim());
+    const selected = matrixDimension === 'all' ? dimensions : dimensions.filter(dimension => dimension === matrixDimension);
+    return searchMatch && (matrixClass === 'all' || selected.some(dimension => matrixStatus(row, dimension) === matrixClass));
+  }).sort((a, b) => Math.max(...dimensions.map(dimension => severity[matrixStatus(b, dimension)])) -
+    Math.max(...dimensions.map(dimension => severity[matrixStatus(a, dimension)])) ||
+    (a.contractNumber ?? String(a.contractId)).localeCompare(b.contractNumber ?? String(b.contractId), 'pt-BR'));
+  const matrixCounts = { CRITICAL: 0, ATTENTION: 0, OK: 0, UNAVAILABLE: 0 };
+  const countedDimensions = matrixDimension === 'all' ? dimensions : dimensions.filter(dimension => dimension === matrixDimension);
+  matrixRows.forEach(row => countedDimensions.forEach(dimension => { matrixCounts[matrixStatus(row, dimension)]++; }));
+  const criticalContracts = summary?.meta.dataCoverage.contractRiskMatrix !== 'AVAILABLE' || matrix === null || matrix === undefined ? null : matrix.filter(row =>
+    dimensions.some(dimension => matrixStatus(row, dimension) === 'CRITICAL')).length;
+  const selectedRow = selectedRisk && matrixRows.find(row => row.contractId === selectedRisk.contractId);
+  const dimensionLabels = { saldo: 'Saldo', vigencia: 'Vigência', sla: 'SLA', medicao: 'Medição', pagamento: 'Pagamento', indice: 'Índice' };
+  const riskCell = (row: NonNullable<typeof matrix>[number], dimension: typeof dimensions[number]) => {
+    const status = matrixStatus(row, dimension);
+    const selected = selectedRisk?.contractId === row.contractId && selectedRisk.dimension === dimension;
+    return <td key={dimension}><button type="button" className={`manager-risk-cell manager-risk-${status.toLowerCase()}${selected ? ' is-selected' : ''}`}
+      aria-label={`${row.contractNumber ?? `Contrato ID ${row.contractId}`}, ${dimensionLabels[dimension]}: ${riskLabels[status]}`}
+      aria-pressed={selected} aria-controls="manager-risk-detail"
+      onClick={event => { selectedCellRef.current = event.currentTarget; setSelectedRisk(selected ? null : { contractId: row.contractId, dimension }); }}
+      onKeyDown={event => { if (event.key === 'Escape') setSelectedRisk(null); }}>
+      {riskLabels[status]}</button></td>;
+  };
   return <main className="fiscal-dashboard manager-dashboard">
-    <header className="fiscal-header"><div className="fiscal-header-inner">
-      <div><span className="fiscal-brand">ETICE <span>•</span> SAC BI</span><h1>Dashboard do Gerente de Contratos</h1><p>Carteira contratual sob sua gestão</p></div>
+    <header className="fiscal-header manager-header"><div className="fiscal-header-inner">
+      <div><span className="fiscal-brand">ETICE <span>•</span> SAC BI</span><h1>Dashboard do Gerente de Contratos</h1><p>Visão agregada de contratos, fiscais, riscos e intervenções</p></div>
       <div className="header-meta"><span className="header-chip">{summary?.data.manager.name ?? (summary ? `Gestor ${summary.data.manager.userId}` : 'Gerente')}</span><span>Data de referência: {displayDate(summary?.meta.dataReference, summary?.meta.timezone)}</span></div>
     </div></header>
     <div className="fiscal-page">
@@ -115,20 +147,78 @@ export function ManagerDashboardView({ state }: { state: State }) {
       {state.status === 'error' && <div className="fiscal-message error" role="alert">Erro ao carregar o resumo: {state.message}</div>}
       {summary && <>
         <section className="fiscal-filters" aria-label="Escopo da carteira"><div><strong>Carteira autorizada</strong><span>Designações atuais do gestor</span></div><div className="filter-values"><span>Contrato: {summary.meta.filtersApplied.contratoId.length ? summary.meta.filtersApplied.contratoId.join(', ') : 'Todos'}</span></div></section>
-        <section className="fiscal-kpis manager-kpis" aria-label="Indicadores">
+        <section className="fiscal-kpis manager-kpis" aria-label="Indicadores executivos">
           <article className="fiscal-kpi"><span>Contratos ativos</span><strong>{count(summary.data.cards.activeContracts)}</strong><small>Contratos vigentes na carteira atual</small></article>
-          <article className="fiscal-kpi"><span>Valor atual da carteira ativa</span><strong>{money(summary.data.cards.activePortfolioValue)}</strong><small>Somente contratos vigentes</small></article>
-          <article className="fiscal-kpi"><span>Vencimento nos próximos 120 dias</span><strong>{count(summary.data.cards.renewalsWithin120Days)}</strong><small>Contratos vigentes da carteira</small></article>
+          <article className="fiscal-kpi"><span>Contratos com dimensão crítica</span><strong>{count(criticalContracts)}</strong><small>Ao menos uma célula crítica na matriz; sem índice geral</small></article>
+          <article className="fiscal-kpi"><span>Valor atual da carteira ativa</span><strong>{summary.data.cards.activePortfolioValue === null ? 'Indisponível' : currency(summary.data.cards.activePortfolioValue)}</strong><small>Somente contratos vigentes</small></article>
+          <article className="fiscal-kpi"><span>Vencimento nos próximos 120 dias</span><strong>{count(summary.data.cards.renewalsWithin120Days)}</strong><small>Vencimento, sem presumir renovação atrasada</small></article>
+          <article className="fiscal-kpi"><span>Alertas contratuais</span><strong>{summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts !== null ? summary.data.contractAlerts.length : 'Indisponível'}</strong><small>Pendências abertas ou em tratamento</small></article>
+          <article className="fiscal-kpi"><span>SLA abaixo da meta</span><strong className="unavailable-value">Indisponível</strong><small>Depende do Projeto de KPIs</small></article>
         </section>
         {summary.data.cards.activeContracts === 0 && <p className="empty-contracts" role="status">Nenhum contrato vigente na carteira.</p>}
         {summary.meta.dataCoverage.activePortfolioValue === 'UNAVAILABLE' && <p className="coverage-note" role="status">Valor total indisponível: há valor contratual ausente ou a fotografia histórica não pode ser reconstruída.</p>}
-        <section className="fiscal-panel manager-quality-panel"><div className="panel-heading"><h2>Qualidade preventiva da gestão</h2><p>Mede a disciplina operacional antes da materialização dos riscos.</p></div>
-          <div className="manager-quality-visual">
-            <QualityRing label="Dados completos" value={summary.meta.dataCoverage.registrationCompleteness === 'AVAILABLE'
-              ? summary.data.preventiveQuality.registrationCompleteness?.percentage ?? null : null} />
-            <QualityRing label="Decisões D-90" value={summary.meta.dataCoverage.renewalDecisionsD90 === 'AVAILABLE'
-              ? summary.data.preventiveQuality.renewalDecisionsD90?.percentage ?? null : null} />
+        <div className="manager-primary-grid">
+        <section className="fiscal-panel manager-risk-panel"><div className="panel-heading"><h2>Matriz Contrato × Dimensão de Risco</h2><p>Classificação por itens contratuais e prazo até o fim da vigência. Demais dimensões aguardam fonte aprovada.</p></div>
+          {matrix !== null && matrix !== undefined && <div className="manager-matrix-controls">
+            <label>Contrato ou fornecedor<input type="search" value={matrixSearch} onChange={event => setMatrixSearch(event.target.value)} placeholder="Buscar contrato ou fornecedor" /></label>
+            <label>Dimensão<select value={matrixDimension} onChange={event => setMatrixDimension(event.target.value)}><option value="all">Todas as dimensões</option><option value="saldo">Saldo</option><option value="vigencia">Vigência</option><option value="sla">SLA</option><option value="medicao">Medição</option><option value="pagamento">Pagamento</option><option value="indice">Índice</option></select></label>
+            <label>Classificação<select value={matrixClass} onChange={event => setMatrixClass(event.target.value)}><option value="all">Todas as classificações</option><option value="CRITICAL">Crítico</option><option value="ATTENTION">Atenção</option><option value="OK">OK</option><option value="UNAVAILABLE">Indisponível</option></select></label>
+          </div>}
+          {matrix !== null && matrix !== undefined && <div className="manager-matrix-counts" role="status"><span>{matrixRows.length} de {matrix.length} contratos</span><span className="manager-count-critical">Crítico {matrixCounts.CRITICAL}</span><span className="manager-count-attention">Atenção {matrixCounts.ATTENTION}</span><span className="manager-count-ok">OK {matrixCounts.OK}</span><span className="manager-count-unavailable">Indisponível {matrixCounts.UNAVAILABLE}</span><small>Células nas dimensões selecionadas · ordem pela classificação mais crítica</small></div>}
+          {summary.meta.dataCoverage.contractRiskMatrix === 'UNAVAILABLE' || summary.data.contractRiskMatrix === null
+            ? <div className="panel-unavailable" role="status">Matriz indisponível para esta referência.</div>
+            : summary.data.contractRiskMatrix.length === 0
+              ? <p className="table-empty" role="status">Nenhum contrato vigente na carteira.</p>
+              : matrixRows.length === 0 ? <p className="table-empty" role="status">Nenhum contrato encontrado com os filtros da matriz.</p>
+              : <div className="fiscal-table-wrap manager-risk-scroll"><table className="manager-risk-table"><caption className="visually-hidden">Risco por contrato e dimensão</caption><thead><tr>
+                <th scope="col">Contrato</th><th scope="col">Saldo</th><th scope="col">Vigência</th><th scope="col">SLA</th><th scope="col">Medição</th><th scope="col">Pagamento</th><th scope="col">Índice</th>
+              </tr></thead><tbody>{matrixRows.map(row => <tr key={row.contractId}>
+                <th scope="row">{row.contractNumber ?? `Contrato ID ${row.contractId}`}<small>{row.supplierName ?? 'Fornecedor indisponível'}</small></th>
+                {dimensions.map(dimension => riskCell(row, dimension))}
+              </tr>)}</tbody></table></div>}
+          <div id="manager-risk-detail" className="manager-risk-detail" aria-live="polite"
+            onKeyDown={event => { if (event.key === 'Escape') { selectedCellRef.current?.focus(); setSelectedRisk(null); } }}>
+            {selectedRisk && selectedRow ? <><div className="manager-risk-detail-head"><h3>Detalhes da célula selecionada</h3><button type="button" onClick={() => { selectedCellRef.current?.focus(); setSelectedRisk(null); }}>Fechar detalhes</button></div>
+              <dl><div><dt>Contrato</dt><dd>{selectedRow.contractNumber ?? `Contrato ID ${selectedRow.contractId}`}</dd></div><div><dt>Fornecedor</dt><dd>{selectedRow.supplierName ?? 'Indisponível'}</dd></div>
+                <div><dt>Dimensão</dt><dd>{dimensionLabels[selectedRisk.dimension]}</dd></div><div><dt>Classificação</dt><dd>{riskLabels[matrixStatus(selectedRow, selectedRisk.dimension)]}</dd></div>
+                {selectedRisk.dimension === 'saldo' && selectedRow.saldo.reason && <div><dt>Motivo de indisponibilidade</dt><dd>{balanceReasonLabels[selectedRow.saldo.reason]}</dd></div>}
+                {selectedRisk.dimension === 'saldo' && selectedRow.saldo.partialCoverage && <div><dt>Cobertura parcial</dt><dd>Há itens não verificáveis</dd></div>}
+                {selectedRisk.dimension === 'vigencia' && selectedRow.vigencia === 'UNAVAILABLE' && <div><dt>Motivo de indisponibilidade</dt><dd>Data de fim da vigência indisponível</dd></div>}
+                {selectedRisk.dimension !== 'saldo' && selectedRisk.dimension !== 'vigencia' && <div><dt>Motivo de indisponibilidade</dt><dd>Fonte aprovada indisponível para esta dimensão</dd></div>}
+              </dl></> : null}
           </div>
+        </section>
+        <section className="fiscal-panel manager-fiscals-panel"><div className="panel-heading"><h2>Fiscais e distribuição da carteira</h2><details className="manager-fiscal-explanation"><summary>Como são contados contratos e OS</summary><p>Contratos vigentes designados e OS com decisão fiscal pendente. OS pendentes são vinculadas aos contratos da carteira do fiscal e não representam necessariamente atribuições individuais. Uma mesma OS pode aparecer para fiscais diferentes; as contagens não devem ser somadas como OS únicas da carteira gerencial.</p></details></div>
+          {state.status === 'success' && state.loadError ? <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>
+            : sortedInspectors === null ? <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
+              : sortedInspectors.length === 0 ? <p role="status">Nenhum fiscal designado na carteira.</p>
+                : <><FiscalLoadChart inspectors={sortedInspectors} /><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
+                  {sortedInspectors.map(fiscal => <tr key={fiscal.userId}><td>{inspectorName(fiscal)}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>)}
+                </tbody></table></div></>}
+        </section>
+        </div>
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Intervenções gerenciais</h2><p>Observações verificáveis de alertas abertos ou em tratamento. Avaliar encaminhamento conforme o caso; a fonte não define prioridade, impacto, responsável ou prazo.</p></div>
+          {matrix !== null && matrix !== undefined && matrix.filter(row => row.saldo.status === 'CRITICAL' || row.vigencia === 'CRITICAL').length > 0 &&
+            <div className="manager-risk-observations"><h3>Observações da matriz</h3><ul>{matrix.filter(row => row.saldo.status === 'CRITICAL' || row.vigencia === 'CRITICAL').map(row =>
+              <li key={row.contractId}><strong>{row.contractNumber ?? `Contrato ID ${row.contractId}`}</strong>: {row.saldo.status === 'CRITICAL' ? 'saldo crítico' : ''}{row.saldo.status === 'CRITICAL' && row.vigencia === 'CRITICAL' ? ' e ' : ''}{row.vigencia === 'CRITICAL' ? 'vigência crítica' : ''}. <span>Recomendação: avaliar o contrato e o encaminhamento cabível.</span></li>)}</ul></div>}
+          <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Tipo</th><th>Estado</th><th>Descrição</th><th>Vencimento contratual</th></tr></thead><tbody>
+            {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts?.length ? summary.data.contractAlerts.map(alert => <tr key={alert.alertId}>
+              <td>{alert.contractNumber ?? `#${alert.contractId}`}</td><td>{alert.type ?? 'Indisponível'}</td><td>{alert.status}</td><td>{alert.description ?? 'Indisponível'}</td><td>{displayDate(alert.expiryDate, summary.meta.timezone)}</td>
+            </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
+          </tbody></table></div>
+        </section>
+        <div className="manager-insight-grid">
+          <section className="fiscal-panel"><div className="panel-heading"><h2>Forecast 180 dias</h2><p>Projeção de saldo e vigência.</p></div><div className="manager-unavailable" role="status"><strong>Indisponível</strong><span>Não há série ou regra aprovada para previsão de 180 dias.</span></div></section>
+          <section className="fiscal-panel"><div className="panel-heading"><h2>Exposição financeira</h2><p>SLA, glosas, medições e pagamentos.</p></div><div className="manager-unavailable" role="status"><strong>Indisponível</strong><span>Faltam fontes financeiras e regras aprovadas. Saldo contratual não representa exposição.</span></div></section>
+          <section className="fiscal-panel manager-quality-panel"><div className="panel-heading"><h2>Qualidade da gestão</h2><p>Indicadores preventivos disponíveis.</p></div><div className="manager-quality-visual">
+            <QualityRing label="Dados completos" value={summary.meta.dataCoverage.registrationCompleteness === 'AVAILABLE' ? summary.data.preventiveQuality.registrationCompleteness?.percentage ?? null : null} />
+            <QualityRing label="Decisões D-90" value={summary.meta.dataCoverage.renewalDecisionsD90 === 'AVAILABLE' ? summary.data.preventiveQuality.renewalDecisionsD90?.percentage ?? null : null} />
+          </div></section>
+        </div>
+        <section className="fiscal-panel manager-cycle"><div className="panel-heading"><h2>Eficiência do Ciclo Financeiro — carteira gerenciada</h2><p>Etapas entre faturamento, medição e pagamento.</p></div><div className="manager-cycle-flow" aria-label="Etapas do ciclo financeiro">
+          {['Faturado clientes', 'A receber', 'Recebido ETICE', 'Medição fornecedor', 'Processando pagamento', 'Programado', 'Pago fornecedor'].map(phase => <div key={phase}><span>{phase}</span><strong>Indisponível</strong></div>)}
+        </div><p className="source-note" role="status">Volumes e tempos por etapa indisponíveis: não há fonte e regra aprovadas para este ciclo.</p></section>
+        <section className="fiscal-panel manager-quality-details"><div className="panel-heading"><h2>Qualidade preventiva da gestão</h2><p>Mede a disciplina operacional antes da materialização dos riscos.</p></div>
           <div className="manager-quality-grid">
             <article><h3>Dados completos</h3>
               {summary.meta.dataCoverage.registrationCompleteness === 'UNAVAILABLE' || summary.data.preventiveQuality.registrationCompleteness === null
@@ -155,27 +245,9 @@ export function ManagerDashboardView({ state }: { state: State }) {
           </div>
           <p className="source-note">Preenchimento cadastral indica presença dos campos; intenção de prorrogar não significa prorrogação concluída.</p>
         </section>
-        <section className="fiscal-panel manager-risk-panel"><div className="panel-heading"><h2>Matriz Contrato × Dimensão de Risco</h2><p>Classificação por itens contratuais e prazo até o fim da vigência. Demais dimensões aguardam fonte aprovada.</p></div>
-          {summary.meta.dataCoverage.contractRiskMatrix === 'UNAVAILABLE' || summary.data.contractRiskMatrix === null
-            ? <div className="panel-unavailable" role="status">Matriz indisponível para esta referência.</div>
-            : summary.data.contractRiskMatrix.length === 0
-              ? <p className="table-empty" role="status">Nenhum contrato vigente na carteira.</p>
-              : <div className="fiscal-table-wrap"><table className="manager-risk-table"><caption className="visually-hidden">Risco por contrato e dimensão</caption><thead><tr>
-                <th scope="col">Contrato</th><th scope="col">Saldo</th><th scope="col">Vigência</th><th scope="col">SLA</th><th scope="col">Medição</th><th scope="col">Pagamento</th><th scope="col">Índice</th>
-              </tr></thead><tbody>{summary.data.contractRiskMatrix.map(row => <tr key={row.contractId}>
-                <th scope="row">{row.contractNumber ?? `Contrato ID ${row.contractId}`}<small>{row.supplierName ?? 'Fornecedor indisponível'}</small></th>
-                <td><RiskTag status={row.saldo.status} />{row.saldo.reason && <small>{balanceReasonLabels[row.saldo.reason]}</small>}{row.saldo.partialCoverage && <small>Cobertura parcial: há itens não verificáveis</small>}</td>
-                <td><RiskTag status={row.vigencia} /></td><td><RiskTag status={row.sla} /></td>
-                <td><RiskTag status={row.medicao} /></td><td><RiskTag status={row.pagamento} /></td><td><RiskTag status={row.indice} /></td>
-              </tr>)}</tbody></table></div>}
-        </section>
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Alertas contratuais</h2><p>Pendências abertas ou em tratamento dos contratos vigentes da carteira.</p></div>
-          <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Tipo</th><th>Estado</th><th>Descrição</th><th>Vencimento contratual</th></tr></thead><tbody>
-            {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts?.length ? summary.data.contractAlerts.map(alert => <tr key={alert.alertId}>
-              <td>{alert.contractNumber ?? `#${alert.contractId}`}</td><td>{alert.type ?? 'Indisponível'}</td><td>{alert.status}</td><td>{alert.description ?? 'Indisponível'}</td><td>{displayDate(alert.expiryDate, summary.meta.timezone)}</td>
-            </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
-          </tbody></table></div>
-        </section>
+        <section className="fiscal-panel manager-suppliers"><div className="panel-heading"><h2>Fornecedores da carteira</h2><p>Apresentação ABC da carteira. A classe depende de pagamentos efetivos acumulados em 12 meses e de regra aprovada; valor vigente não determina classe.</p></div><div className="manager-abc-note" role="status"><strong>Classificação ABC indisponível</strong><span>Base necessária: pagamentos efetivos dos últimos 12 meses e regra aprovada.</span></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Valor vigente</th><th>ABC</th><th>Financeiro em aberto</th><th>Riscos críticos</th></tr></thead><tbody>
+          {state.status === 'success' && state.suppliers?.data.suppliers?.length ? state.suppliers.data.suppliers.map((supplier) => <tr key={supplier.supplierId}><td>{supplier.name}</td><td>{money(supplier.vigentValue)}</td><td>Indisponível</td><td>Indisponível</td><td>Indisponível</td></tr>) : <tr><td colSpan={5} className="table-empty">{state.status === 'success' && state.suppliersError ? `Erro ao carregar fornecedores: ${state.suppliersError}` : state.status === 'success' && state.suppliers?.data.suppliers?.length === 0 ? 'Nenhum fornecedor na carteira' : 'Indisponível'}</td></tr>}
+        </tbody></table></div></section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Saldos da carteira</h2><p>Valores da visão de saldo contratual para a carteira completa; filtros locais de itens não se aplicam.</p></div>
           <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Valor contratado</th><th>Valor consumido</th><th>Saldo</th><th>Percentual disponível</th></tr></thead><tbody>
             {summary.meta.dataCoverage.contractBalances === 'AVAILABLE' && summary.data.contractBalances?.length ? summary.data.contractBalances.map(item => <tr key={item.contractId}>
@@ -231,17 +303,6 @@ export function ManagerDashboardView({ state }: { state: State }) {
             </tbody></table></div>
           </> : <div className="panel-unavailable" role="status">Fonte de saldos por item indisponível para esta data.</div>}
         </section>
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Fiscais e distribuição da carteira</h2><p>Contratos vigentes designados e OS com decisão fiscal pendente. OS pendentes são vinculadas aos contratos da carteira do fiscal e não representam necessariamente atribuições individuais. Uma mesma OS pode aparecer para fiscais diferentes; as contagens não devem ser somadas como OS únicas da carteira gerencial.</p></div>
-          {state.status === 'success' && state.loadError ? <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>
-            : sortedInspectors === null ? <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
-              : sortedInspectors.length === 0 ? <p role="status">Nenhum fiscal designado na carteira.</p>
-                : <><FiscalLoadChart inspectors={sortedInspectors} /><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
-                  {sortedInspectors.map(fiscal => <tr key={fiscal.userId}><td>{inspectorName(fiscal)}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>)}
-                </tbody></table></div></>}
-        </section>
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Fornecedores da carteira</h2><p>Valor vigente dos contratos autorizados; demais indicadores sem fonte aprovada.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Valor vigente</th><th>ABC</th><th>Financeiro em aberto</th><th>Riscos críticos</th></tr></thead><tbody>
-          {state.status === 'success' && state.suppliers?.data.suppliers?.length ? state.suppliers.data.suppliers.map((supplier) => <tr key={supplier.supplierId}><td>{supplier.name}</td><td>{money(supplier.vigentValue)}</td><td>Indisponível</td><td>Indisponível</td><td>Indisponível</td></tr>) : <tr><td colSpan={5} className="table-empty">{state.status === 'success' && state.suppliersError ? `Erro ao carregar fornecedores: ${state.suppliersError}` : state.status === 'success' && state.suppliers?.data.suppliers?.length === 0 ? 'Nenhum fornecedor na carteira' : 'Indisponível'}</td></tr>}
-        </tbody></table></div></section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Contratos vigentes da carteira</h2><p>Dados atuais dos contratos autorizados.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Valor atual</th><th>Fim da vigência</th></tr></thead><tbody>
           {summary.data.contracts?.length ? summary.data.contracts.map((contract) => <tr key={contract.contractId}><td>{contract.contractNumber ?? `#${contract.contractId}`}</td><td>{contract.supplierName ?? 'Indisponível'}</td><td>{money(contract.value)}</td><td>{displayDate(contract.expiryDate, summary.meta.timezone)}</td></tr>) : <tr><td colSpan={4} className="table-empty">{summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente'}</td></tr>}
         </tbody></table></div></section>
