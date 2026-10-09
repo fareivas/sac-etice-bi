@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { FiscalContractExpiry, FiscalExpiryReferenceNote } from './contract-expiry';
 import { FiscalItemBalanceDetails } from './item-balance-details';
+import { downloadFiscalItemsCsv } from './item-balances-csv';
 import { downloadFiscalQueueCsv } from './queue-csv';
 import { queueContractKey, useFiscalQueueFilters } from './use-fiscal-queue-filters';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
@@ -179,6 +180,12 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
             : <Unavailable />}</Panel>
         </div>
         <Panel title="Gestão dos Saldos dos Itens Contratuais" subtitle="Total contratado, execução acumulada, saldo e ação do fiscal." className="fiscal-saldos">
+          <div className="fiscal-items-export">
+            <button type="button" disabled={itemBalances?.coverage !== 'AVAILABLE' || filteredItems.length === 0}
+              aria-describedby={`${queueFilterId}-items-export-note`}
+              onClick={() => { if (itemBalances?.coverage === 'AVAILABLE') downloadFiscalItemsCsv(filteredItems, summary.meta.dataReference, itemBalances.criterio); }}>Exportar itens CSV</button>
+            <p className="source-note" id={`${queueFilterId}-items-export-note`}>Uma linha por item visível após os filtros locais. A exportação dos itens não representa o saldo consolidado por contrato.</p>
+          </div>
           {itemBalances?.coverage === 'AVAILABLE' ? <>
             <div className="saldo-filters" aria-label="Filtros dos saldos contratuais">
               <label>Fornecedor<select value={supplier} onChange={event => setFilter({ supplier: event.target.value })}><option value="">Todos os fornecedores</option>{missingSupplier && <option value={supplier}>{supplier} (não disponível na resposta)</option>}{suppliers.map(name => <option key={name} value={name}>{name}</option>)}</select></label>

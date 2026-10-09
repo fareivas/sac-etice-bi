@@ -122,3 +122,26 @@ falha HTTP 500 sem apagar a última resposta, tentativa e recuperação, retenç
 de opção desaparecida sem ampliar o recorte, descarte de resposta antiga após
 escopo novo e horário `generatedAt` no fuso recebido. PNGs/relatório ficam no
 diretório temporário informado. Não usa o banco nem a API oficial.
+
+## CSV dos itens fiscalizados
+
+Com o mesmo preview Vite e Playwright acima:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/fiscal-items-csv.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/items-csv-fixtures.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+  node scripts/test/fiscal-items-csv.visual.mjs \
+  /tmp/sac-fiscal-visual/items-csv-fixtures.cjs /tmp/sac-fiscal-visual/items-csv-captures
+```
+
+As fixtures reutilizam os critérios/gerador existentes do serviço para saldo
+comprometido/valor e medido/quantidade, com zero, ausentes, saldo negativo e
+texto com acento, fórmula, aspas, separador e quebra de linha. Não fazem parte
+do fluxo da aplicação. O roteiro intercepta todas as chamadas de API e valida
+Tab/Enter, foco, arquivo completo e recorte por fornecedor/contrato/faixa/busca,
+nome/BOM/conteúdo, filtros e card/fila preservados, botão desabilitado sem
+resultados/itens/fonte e layout em desktop/390 px. Capturas/relatório e downloads
+ficam temporários; não alteram o banco. Reexecute também o roteiro da fila para
+validar o codificador CSV compartilhado.

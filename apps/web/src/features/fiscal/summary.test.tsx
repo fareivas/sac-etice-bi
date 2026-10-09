@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { fixture as queueFixture } from '../../../../../scripts/test/fixtures/fiscal-queue-filters';
+import { fiscalItemsCsv } from './item-balances-csv';
 import { countLabel, FiscalDashboard, FiscalDashboardView, queueLabel } from './summary';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -969,4 +970,44 @@ it.each(['success', 'failure'] as const)('ignores a stale %s after a newer reque
     expect(view.host.querySelector('[role="alert"]')).toBeNull();
     expect(view.refresh().disabled).toBe(false);
   } finally { view.cleanup(); }
+});
+
+it('exports only the combined local item selection and disables item export for no matches, no items or unavailable source', () => {
+  const data = withItems(sampleItems());
+  const view = mount(data);
+  let content = '';
+  let filename = '';
+  const createUrl = vi.fn().mockReturnValue('blob:items-fixture');
+  const revokeUrl = vi.fn();
+  vi.stubGlobal('URL', Object.assign(class extends URL {}, { createObjectURL: createUrl, revokeObjectURL: revokeUrl }));
+  vi.stubGlobal('Blob', class { constructor(parts: string[]) { content = parts.join(''); } });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { filename = this.download; });
+  vi.useFakeTimers();
+  const button = () => view.host.querySelector<HTMLButtonElement>('.fiscal-items-export button')!;
+  try {
+    expect(button().disabled).toBe(false);
+    const card = view.host.querySelector('.fiscal-kpis')!.textContent;
+    const queue = view.host.querySelector('.fiscal-action-queue')!.textContent;
+    view.select('Fornecedor', 'Zeta'); view.select('Contrato', '2'); view.select('Faixa', 'critico'); view.search('FIBRA');
+    act(() => button().click());
+    expect(createUrl).toHaveBeenCalledTimes(1);
+    expect(filename).toBe(`itens-fiscal-${data.meta.dataReference}.csv`);
+    const balances = data.data.itemBalances;
+    if (balances?.coverage !== 'AVAILABLE') throw new Error('Missing test source');
+    const { itens, criterio } = balances;
+    const selected = itens.filter(item => item.supplierName === 'Zeta' && item.contractId === 2 && item.faixa === 'critico');
+    expect(selected).toHaveLength(1);
+    expect(content).toBe(fiscalItemsCsv(selected, data.meta.dataReference, criterio));
+    expect(view.selected('Contrato')).toBe('2'); expect(view.query()).toBe('FIBRA');
+    expect(view.host.querySelector('.fiscal-kpis')!.textContent).toBe(card);
+    expect(view.host.querySelector('.fiscal-action-queue')!.textContent).toBe(queue);
+    expect(view.host.querySelector('a[download]')).toBeNull();
+    vi.runAllTimers(); expect(revokeUrl).toHaveBeenCalledWith('blob:items-fixture');
+    view.search('sem-correspondencia'); expect(button().disabled).toBe(true);
+    act(() => button().click()); expect(createUrl).toHaveBeenCalledTimes(1);
+    view.update(withItems([])); expect(button().disabled).toBe(true);
+    const unavailable = withItems([]); unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+    view.update(unavailable); expect(button().disabled).toBe(true);
+    expect(view.host.querySelector('.fiscal-saldos')!.textContent).toContain('Fonte de saldos por item indisponível');
+  } finally { view.unmount(); click.mockRestore(); vi.useRealTimers(); vi.unstubAllGlobals(); }
 });

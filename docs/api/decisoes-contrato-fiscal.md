@@ -807,3 +807,39 @@ atrasados após escopo novo, preservação de filtros, opções desaparecidas e
 formatação do horário. O roteiro `scripts/test/fiscal-refresh.visual.mjs` usa
 fixtures isoladas com respostas controladas, teclado e desktop/390 px, sem
 chamadas ao banco ou API oficial.
+
+## Exportação CSV dos saldos dos itens do Fiscal
+
+**Exportar itens CSV** usa somente `filteredItems` do recorte local de
+`data.itemBalances.itens`, mantendo ordem e uma linha por item, sem consultas
+adicionais ou cálculo de saldo/classificação. Não representa o saldo consolidado
+por contrato. Fonte ausente/`UNAVAILABLE`, carteira sem itens ou recorte sem
+resultados deixam o controle desabilitado. Não modifica filtros, autorização,
+indicadores globais, exportação da fila ou dashboard do Gerente.
+
+Colunas usam os campos existentes: `meta.dataReference`, `contractId`,
+`contractNumber`, `itemId`, `sequence`, `supplierName`, `specification`, `unit`,
+`valueContracted`, `valueConsumed`, `valueMeasured`, `valueBalance`,
+`valueMeasuredBalance`, `quantityContracted`, `quantityConsumed`,
+`quantityMeasured`, `quantityBalance`, `quantityMeasuredBalance`, `pctSaldo`,
+`pctSaldoMedido`, `faixa`, `statusVerificacao`, `blockedAt` e `blockReason`.
+Cada linha repete os critérios efetivos `criterio.base`, `dimensao`,
+`limiar_atencao` e `limiar_critico`, identificados como provisórios nos cabeçalhos.
+Faixa/status são exportados exatamente como recebidos, sem novas recomendações.
+
+Campos nulos ficam vazios, incluindo medição ausente; não se aplica novamente
+no CSV a convenção de medição ausente como zero. Zeros permanecem `0` e negativos
+numéricos mantêm o sinal, sem apóstrofo. Números não recebem formatação monetária,
+conversão de percentual ou arredondamento adicional; usam representação decimal
+com ponto. Razões e limiares são exportados na escala decimal recebida.
+
+O arquivo `itens-fiscal-AAAA-MM-DD.csv` usa a data de referência da resposta,
+UTF-8 com BOM, ponto e vírgula, linhas CRLF e escape de aspas/quebras de linha.
+O codificador e o download são compartilhados com o CSV da fila. Apenas campos
+textuais iniciados por símbolos de fórmula, inclusive após espaços/controles,
+recebem apóstrofo de proteção. Campos ausentes não ganham textos de fallback.
+
+Testes cobrem recorte combinado, campos ausentes/zero/negativos, caracteres
+especiais, critérios medido/quantidade alternativos e manutenção da exportação
+da fila. O roteiro `scripts/test/fiscal-items-csv.visual.mjs` valida downloads,
+teclado, desktop e 390 px com fixtures isoladas e sem acesso ao banco.
