@@ -1,3 +1,4 @@
+import { BandDistribution } from '../item-balances/band-distribution';
 import { useEffect, useRef, useState } from 'react';
 import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse, ManagerSuppliersResponse } from '@sac-etice-bi/contracts';
 import { loadManagerSummary, loadManagerFiscalLoad, loadManagerSuppliers } from '../../lib/api';
@@ -158,7 +159,21 @@ export function ManagerDashboardView({ state }: { state: State }) {
         {summary.data.cards.activeContracts === 0 && <p className="empty-contracts" role="status">Nenhum contrato vigente na carteira.</p>}
         {summary.meta.dataCoverage.activePortfolioValue === 'UNAVAILABLE' && <p className="coverage-note" role="status">Valor total indisponível: há valor contratual ausente ou a fotografia histórica não pode ser reconstruída.</p>}
         <div className="manager-primary-grid">
-        <section className="fiscal-panel manager-risk-panel"><div className="panel-heading"><h2>Matriz Contrato × Dimensão de Risco</h2><p>Classificação por itens contratuais e prazo até o fim da vigência. Demais dimensões aguardam fonte aprovada.</p></div>
+        <section className="fiscal-panel manager-fiscals-panel"><div className="panel-heading"><h2>Carga e risco por fiscal</h2><p>Fiscais e distribuição da carteira. Risco agregado indisponível; contagens operacionais verificáveis abaixo.</p><details className="manager-fiscal-explanation"><summary>Como são contados contratos e OS</summary><p>Contratos vigentes designados e OS com decisão fiscal pendente. OS pendentes são vinculadas aos contratos da carteira do fiscal e não representam necessariamente atribuições individuais. Uma mesma OS pode aparecer para fiscais diferentes; as contagens não devem ser somadas como OS únicas da carteira gerencial.</p></details></div>
+          {state.status === 'success' && state.loadError ? <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>
+            : sortedInspectors === null ? <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
+              : sortedInspectors.length === 0 ? <p role="status">Nenhum fiscal designado na carteira.</p>
+                : <><FiscalLoadChart inspectors={sortedInspectors} /><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
+                  {sortedInspectors.map(fiscal => <tr key={fiscal.userId}><td>{inspectorName(fiscal)}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>)}
+                </tbody></table></div></>}
+        </section>
+          <section className="fiscal-panel manager-quality-panel"><div className="panel-heading"><h2>Qualidade preventiva da gestão</h2><p>Indicadores preventivos disponíveis.</p></div><div className="manager-quality-visual">
+            <QualityRing label="Dados completos" value={summary.meta.dataCoverage.registrationCompleteness === 'AVAILABLE' ? summary.data.preventiveQuality.registrationCompleteness?.percentage ?? null : null} />
+            <QualityRing label="Decisões D-90" value={summary.meta.dataCoverage.renewalDecisionsD90 === 'AVAILABLE' ? summary.data.preventiveQuality.renewalDecisionsD90?.percentage ?? null : null} />
+          </div></section>
+
+        </div>
+<div className="manager-primary-grid">        <section className="fiscal-panel manager-risk-panel"><div className="panel-heading"><h2>Matriz Contrato × Dimensão de Risco</h2><p>Classificação por itens contratuais e prazo até o fim da vigência. Demais dimensões aguardam fonte aprovada.</p></div>
           {matrix !== null && matrix !== undefined && <div className="manager-matrix-controls">
             <label>Contrato ou fornecedor<input type="search" value={matrixSearch} onChange={event => setMatrixSearch(event.target.value)} placeholder="Buscar contrato ou fornecedor" /></label>
             <label>Dimensão<select value={matrixDimension} onChange={event => setMatrixDimension(event.target.value)}><option value="all">Todas as dimensões</option><option value="saldo">Saldo</option><option value="vigencia">Vigência</option><option value="sla">SLA</option><option value="medicao">Medição</option><option value="pagamento">Pagamento</option><option value="indice">Índice</option></select></label>
@@ -188,15 +203,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
               </dl></> : null}
           </div>
         </section>
-        <section className="fiscal-panel manager-fiscals-panel"><div className="panel-heading"><h2>Carga e risco por fiscal</h2><p>Fiscais e distribuição da carteira. Risco agregado indisponível; contagens operacionais verificáveis abaixo.</p><details className="manager-fiscal-explanation"><summary>Como são contados contratos e OS</summary><p>Contratos vigentes designados e OS com decisão fiscal pendente. OS pendentes são vinculadas aos contratos da carteira do fiscal e não representam necessariamente atribuições individuais. Uma mesma OS pode aparecer para fiscais diferentes; as contagens não devem ser somadas como OS únicas da carteira gerencial.</p></details></div>
-          {state.status === 'success' && state.loadError ? <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>
-            : sortedInspectors === null ? <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
-              : sortedInspectors.length === 0 ? <p role="status">Nenhum fiscal designado na carteira.</p>
-                : <><FiscalLoadChart inspectors={sortedInspectors} /><div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes</th><th>OS pendentes</th><th>Capacidade</th></tr></thead><tbody>
-                  {sortedInspectors.map(fiscal => <tr key={fiscal.userId}><td>{inspectorName(fiscal)}</td><td>{fiscal.activeContracts}</td><td>{fiscal.pendingOrders}</td><td>Indisponível</td></tr>)}
-                </tbody></table></div></>}
-        </section>
-        </div>
+        <section className="fiscal-panel manager-strategic"><div className="panel-heading"><h2>Fornecedores estratégicos: valor × risco</h2><p>Classe ABC, participação e tendência de ocorrências.</p></div><div className="panel-unavailable" role="status">Indisponível: não há fonte e regra aprovadas para classe ABC, risco ou tendência dos fornecedores.</div></section></div>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Intervenções gerenciais</h2><p>Observações verificáveis de alertas abertos ou em tratamento. Avaliar encaminhamento conforme o caso; a fonte não define prioridade, impacto, responsável ou prazo.</p></div>
           {matrix !== null && matrix !== undefined && matrix.filter(row => row.saldo.status === 'CRITICAL' || row.vigencia === 'CRITICAL').length > 0 &&
             <div className="manager-risk-observations"><h3>Observações da matriz</h3><ul>{matrix.filter(row => row.saldo.status === 'CRITICAL' || row.vigencia === 'CRITICAL').map(row =>
@@ -207,60 +214,11 @@ export function ManagerDashboardView({ state }: { state: State }) {
             </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' || summary.data.contractAlerts === null ? 'Indisponível' : 'Nenhum alerta contratual no recorte'}</td></tr>}
           </tbody></table></div>
         </section>
-        <div className="manager-insight-grid">
-          <section className="fiscal-panel"><div className="panel-heading"><h2>Forecast 180 dias</h2><p>Projeção de saldo e vigência.</p></div><div className="manager-unavailable" role="status"><strong>Indisponível</strong><span>Não há série ou regra aprovada para previsão de 180 dias.</span></div></section>
-          <section className="fiscal-panel"><div className="panel-heading"><h2>Exposição financeira</h2><p>SLA, glosas, medições e pagamentos.</p></div><div className="manager-unavailable" role="status"><strong>Indisponível</strong><span>Faltam fontes financeiras e regras aprovadas. Saldo contratual não representa exposição.</span></div></section>
-          <section className="fiscal-panel manager-quality-panel"><div className="panel-heading"><h2>Qualidade da gestão</h2><p>Indicadores preventivos disponíveis.</p></div><div className="manager-quality-visual">
-            <QualityRing label="Dados completos" value={summary.meta.dataCoverage.registrationCompleteness === 'AVAILABLE' ? summary.data.preventiveQuality.registrationCompleteness?.percentage ?? null : null} />
-            <QualityRing label="Decisões D-90" value={summary.meta.dataCoverage.renewalDecisionsD90 === 'AVAILABLE' ? summary.data.preventiveQuality.renewalDecisionsD90?.percentage ?? null : null} />
-          </div></section>
-        </div>
-        <section className="fiscal-panel manager-cycle"><div className="panel-heading"><h2>Eficiência do Ciclo Financeiro — carteira gerenciada</h2><p>Etapas entre faturamento, medição e pagamento.</p></div><div className="manager-cycle-flow" aria-label="Etapas do ciclo financeiro">
-          {['Faturado clientes', 'A receber', 'Recebido ETICE', 'Medição fornecedor', 'Processando pagamento', 'Programado', 'Pago fornecedor'].map(phase => <div key={phase}><span>{phase}</span><strong>Indisponível</strong></div>)}
-        </div><p className="source-note" role="status">Volumes e tempos por etapa indisponíveis: não há fonte e regra aprovadas para este ciclo.</p></section>
-<div className="manager-abc-grid">
-        <section className="fiscal-panel manager-suppliers"><div className="panel-heading"><h2>Curva ABC de Fornecedores</h2><p>Fornecedores da carteira. A classe depende de pagamentos efetivos acumulados em 12 meses e de regra aprovada; valor vigente não determina classe.</p></div><div className="manager-abc-note" role="status"><strong>Classificação ABC indisponível</strong><span>Base necessária: pagamentos efetivos dos últimos 12 meses e regra aprovada.</span></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Valor vigente</th><th>ABC</th><th>Financeiro em aberto</th><th>Riscos críticos</th></tr></thead><tbody>
+<div className="manager-abc-grid">        <section className="fiscal-panel manager-suppliers"><div className="panel-heading"><h2>Curva ABC de Fornecedores</h2><p>Fornecedores da carteira. A classe depende de pagamentos efetivos acumulados em 12 meses e de regra aprovada; valor vigente não determina classe.</p></div><div className="manager-abc-note" role="status"><strong>Classificação ABC indisponível</strong><span>Base necessária: pagamentos efetivos dos últimos 12 meses e regra aprovada.</span></div><div className="fiscal-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Valor vigente</th><th>ABC</th><th>Financeiro em aberto</th><th>Riscos críticos</th></tr></thead><tbody>
           {state.status === 'success' && state.suppliers?.data.suppliers?.length ? state.suppliers.data.suppliers.map((supplier) => <tr key={supplier.supplierId}><td>{supplier.name}</td><td>{money(supplier.vigentValue)}</td><td>Indisponível</td><td>Indisponível</td><td>Indisponível</td></tr>) : <tr><td colSpan={5} className="table-empty">{state.status === 'success' && state.suppliersError ? `Erro ao carregar fornecedores: ${state.suppliersError}` : state.status === 'success' && state.suppliers?.data.suppliers?.length === 0 ? 'Nenhum fornecedor na carteira' : 'Indisponível'}</td></tr>}
         </tbody></table></div></section>
-          <section className="fiscal-panel"><div className="panel-heading"><h2>Curva ABC de Clientes</h2><p>Relevância econômica dos clientes relacionados à carteira.</p></div><div className="manager-abc-note" role="status"><strong>Classificação ABC indisponível</strong><span>A resposta atual não fornece recebimentos acumulados de clientes nem classificação corporativa verificável.</span></div></section>
-        </div>
-        <section className="fiscal-panel manager-quality-details"><div className="panel-heading"><h2>Qualidade preventiva da gestão</h2><p>Mede a disciplina operacional antes da materialização dos riscos.</p></div>
-          <div className="manager-quality-grid">
-            <article><h3>Dados completos</h3>
-              {summary.meta.dataCoverage.registrationCompleteness === 'UNAVAILABLE' || summary.data.preventiveQuality.registrationCompleteness === null
-                ? <p role="status">Fonte indisponível para esta referência.</p>
-                : <>{summary.data.preventiveQuality.registrationCompleteness.activeContracts === 0 && <p role="status">Sem contratos vigentes</p>}
-                  <dl><div><dt>Contratos vigentes</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.activeContracts}</dd></div>
-                    <div><dt>Contratos completos</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.completeContracts}</dd></div>
-                    <div><dt>Sem objeto</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.objeto}</dd></div>
-                    <div><dt>Sem valor total</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.valor_total}</dd></div>
-                    <div><dt>Sem data de assinatura</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.data_assinatura}</dd></div>
-                    <div><dt>Sem início da vigência</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.vigencia_inicio}</dd></div>
-                    <div><dt>Sem fim da vigência</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.vigencia_fim}</dd></div></dl></>}
-            </article>
-            <article><h3>Decisões D-90</h3>
-              {summary.meta.dataCoverage.renewalDecisionsD90 === 'UNAVAILABLE' || summary.data.preventiveQuality.renewalDecisionsD90 === null
-                ? <p role="status">Fonte indisponível para esta referência.</p>
-                : <>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts === 0 && <p role="status">Sem população elegível</p>}
-                  <dl><div><dt>Contratos elegíveis</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts}</dd></div>
-                    <div><dt>Contratos decididos</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.decidedContracts}</dd></div>
-                    <div><dt>Intenções de prorrogar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.extendContracts}</dd></div>
-                    <div><dt>Intenções de não renovar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.nonRenewalContracts}</dd></div>
-                    <div><dt>Contratos sem decisão</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.undecidedContracts}</dd></div></dl></>}
-            </article>
-          </div>
-          <p className="source-note">Preenchimento cadastral indica presença dos campos; intenção de prorrogar não significa prorrogação concluída.</p>
-        </section>
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Saldos da carteira</h2><p>Valores da visão de saldo contratual para a carteira completa; filtros locais de itens não se aplicam.</p></div>
-          <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Valor contratado</th><th>Valor consumido</th><th>Saldo</th><th>Percentual disponível</th></tr></thead><tbody>
-            {summary.meta.dataCoverage.contractBalances === 'AVAILABLE' && summary.data.contractBalances?.length ? summary.data.contractBalances.map(item => <tr key={item.contractId}>
-              <td>{item.contractNumber ?? `#${item.contractId}`}</td><td>{currency(item.contractedValue)}</td><td>{currency(item.consumedValue)}</td><td>{currency(item.balanceValue)}</td><td>{percentage(item.balancePct)}</td>
-            </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' || summary.data.contractBalances === null ? 'Indisponível' : 'Nenhum saldo contratual no recorte'}</td></tr>}
-          </tbody></table></div>
-        </section>
-        <section className="fiscal-panel"><div className="panel-heading"><h2>Distribuição financeira por contrato</h2><p>Contratado, consumido e saldo em reais, na mesma escala; filtros locais de itens não se aplicam.</p></div>
-          {summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' || summary.data.contractBalances === null ? <div className="panel-unavailable" role="status">Indisponível</div> : summary.data.contractBalances.length === 0 ? <p className="table-empty">Nenhum saldo contratual no recorte</p> : <PortfolioFinancialChart balances={summary.data.contractBalances} />}
-        </section>
+        <section className="fiscal-panel manager-band-distribution"><div className="panel-heading"><h2>Distribuição dos itens por faixa de saldo</h2><p>Resultado atualizado conforme os filtros locais aplicados.</p></div>
+<BandDistribution distribution={distribution} available={itemBalances?.coverage === 'AVAILABLE'} hasItems={items.length > 0} title="Distribuição dos itens por faixa de saldo" scope="Fornecedor, contrato, faixa e busca aplicados." outerRadius={96} /></section></div>
         <section className="fiscal-panel fiscal-saldos"><div className="panel-heading"><h2>Gestão dos Saldos dos Itens Contratuais</h2><p>Itens da carteira autorizada; filtros locais não alteram os indicadores globais nem os saldos por contrato.</p></div>
           {itemBalances?.coverage === 'AVAILABLE' ? <>
             <div className="saldo-filters" aria-label="Filtros dos saldos contratuais">
@@ -306,6 +264,53 @@ export function ManagerDashboardView({ state }: { state: State }) {
             </tbody></table></div>
           </> : <div className="panel-unavailable" role="status">Fonte de saldos por item indisponível para esta data.</div>}
         </section>
+        <section className="fiscal-panel manager-cycle"><div className="panel-heading"><h2>Eficiência do Ciclo Financeiro — carteira gerenciada</h2><p>Etapas entre faturamento, medição e pagamento.</p></div><div className="manager-cycle-flow" aria-label="Etapas do ciclo financeiro">
+          {['Faturado clientes', 'A receber', 'Recebido ETICE', 'Medição fornecedor', 'Processando pagamento', 'Programado', 'Pago fornecedor'].map(phase => <div key={phase}><span>{phase}</span><strong>Indisponível</strong></div>)}
+        </div><p className="source-note" role="status">Volumes e tempos por etapa indisponíveis: não há fonte e regra aprovadas para este ciclo.</p></section>
+<section className="manager-complementary" aria-label="Painéis complementares"><h2 className="manager-complementary-heading">Painéis complementares</h2>        <div className="manager-insight-grid">
+          <section className="fiscal-panel"><div className="panel-heading"><h2>Forecast 180 dias</h2><p>Projeção de saldo e vigência.</p></div><div className="manager-unavailable" role="status"><strong>Indisponível</strong><span>Não há série ou regra aprovada para previsão de 180 dias.</span></div></section>
+          <section className="fiscal-panel"><div className="panel-heading"><h2>Exposição financeira</h2><p>SLA, glosas, medições e pagamentos.</p></div><div className="manager-unavailable" role="status"><strong>Indisponível</strong><span>Faltam fontes financeiras e regras aprovadas. Saldo contratual não representa exposição.</span></div></section>
+
+        </div>
+
+          <section className="fiscal-panel"><div className="panel-heading"><h2>Curva ABC de Clientes</h2><p>Relevância econômica dos clientes relacionados à carteira.</p></div><div className="manager-abc-note" role="status"><strong>Classificação ABC indisponível</strong><span>A resposta atual não fornece recebimentos acumulados de clientes nem classificação corporativa verificável.</span></div></section>
+        <section className="fiscal-panel manager-quality-details"><div className="panel-heading"><h2>Detalhamento dos indicadores preventivos</h2><p>Mede a disciplina operacional antes da materialização dos riscos.</p></div>
+          <div className="manager-quality-grid">
+            <article><h3>Dados completos</h3>
+              {summary.meta.dataCoverage.registrationCompleteness === 'UNAVAILABLE' || summary.data.preventiveQuality.registrationCompleteness === null
+                ? <p role="status">Fonte indisponível para esta referência.</p>
+                : <>{summary.data.preventiveQuality.registrationCompleteness.activeContracts === 0 && <p role="status">Sem contratos vigentes</p>}
+                  <dl><div><dt>Contratos vigentes</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.activeContracts}</dd></div>
+                    <div><dt>Contratos completos</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.completeContracts}</dd></div>
+                    <div><dt>Sem objeto</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.objeto}</dd></div>
+                    <div><dt>Sem valor total</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.valor_total}</dd></div>
+                    <div><dt>Sem data de assinatura</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.data_assinatura}</dd></div>
+                    <div><dt>Sem início da vigência</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.vigencia_inicio}</dd></div>
+                    <div><dt>Sem fim da vigência</dt><dd>{summary.data.preventiveQuality.registrationCompleteness.missingByField.vigencia_fim}</dd></div></dl></>}
+            </article>
+            <article><h3>Decisões D-90</h3>
+              {summary.meta.dataCoverage.renewalDecisionsD90 === 'UNAVAILABLE' || summary.data.preventiveQuality.renewalDecisionsD90 === null
+                ? <p role="status">Fonte indisponível para esta referência.</p>
+                : <>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts === 0 && <p role="status">Sem população elegível</p>}
+                  <dl><div><dt>Contratos elegíveis</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts}</dd></div>
+                    <div><dt>Contratos decididos</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.decidedContracts}</dd></div>
+                    <div><dt>Intenções de prorrogar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.extendContracts}</dd></div>
+                    <div><dt>Intenções de não renovar</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.nonRenewalContracts}</dd></div>
+                    <div><dt>Contratos sem decisão</dt><dd>{summary.data.preventiveQuality.renewalDecisionsD90.undecidedContracts}</dd></div></dl></>}
+            </article>
+          </div>
+          <p className="source-note">Preenchimento cadastral indica presença dos campos; intenção de prorrogar não significa prorrogação concluída.</p>
+        </section>
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Saldos da carteira</h2><p>Valores da visão de saldo contratual para a carteira completa; filtros locais de itens não se aplicam.</p></div>
+          <div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Valor contratado</th><th>Valor consumido</th><th>Saldo</th><th>Percentual disponível</th></tr></thead><tbody>
+            {summary.meta.dataCoverage.contractBalances === 'AVAILABLE' && summary.data.contractBalances?.length ? summary.data.contractBalances.map(item => <tr key={item.contractId}>
+              <td>{item.contractNumber ?? `#${item.contractId}`}</td><td>{currency(item.contractedValue)}</td><td>{currency(item.consumedValue)}</td><td>{currency(item.balanceValue)}</td><td>{percentage(item.balancePct)}</td>
+            </tr>) : <tr><td colSpan={5} className="table-empty">{summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' || summary.data.contractBalances === null ? 'Indisponível' : 'Nenhum saldo contratual no recorte'}</td></tr>}
+          </tbody></table></div>
+        </section>
+        <section className="fiscal-panel"><div className="panel-heading"><h2>Distribuição financeira por contrato</h2><p>Contratado, consumido e saldo em reais, na mesma escala; filtros locais de itens não se aplicam.</p></div>
+          {summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' || summary.data.contractBalances === null ? <div className="panel-unavailable" role="status">Indisponível</div> : summary.data.contractBalances.length === 0 ? <p className="table-empty">Nenhum saldo contratual no recorte</p> : <PortfolioFinancialChart balances={summary.data.contractBalances} />}
+        </section></section>
         <section className="fiscal-panel"><div className="panel-heading"><h2>Contratos vigentes da carteira</h2><p>Dados atuais dos contratos autorizados.</p></div><div className="fiscal-table-wrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Valor atual</th><th>Fim da vigência</th></tr></thead><tbody>
           {summary.data.contracts?.length ? summary.data.contracts.map((contract) => <tr key={contract.contractId}><td>{contract.contractNumber ?? `#${contract.contractId}`}</td><td>{contract.supplierName ?? 'Indisponível'}</td><td>{money(contract.value)}</td><td>{displayDate(contract.expiryDate, summary.meta.timezone)}</td></tr>) : <tr><td colSpan={4} className="table-empty">{summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente'}</td></tr>}
         </tbody></table></div></section>

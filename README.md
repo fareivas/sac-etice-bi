@@ -71,3 +71,10 @@ curl --fail 'http://127.0.0.1:3000/api/v1/fiscais/me/dashboard/resumo?includeExt
 
 Com o estado local conhecido e ID 4, espera-se HTTP 200, `fiscal.userId = 4`
 e `activeContracts = 1`; esses valores dependem do banco atual.
+
+## Referência visual dos dashboards
+
+Para Fiscal e Gerente de Contratos, os protótipos **React/Recharts** são a
+referência principal; **Autocontido v4 ABC** é secundária. Implementação,
+diferenças intencionais e evidências do lote estão em
+[VIS-002](docs/visual/VIS-002.md), preservando as decisões funcionais anteriores.

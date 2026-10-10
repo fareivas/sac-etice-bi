@@ -269,8 +269,8 @@ it('renders preventive quality values without rounding the API counts or treatin
       missingByField: { objeto: 1, valor_total: 1, data_assinatura: 1, vigencia_inicio: 0, vigencia_fim: 0 } },
   };
   const html = render(summary).replaceAll('\u00a0', ' ');
-  const section = html.match(/Qualidade da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
-  const details = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const section = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const details = html.match(/Detalhamento dos indicadores preventivos[\s\S]*?<\/section>/)?.[0] ?? '';
   expect(section).toContain('66,67%');
   expect(section).toContain('33,33%');
   expect(details).toContain('Mede a disciplina operacional antes da materialização dos riscos.');
@@ -292,7 +292,7 @@ it('renders preventive quality values without rounding the API counts or treatin
     'Sem início da vigência', 'Sem fim da vigência']) expect(details).toContain(label);
   for (const value of ['>3</dd>', '>2</dd>', '>1</dd>', '>0</dd>']) expect(details).toContain(value);
   expect(details).toContain('intenção de prorrogar não significa prorrogação concluída');
-  expect(html.indexOf('Intervenções gerenciais')).toBeLessThan(html.indexOf('Qualidade preventiva da gestão'));
+  expect(html.indexOf('Qualidade preventiva da gestão')).toBeLessThan(html.indexOf('Intervenções gerenciais'));
   expect(html).toContain('Gestão dos Saldos dos Itens Contratuais');
 });
 
@@ -306,8 +306,8 @@ it('distinguishes empty populations, independent unavailable coverage and main l
   unavailable.meta.dataCoverage.renewalDecisionsD90 = 'UNAVAILABLE';
   unavailable.data.preventiveQuality.renewalDecisionsD90 = null;
   const html = render(unavailable);
-  const section = html.match(/Qualidade da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
-  const details = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const section = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const details = html.match(/Detalhamento dos indicadores preventivos[\s\S]*?<\/section>/)?.[0] ?? '';
   expect(details).toContain('Fonte indisponível para esta referência');
   expect(details).toContain('Sem contratos vigentes');
   expect(details).not.toContain('Sem população elegível');
@@ -602,4 +602,29 @@ it('keeps a long supplier in the contract cell and full name in selectable detai
     expect(panel.querySelector('.manager-risk-detail dd')?.textContent).toBe('CT-12');
     expect([...panel.querySelectorAll('.manager-risk-detail dd')].map(node => node.textContent)).toContain(supplier);
   } finally { view.unmount(); }
+});
+
+it('VIS-002 preserves the principal panel sequence and distinguishes complements', () => {
+  const host = document.createElement('div'); host.innerHTML = render(base);
+  const titles = [...host.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
+  expect(titles.slice(0, 9)).toEqual(['Carga e risco por fiscal', 'Qualidade preventiva da gestão',
+    'Matriz Contrato × Dimensão de Risco', 'Fornecedores estratégicos: valor × risco', 'Intervenções gerenciais',
+    'Curva ABC de Fornecedores', 'Distribuição dos itens por faixa de saldo',
+    'Gestão dos Saldos dos Itens Contratuais', 'Eficiência do Ciclo Financeiro — carteira gerenciada']);
+  expect(host.querySelector('.manager-complementary')?.textContent).toContain('Curva ABC de Clientes');
+});
+it('VIS-002 manager distribution follows local filters, including zero and unavailable', () => {
+  const view = mount(withItems([item(1, 1, 'A', 'adequado'), item(2, 2, 'B', 'critico'), item(3, 2, 'B', 'nao_verificavel')]));
+  const chart = () => view.host.querySelector('.manager-band-distribution')!;
+  expect(chart().textContent).toContain('Adequado: 1');
+  view.select('Fornecedor', 'B');
+  expect(chart().textContent).toContain('Adequado: 0');
+  expect(chart().textContent).toContain('Crítico: 1');
+  view.select('Faixa', 'adequado');
+  expect(chart().textContent).toContain('Nenhum item encontrado com os filtros atuais.');
+  const unavailable = structuredClone(base); unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+  view.update(unavailable);
+  expect(chart().textContent).toContain('Distribuição indisponível');
+  expect(chart().textContent).not.toContain('Adequado: 0');
+  view.unmount();
 });

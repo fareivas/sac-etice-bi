@@ -349,3 +349,14 @@ button, input, select { font: inherit; }
   .fiscal-dashboard .fiscal-kpi { padding: 12px; }
   .fiscal-dashboard .fiscal-filters { flex-direction: column; align-items: stretch; }
 }
+
+/* VIS-002: composição React/Recharts, com legendas fora da rosca para telas estreitas. */
+.item-band-chart { margin: 0; min-width: 0; }
+.item-band-chart-canvas { width: 100%; height: 275px; }
+.item-band-chart-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; padding: 0; margin: 8px 0 14px; list-style: none; font-size: .85rem; }
+.item-band-chart-legend li { display: flex; align-items: center; gap: 6px; }
+.item-band-chart-legend i { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.manager-dashboard .manager-primary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.manager-dashboard .manager-primary-grid > .fiscal-panel { padding: 16px; }
+.manager-complementary-heading { font-size: 1.1rem; color: var(--text-secondary); margin: 22px 0 14px; }
+@media (max-width: 1150px) { .manager-dashboard .manager-primary-grid, .manager-dashboard .manager-abc-grid { grid-template-columns: 1fr; } }

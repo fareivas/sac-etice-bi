@@ -206,3 +206,31 @@ busca antes da faixa, preservação da ordenação, reset de página, CSV comple
 após o filtro e indicadores globais intactos, em desktop/390 px. Confere também
 contagens zero para filtros sem resultados, carteira sem itens e fonte
 indisponível. PNGs/relatório/downloads ficam temporários; não usa o banco.
+
+## VIS-002 — Fidelidade React/Recharts
+
+A referência principal de organização, componentes e apresentação passa a ser
+`ETICE_Dashboard_Fiscal_React_Recharts.html` e
+`ETICE_Dashboard_Gerente_Contratos_React_Recharts.html`. Autocontido v4 ABC é
+referência secundária. Consulte `docs/visual/VIS-002.md` para divergências
+intencionais e decisões funcionais preservadas.
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/dashboard-fidelity.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/vis002-fixtures.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
+  node scripts/test/dashboard-fidelity.visual.mjs \
+  /tmp/sac-fiscal-visual/vis002-fixtures.cjs /tmp/vis002
+```
+
+Em desktop 1440 px, tablet 900 px e 390 px, valida os dois gráficos reais
+Recharts, quatro faixas, filtros combinados, sem resultados com zero real,
+sem itens, indisponibilidade, falha de carregamento, sequência dos painéis,
+anéis preventivos e ausência de transbordamento. Capturas de página inteira,
+roscas e recortes ficam no diretório temporário com `report.json`. As fixtures
+são sintéticas e isoladas; nenhuma chamada chega ao backend ou banco.
+Reexecute também `fiscal-band-distribution.visual.mjs` para teclado, CSV,
+ordenação, paginação e preservação dos demais painéis. Para testes jsdom use
+Node compatível com as dependências instaladas (runtime de validação: Node 22).

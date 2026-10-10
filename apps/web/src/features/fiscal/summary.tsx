@@ -1,3 +1,4 @@
+import { BandDistribution } from '../item-balances/band-distribution';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
 import { FiscalContractExpiry, FiscalExpiryReferenceNote } from './contract-expiry';
@@ -193,7 +194,8 @@ export function FiscalDashboardView({ state, includeExternal, onIncludeExternalC
         </Panel>
           <Panel title="Distribuição dos itens por faixa" subtitle="Classificações retornadas para os itens do recorte." className="fiscal-band-distribution">{itemBalances?.coverage === 'AVAILABLE' ? <>
             <p className="source-note" id={`${queueFilterId}-band-scope`}>Contagens considerando fornecedor, contrato e busca, antes de aplicar o filtro de faixa. Selecione uma faixa para filtrar; clique novamente na faixa selecionada para remover somente esse filtro.</p>
-            {noRegisteredItems && <p role="status">Sem itens cadastrados na carteira.</p>}
+            <BandDistribution distribution={distributionBeforeBand} available={true} hasItems={!noRegisteredItems}
+              title="Distribuição dos itens por faixa" scope="Fornecedor, contrato e busca aplicados; antes da faixa e da paginação." />
             <div className="fiscal-band-buttons">
               {([['adequado', 'Adequado'], ['atencao', 'Atenção'], ['critico', 'Crítico'], ['nao_verificavel', 'Não verificável']] as const).map(([value, label]) => <button
                 key={value} type="button" data-band={value} aria-pressed={band === value} aria-describedby={`${queueFilterId}-band-scope`} disabled={noRegisteredItems}
