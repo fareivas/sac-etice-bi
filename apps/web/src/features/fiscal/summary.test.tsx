@@ -1318,3 +1318,22 @@ it('VIS-003 keeps unavailable and empty complementary fiscal panels distinct', (
   expect(host.querySelector('.fiscal-complementary')?.textContent).not.toContain('Nenhum alerta contratual no recorte');
   expect(host.querySelector('.fiscal-complementary')?.textContent).not.toContain('Nenhum contrato vigente na carteira');
 });
+
+it('VIS-004 groups queue counts and actions without changing keyboard order or visible export guidance', () => {
+  const host = document.createElement('div');
+  host.innerHTML = render({ status: 'success', summary: queueFixture });
+  const panel = host.querySelector('.fiscal-action-queue')!;
+  const actions = panel.querySelector('.fiscal-queue-actions')!;
+  expect(actions.textContent).toContain('4 de 4 OS');
+  expect([...actions.querySelectorAll('button')].map(node => node.textContent)).toEqual([
+    'Limpar filtros da fila', 'Exportar CSV',
+  ]);
+  const exportButton = actions.querySelector('.fiscal-queue-export button')!;
+  const note = host.querySelector(`[id="${exportButton.getAttribute('aria-describedby')}"]`)!;
+  expect(note.textContent).toContain('Cada linha representa uma pendência');
+  expect(note.parentElement).toBe(panel);
+  expect(panel.querySelectorAll('thead th')).toHaveLength(7);
+  expect(panel.querySelectorAll('.fiscal-queue-filters :is(select,input)')).toHaveLength(3);
+  for (const text of ['não comprova tarefa atribuída', 'não representa prioridade',
+    'Não há fonte aprovada de severidade', 'As decisões são registradas no SAC']) expect(panel.textContent).toContain(text);
+});

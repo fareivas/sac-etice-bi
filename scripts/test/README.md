@@ -262,3 +262,31 @@ Reexecute também os roteiros de faixas, atualização manual e detalhes acima,
 com `FISCAL_PREVIEW_URL` apontando para a mesma porta. Use Node 22 para a suíte
 jsdom. Capturas/relatórios ficam somente em `/tmp`, sem assets demonstrativos
 ou fixtures no fluxo de produção.
+
+## VIS-004 — Fila compacta e carga gerencial
+
+Com o preview Vite e Chromium descritos acima, execute:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/dashboard-density.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/vis004-fixtures.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
+  node scripts/test/dashboard-density.visual.mjs \
+  /tmp/sac-fiscal-visual/vis004-fixtures.cjs /tmp/vis004
+```
+
+O roteiro de carga cobre seis estados em 1440, 900 e 390 px: múltiplos fiscais
+com valores distintos/zero, somente zero, 30 fiscais/nome extenso, lista vazia,
+fonte indisponível e erro HTTP. Verifica escala comum, valores explícitos,
+tabela integral, explicação preservada, foco por Tab e rolagem por teclado.
+Captura também a fila fiscal e os dois protótipos locais para comparação.
+
+Reexecute `fiscal-queue-filters.visual.mjs` com o bundle `queue-fixture.cjs`:
+agora cobre também tablet 900 px, distribuição dos filtros, faixa compacta de
+ações, notas visíveis, cabeçalho fixo, sequência Tab/Shift+Tab, CSV/BOM e estados.
+Reexecute os roteiros `fiscal-refresh.visual.mjs` e
+`dashboard-layout.visual.mjs` para regressão dos comportamentos e painéis
+anteriores. Respostas são interceptadas e nenhuma consulta chega ao SAC/banco.
+Documentação e resultados: `docs/visual/VIS-004.md`.

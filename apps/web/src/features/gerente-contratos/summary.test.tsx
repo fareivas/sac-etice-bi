@@ -155,7 +155,7 @@ it('compares multiple fiscals on one zero-based scale and sorts chart and table 
   host.innerHTML = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, load }} />);
   const panel = [...host.querySelectorAll('section.fiscal-panel')].find(node => node.querySelector('h2')?.textContent === 'Carga e risco por fiscal')!;
   const chart = panel.querySelector('svg[aria-label="Comparativo de contratos vigentes e OS pendentes por fiscal"]')!;
-  const chartNames = [...chart.querySelectorAll('g > text.manager-fiscal-name')].map(node => node.textContent);
+  const chartNames = [...chart.querySelectorAll('.manager-fiscal-name')].map(node => node.textContent);
   const tableNames = [...panel.querySelectorAll('tbody tr')].map(node => node.querySelector('td')?.textContent);
   expect(chartNames).toEqual(['Álvaro', 'Álvaro', 'Zeca', 'Bruna']);
   expect(tableNames).toEqual(chartNames);
@@ -638,4 +638,21 @@ it('VIS-003 retains contract and expiry lists in the accessible complementary ar
   expect(titles).toContain('Contratos vigentes com vencimento nos próximos 120 dias');
   expect(titles).toContain('Detalhamento dos indicadores preventivos');
   expect(host.querySelectorAll('[data-quality-ring]')).toHaveLength(2);
+});
+
+it('VIS-004 keeps long names and all fiscals in the chart and complete table with keyboard scrolling', () => {
+  const name = 'Fiscal com nome completo muito extenso para a identificação integral';
+  const rows = Array.from({ length: 30 }, (_, index) => inspector(index + 1, index === 0 ? name : `Fiscal ${index + 1}`, 2, index % 3));
+  const host = document.createElement('div');
+  host.innerHTML = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, load: fiscalLoad(rows) }} />);
+  const panel = host.querySelector('.manager-fiscals-panel')!;
+  expect(panel.querySelector('.manager-fiscal-chart-scroll')?.getAttribute('tabindex')).toBe('0');
+  expect(panel.querySelectorAll('svg g[aria-label]')).toHaveLength(30);
+  expect(panel.querySelectorAll('tbody tr')).toHaveLength(30);
+  expect([...panel.querySelectorAll('tbody td')].some(node => node.textContent === name)).toBe(true);
+  expect([...panel.querySelectorAll('svg g[aria-label]')].some(node => node.getAttribute('aria-label')?.includes(name))).toBe(true);
+  expect(panel.querySelector('.manager-fiscal-chart-legend')?.getAttribute('aria-hidden')).toBeNull();
+  expect(panel.querySelector('.manager-fiscal-chart-legend')?.textContent).toContain('OS pendentes na carteira');
+  expect(panel.querySelectorAll('.manager-fiscal-value')).toHaveLength(60);
+  expect(panel.textContent).toContain('não devem ser somadas como OS únicas');
 });

@@ -145,64 +145,99 @@ export function FiscalLoadChart({ inspectors }: { inspectors: readonly Inspector
     ...inspectors.flatMap((inspector) => [inspector.activeContracts, inspector.pendingOrders])
   );
   const barWidth = (value: number) => (max === 0 ? 0 : (value / max) * 450);
+  const height = inspectors.length * 64 + 22;
   return (
-    <div className="fiscal-table-wrap manager-fiscal-chart-wrap">
-      <div className="manager-fiscal-chart-legend" aria-hidden="true">
+    <figure className="manager-fiscal-chart-wrap">
+      <div className="manager-fiscal-chart-legend" aria-label="Séries do gráfico">
         <span>
-          <i className="contracts" />
+          <i className="contracts" aria-hidden="true" />
           Contratos vigentes
         </span>
         <span>
-          <i className="orders" />
+          <i className="orders" aria-hidden="true" />
           OS pendentes na carteira
         </span>
       </div>
-      <svg
-        viewBox={`0 0 760 ${inspectors.length * 85 + 20}`}
-        width="100%"
-        role="img"
-        aria-label="Comparativo de contratos vigentes e OS pendentes por fiscal"
-        style={{ minWidth: 700, display: 'block' }}
+      <div
+        className="manager-fiscal-chart-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="Gráfico de carga por fiscal, área com rolagem"
       >
-        <title>Contratos vigentes e OS pendentes na carteira por fiscal</title>
-        <desc>Escala linear comum iniciada em zero. Os valores completos estão na tabela abaixo.</desc>
-        {inspectors.map((inspector, index) => {
-          const y = index * 85 + 16;
-          const contractedWidth = barWidth(inspector.activeContracts);
-          const pendingWidth = barWidth(inspector.pendingOrders);
-          return (
-            <g
-              key={inspector.userId}
-              aria-label={`${inspectorName(inspector)}: ${inspector.activeContracts} contratos vigentes; ${inspector.pendingOrders} OS pendente${inspector.pendingOrders === 1 ? '' : 's'}`}
-            >
-              <text x="12" y={y + 13} className="manager-fiscal-name">
-                {inspectorName(inspector)}
+        <svg
+          viewBox={`0 0 700 ${height}`}
+          width="100%"
+          role="img"
+          aria-label="Comparativo de contratos vigentes e OS pendentes por fiscal"
+        >
+          <title>Contratos vigentes e OS pendentes na carteira por fiscal</title>
+          <desc>
+            Escala linear comum iniciada em zero. Os valores completos e os nomes integrais estão na tabela
+            abaixo.
+          </desc>
+          <g className="manager-fiscal-chart-axis" aria-hidden="true">
+            <line x1="160" x2="160" y1="10" y2={height - 22} />
+            {max > 0 && (
+              <line x1="610" x2="610" y1="10" y2={height - 22} className="manager-fiscal-chart-grid" />
+            )}
+            <text x="160" y={height - 5} textAnchor="middle">
+              0
+            </text>
+            {max > 0 && (
+              <text x="610" y={height - 5} textAnchor="middle">
+                {max}
               </text>
-              <rect
-                x="150"
-                y={y + 22}
-                width={contractedWidth}
-                height="18"
-                className="manager-fiscal-bar-contracts"
-              />
-              <text x={156 + contractedWidth} y={y + 36}>
-                {inspector.activeContracts}
-              </text>
-              <rect
-                x="150"
-                y={y + 47}
-                width={pendingWidth}
-                height="18"
-                className="manager-fiscal-bar-orders"
-              />
-              <text x={156 + pendingWidth} y={y + 61}>
-                {inspector.pendingOrders}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
+            )}
+          </g>
+          {inspectors.map((inspector, index) => {
+            const y = index * 64 + 18;
+            const name = inspectorName(inspector);
+            return (
+              <g
+                key={inspector.userId}
+                aria-label={`${name}: ${inspector.activeContracts} contratos vigentes; ${inspector.pendingOrders} OS pendente${inspector.pendingOrders === 1 ? '' : 's'}`}
+              >
+                <title>{name}</title>
+                <foreignObject x="12" y={y - 2} width="136" height="42">
+                  <div className="manager-fiscal-name">
+                    <span>{name}</span>
+                  </div>
+                </foreignObject>
+                <rect
+                  x="160"
+                  y={y}
+                  width={barWidth(inspector.activeContracts)}
+                  height="16"
+                  rx="3"
+                  className="manager-fiscal-bar-contracts"
+                />
+                <text
+                  x={166 + barWidth(inspector.activeContracts)}
+                  y={y + 12}
+                  className="manager-fiscal-value"
+                >
+                  {inspector.activeContracts}
+                </text>
+                <rect
+                  x="160"
+                  y={y + 22}
+                  width={barWidth(inspector.pendingOrders)}
+                  height="16"
+                  rx="3"
+                  className="manager-fiscal-bar-orders"
+                />
+                <text x={166 + barWidth(inspector.pendingOrders)} y={y + 34} className="manager-fiscal-value">
+                  {inspector.pendingOrders}
+                </text>
+                {index < inspectors.length - 1 && (
+                  <line x1="12" x2="688" y1={y + 50} y2={y + 50} className="manager-fiscal-row-divider" />
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </figure>
   );
 }
 export function ManagerDashboardView({ state }: { state: State }) {

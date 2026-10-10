@@ -11,7 +11,7 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch();
 const report = [];
 try {
-  for (const [screen, width, height] of [['desktop', 1440, 1000], ['narrow', 390, 844]]) {
+  for (const [screen, width, height] of [['desktop', 1440, 1000], ['tablet', 900, 1000], ['narrow', 390, 844]]) {
     const page = await browser.newPage({ viewport: { width, height } });
     let current = structuredClone(fixture);
     let apiRequests = 0;
@@ -34,6 +34,23 @@ try {
     const waitCount = expected => page.waitForFunction(expected => document.querySelector('.fiscal-queue-filter-meta [role="status"]')?.textContent === expected, expected);
     const pendingCard = page.locator('.fiscal-kpi').filter({ has: page.getByText('OS pendentes', { exact: true }) }).locator('strong');
     await waitCount('4 de 4 OS');
+    const controls = await panel.locator('.fiscal-queue-filters > div').evaluateAll(elements => elements.map(el => {
+      const box = el.getBoundingClientRect(); return { top: box.top, left: box.left, right: box.right, bottom: box.bottom };
+    }));
+    if (width > 1000) assert.ok(controls.every(box => Math.abs(box.top - controls[0].top) < 1));
+    else if (width > 600) { assert.ok(Math.abs(controls[0].top - controls[1].top) < 1); assert.ok(controls[2].top >= controls[0].bottom); }
+    else { assert.ok(controls[1].top >= controls[0].bottom); assert.ok(controls[2].top >= controls[1].bottom); }
+    assert.ok(controls.every(box => box.left >= 0 && box.right <= width));
+    assert.equal(await panel.locator('.fiscal-queue-actions button').count(), 2);
+    assert.equal(await panel.locator('thead th').count(), 7);
+    assert.equal(await panel.locator('thead th').first().evaluate(el => getComputedStyle(el).position), 'sticky');
+    const clearBox = await clear.boundingBox(); const exportBox = await exportCsv.boundingBox();
+    if (width > 600) assert.ok(Math.abs(clearBox.y - exportBox.y) < 1);
+    else assert.ok(exportBox.y >= clearBox.y + clearBox.height);
+    for (const note of await panel.locator('p.source-note').all()) assert.ok(await note.isVisible());
+    const exportNote = await exportCsv.getAttribute('aria-describedby');
+    assert.ok((await page.locator(`[id="${exportNote}"]`).innerText()).includes('Cada linha representa uma pendência'));
+    await panel.screenshot({ path: `${output}/${screen}-initial.png` });
     const initialRequests = apiRequests;
     const otherPanels = await page.locator('.fiscal-panel:not(.fiscal-action-queue)').allTextContents();
     const initialCards = await page.locator('.fiscal-kpis').textContent();
@@ -56,6 +73,9 @@ try {
     assert.equal(await clear.evaluate(el => el === document.activeElement), true);
     const focus = await clear.evaluate(el => ({ outline: getComputedStyle(el).outlineStyle, width: getComputedStyle(el).outlineWidth }));
     assert.notEqual(focus.outline, 'none'); assert.notEqual(focus.width, '0px');
+    await page.keyboard.press('Tab');
+    assert.equal(await exportCsv.evaluate(el => el === document.activeElement), true);
+    await page.keyboard.press('Shift+Tab');
     await panel.screenshot({ path: `${output}/${screen}-keyboard-filtered.png` });
     await page.keyboard.press('Enter');
     await waitCount('4 de 4 OS');
@@ -131,6 +151,7 @@ try {
     await panel.screenshot({ path: `${output}/${screen}-empty.png` });
     current.data.priorityQueue = null; current.data.cards.pendingServiceOrders = 2;
     await refresh();
+    await page.waitForFunction(() => document.querySelector('.fiscal-action-queue')?.textContent.includes('Fila indisponível'));
     assert.ok((await panel.innerText()).includes('Fila indisponível'));
     assert.equal(await panel.locator('.fiscal-queue-filters').count(), 0);
     assert.equal(await count.count(), 0);

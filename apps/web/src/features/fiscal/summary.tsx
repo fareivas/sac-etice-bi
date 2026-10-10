@@ -355,6 +355,10 @@ export function FiscalDashboardView({
                         outro contrato ou limpe os filtros para alterar o recorte.
                       </p>
                     )}
+                  </>
+                )}
+                <div className="fiscal-queue-actions">
+                  {queue !== null && queue !== undefined && (
                     <div className="fiscal-queue-filter-meta">
                       <span role="status">
                         {queueFilters.visible.length} de {queueFilters.totalOrders} OS
@@ -367,22 +371,22 @@ export function FiscalDashboardView({
                         Limpar filtros da fila
                       </button>
                     </div>
-                  </>
-                )}
-                <div className="fiscal-queue-export">
-                  <button
-                    type="button"
-                    disabled={queue == null || !queueFilters.visible.length}
-                    aria-describedby={`${queueFilterId}-export-note`}
-                    onClick={() => downloadFiscalQueueCsv(queueFilters.visible, summary.meta.dataReference)}
-                  >
-                    Exportar CSV
-                  </button>
-                  <p id={`${queueFilterId}-export-note`} className="source-note">
-                    Exporta somente o recorte visível. Cada linha representa uma pendência; uma OS pode ocupar
-                    várias linhas.
-                  </p>
+                  )}
+                  <div className="fiscal-queue-export">
+                    <button
+                      type="button"
+                      disabled={queue == null || !queueFilters.visible.length}
+                      aria-describedby={`${queueFilterId}-export-note`}
+                      onClick={() => downloadFiscalQueueCsv(queueFilters.visible, summary.meta.dataReference)}
+                    >
+                      Exportar CSV
+                    </button>
+                  </div>
                 </div>
+                <p id={`${queueFilterId}-export-note`} className="source-note">
+                  Exporta somente o recorte visível. Cada linha representa uma pendência; uma OS pode ocupar
+                  várias linhas.
+                </p>
                 <div className="fiscal-table-wrap">
                   <table>
                     <caption className="visually-hidden">OS da carteira com decisão fiscal pendente</caption>
