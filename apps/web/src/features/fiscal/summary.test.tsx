@@ -49,7 +49,7 @@ describe('Fiscal summary presentation', () => {
     expect(html).toContain('Indisponível');
     expect(html).toContain('Fila indisponível');
     expect(html).toContain('Consulta desabilitada');
-    expect(html).not.toContain('>0</strong>');
+    expect(html.match(/>0<\/strong>/g)).toHaveLength(1); // Alertas disponíveis sem ocorrências; demais fontes seguem indisponíveis.
   });
 
   it('shows real zero and an available empty queue distinctly', () => {

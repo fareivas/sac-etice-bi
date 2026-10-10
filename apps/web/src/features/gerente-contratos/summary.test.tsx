@@ -153,7 +153,7 @@ it('compares multiple fiscals on one zero-based scale and sorts chart and table 
     inspector(7, 'Álvaro', 4, 3), inspector(5, 'Bruna', 0, 0)]);
   const host = document.createElement('div');
   host.innerHTML = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, load }} />);
-  const panel = [...host.querySelectorAll('section.fiscal-panel')].find(node => node.querySelector('h2')?.textContent === 'Fiscais e distribuição da carteira')!;
+  const panel = [...host.querySelectorAll('section.fiscal-panel')].find(node => node.querySelector('h2')?.textContent === 'Carga e risco por fiscal')!;
   const chart = panel.querySelector('svg[aria-label="Comparativo de contratos vigentes e OS pendentes por fiscal"]')!;
   const chartNames = [...chart.querySelectorAll('g > text.manager-fiscal-name')].map(node => node.textContent);
   const tableNames = [...panel.querySelectorAll('tbody tr')].map(node => node.querySelector('td')?.textContent);
@@ -229,7 +229,8 @@ it('renders factual supplier value and unavailable supplier indicators', () => {
   const html = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base, suppliers }} />);
   expect(html).toContain('Fornecedores da carteira');
   expect(html).toContain('<td>Fornecedor Real</td><td>100</td><td>Indisponível</td><td>Indisponível</td><td>Indisponível</td>');
-  expect(html).not.toContain('Curva ABC');
+  expect(html).toContain('Curva ABC de Clientes');
+  expect(html).toContain('Classificação ABC indisponível');
 });
 
 it('renders real alerts, balance amounts and the financial chart while preserving existing sections', () => {
