@@ -78,3 +78,6 @@ Para Fiscal e Gerente de Contratos, os protótipos **React/Recharts** são a
 referência principal; **Autocontido v4 ABC** é secundária. Implementação,
 diferenças intencionais e evidências do lote estão em
 [VIS-002](docs/visual/VIS-002.md), preservando as decisões funcionais anteriores.
+
+O refinamento de organização, proporções e saldo consolidado está documentado
+em [VIS-003](docs/visual/VIS-003.md), mantendo as decisões e referências do VIS-002.

@@ -1279,3 +1279,42 @@ it('keeps zero pre-band buttons on an empty portfolio distinct from unavailable 
     expect(view.host.textContent).toContain('Sem itens cadastrados');
   } finally { view.unmount(); }
 });
+
+it('VIS-003 keeps the principal fiscal sequence in the DOM and preserves complementary content', () => {
+  const host = document.createElement('div');
+  host.innerHTML = render({ status: 'success', summary: bandFixture });
+  const titles = [...host.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
+  expect(titles.slice(0, 7)).toEqual([
+    'Minha fila de ação', 'Saúde da carteira', 'Saldo consolidado por contrato',
+    'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais',
+    'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato / ABC',
+  ]);
+  const complement = host.querySelector('.fiscal-complementary')!;
+  expect(complement.getAttribute('aria-labelledby')).toBe('fiscal-complementary-title');
+  expect([...complement.querySelectorAll('.panel-heading h2')].map(node => node.textContent)).toEqual([
+    'Vigências e renovações', 'Pagamento e medição', 'Alertas contratuais', 'Contratos fiscalizados',
+  ]);
+  expect(complement.textContent).toContain('Alerta independente dos filtros da fila');
+  expect(complement.querySelectorAll('.fiscal-contract-expiry').length).toBeGreaterThan(0);
+  const balanceRow = host.querySelector('.fiscal-balances-grid')!;
+  expect([...balanceRow.children].map(node => node.querySelector('h2')?.textContent)).toEqual([
+    'Saldo consolidado por contrato', 'Distribuição dos itens por faixa',
+  ]);
+  expect(host.querySelectorAll('.fiscal-band-buttons button')).toHaveLength(4);
+  expect(host.querySelector('.fiscal-saldos')?.textContent).toContain('Exportar itens CSV');
+});
+
+it('VIS-003 keeps unavailable and empty complementary fiscal panels distinct', () => {
+  const empty = summary(0, []);
+  const host = document.createElement('div');
+  host.innerHTML = render({ status: 'success', summary: empty });
+  expect(host.querySelector('.fiscal-complementary')?.textContent).toContain('Nenhum alerta contratual no recorte');
+  expect(host.querySelector('.fiscal-complementary')?.textContent).toContain('Nenhum contrato vigente na carteira');
+  const unavailable = structuredClone(empty);
+  unavailable.data.contractAlerts = null; unavailable.meta.dataCoverage.contractAlerts = 'UNAVAILABLE';
+  unavailable.data.contracts = null; unavailable.meta.dataCoverage.contracts = 'UNAVAILABLE';
+  host.innerHTML = render({ status: 'success', summary: unavailable });
+  expect(host.querySelector('.fiscal-complementary')?.textContent).toContain('Indisponível');
+  expect(host.querySelector('.fiscal-complementary')?.textContent).not.toContain('Nenhum alerta contratual no recorte');
+  expect(host.querySelector('.fiscal-complementary')?.textContent).not.toContain('Nenhum contrato vigente na carteira');
+});

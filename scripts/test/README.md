@@ -234,3 +234,31 @@ são sintéticas e isoladas; nenhuma chamada chega ao backend ou banco.
 Reexecute também `fiscal-band-distribution.visual.mjs` para teclado, CSV,
 ordenação, paginação e preservação dos demais painéis. Para testes jsdom use
 Node compatível com as dependências instaladas (runtime de validação: Node 22).
+
+## VIS-003 — Organização, proporções e saldo consolidado
+
+O lote e as divergências intencionais estão em `docs/visual/VIS-003.md`.
+Com o preview local e Chromium acima:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/dashboard-layout.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/vis003-fixtures.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
+  node scripts/test/dashboard-layout.visual.mjs \
+  /tmp/sac-fiscal-visual/vis003-fixtures.cjs /tmp/vis003
+```
+
+Roda em 1440, 900 e 390 px, verifica sequência DOM, área complementar,
+proporção 1,25:1, colunas dos KPIs, contagens e filtros das roscas, saldo
+contratual com zero/nulo/negativo/acima de 100%, seis dimensões da matriz,
+seleção por teclado e retorno do foco, filtros da matriz e anéis de 50%/0%.
+Confere ausência de overflow na página e gera capturas da implementação e dos
+protótipos locais. Requisições das telas são interceptadas; consultas dos
+protótipos são abortadas. Nenhum backend, SAC oficial ou banco é acessado.
+
+Reexecute também os roteiros de faixas, atualização manual e detalhes acima,
+com `FISCAL_PREVIEW_URL` apontando para a mesma porta. Use Node 22 para a suíte
+jsdom. Capturas/relatórios ficam somente em `/tmp`, sem assets demonstrativos
+ou fixtures no fluxo de produção.

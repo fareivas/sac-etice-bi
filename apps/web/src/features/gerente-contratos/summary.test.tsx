@@ -628,3 +628,14 @@ it('VIS-002 manager distribution follows local filters, including zero and unava
   expect(chart().textContent).not.toContain('Adequado: 0');
   view.unmount();
 });
+
+it('VIS-003 retains contract and expiry lists in the accessible complementary area', () => {
+  const host = document.createElement('div'); host.innerHTML = render(base);
+  const complement = host.querySelector('.manager-complementary')!;
+  expect(complement.getAttribute('aria-labelledby')).toBe('manager-complementary-title');
+  const titles = [...complement.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
+  expect(titles).toContain('Contratos vigentes da carteira');
+  expect(titles).toContain('Contratos vigentes com vencimento nos próximos 120 dias');
+  expect(titles).toContain('Detalhamento dos indicadores preventivos');
+  expect(host.querySelectorAll('[data-quality-ring]')).toHaveLength(2);
+});

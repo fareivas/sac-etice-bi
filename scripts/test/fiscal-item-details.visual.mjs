@@ -72,8 +72,12 @@ try {
       }
       assert.equal(await section.locator('.saldo-summary').innerText(), totalsBefore);
       assert.equal(await section.locator('.saldo-filter-meta').innerText(), contextBefore);
-      // Reach expansion by Tab from search; the disabled clear button is skipped natively.
+      // Reach expansion from search through the approved sort and page-size controls; disabled controls are skipped.
       await section.getByRole('searchbox').focus();
+      await page.keyboard.press('Tab');
+      assert.equal(await section.getByLabel('Ordenar itens por', { exact: true }).evaluate(el => el === document.activeElement), true);
+      await page.keyboard.press('Tab');
+      assert.equal(await section.getByLabel('Itens por página', { exact: true }).evaluate(el => el === document.activeElement), true);
       await page.keyboard.press('Tab');
       assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Expandir detalhes do item ID 101');
       await page.keyboard.press('Space');
