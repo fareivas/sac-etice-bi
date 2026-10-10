@@ -195,21 +195,21 @@ button, input, select { font: inherit; }
 .manager-abc-note span { color: var(--text-secondary); }
 .manager-dashboard .fiscal-brand { font-size: .72rem; }
 .manager-dashboard .filter-values > span { padding: 6px 9px; }
-.manager-dashboard .manager-matrix-controls { gap: 7px; margin-bottom: 8px; }
+.manager-dashboard .manager-matrix-controls { gap: 6px; margin-bottom: 6px; }
 .manager-dashboard .manager-matrix-controls label { gap: 3px; font-size: .73rem; }
 .manager-dashboard .manager-matrix-controls :is(input, select) { padding: 6px 8px; font-size: .78rem; }
-.manager-dashboard .manager-matrix-counts { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-bottom: 8px; font-size: .7rem; }
-.manager-dashboard .manager-matrix-counts > span { padding: 3px 7px; border-radius: 999px; border: 1px solid var(--border-default); background: #f8fafc; white-space: nowrap; }
+.manager-dashboard .manager-matrix-counts { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 6px; margin-bottom: 6px; font-size: .7rem; }
+.manager-dashboard .manager-matrix-counts > span { padding: 2px 6px; border-radius: 999px; border: 1px solid var(--border-default); background: #f8fafc; white-space: nowrap; }
 .manager-dashboard .manager-matrix-counts .manager-count-critical { color: #8b292f; background: #fae9e9; border-color: #f3cece; }
 .manager-dashboard .manager-matrix-counts .manager-count-attention { color: #765515; background: #fff3d6; border-color: #ead8a8; }
 .manager-dashboard .manager-matrix-counts .manager-count-ok { color: #126449; background: #e0f2e9; border-color: #b9dfca; }
-.manager-dashboard .manager-matrix-counts small { flex-basis: 100%; color: var(--text-secondary); line-height: 1.25; }
-.manager-dashboard .manager-risk-table { width: 100%; min-width: 690px; table-layout: fixed; border-spacing: 3px; font-size: .72rem; }
+.manager-dashboard .manager-matrix-counts small { color: var(--text-secondary); line-height: 1.25; }
+.manager-dashboard .manager-risk-table { width: 100%; min-width: 730px; table-layout: fixed; border-spacing: 3px; font-size: .72rem; }
 .manager-dashboard .manager-risk-table th, .manager-dashboard .manager-risk-table td { padding: 0; border: 0; background: transparent; }
-.manager-dashboard .manager-risk-table thead th { padding: 7px 4px; border: 1px solid var(--border-default); border-radius: 6px; text-align: center; }
-.manager-dashboard .manager-risk-table thead th:first-child { width: 150px; }
-.manager-dashboard .manager-risk-table th[scope="row"] { padding: 6px 7px; border: 1px solid var(--border-default); border-radius: 6px; background: #f8fafc; font-size: .72rem; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
-.manager-dashboard .manager-risk-table th[scope="row"] small { display: block; max-width: 100%; margin-top: 2px; font-size: .67rem; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.manager-dashboard .manager-risk-table thead th { padding: 5px 4px; border: 1px solid var(--border-default); border-radius: 6px; text-align: center; }
+.manager-dashboard .manager-risk-table thead th:first-child { width: 190px; }
+.manager-dashboard .manager-risk-table th[scope="row"] { padding: 6px 7px; border: 1px solid var(--border-default); border-radius: 6px; background: #f8fafc; font-size: .75rem; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+.manager-dashboard .manager-risk-table th[scope="row"] small { display: block; max-width: 100%; margin-top: 2px; font-size: .75rem; white-space: normal; overflow-wrap: anywhere; }
 .manager-dashboard .manager-risk-table td:has(.manager-risk-cell) { background: transparent; }
 .manager-risk-cell { display: block; width: 100%; min-height: 39px; padding: 5px 3px; border: 1px solid transparent; border-radius: 6px; font-size: .68rem; font-weight: 700; line-height: 1.2; text-align: center; cursor: pointer; }
 .manager-risk-cell.manager-risk-critical { color: #8b292f; background: #fae9e9; border-color: #f3cece; }
@@ -231,7 +231,7 @@ button, input, select { font: inherit; }
 .manager-fiscal-explanation p { margin: 7px 0 0; }
 .manager-fiscals-panel > p[role="status"], .manager-fiscals-panel > p[role="alert"] { margin: 6px 0 0; padding: 9px 11px; border-radius: 7px; background: #f8fafc; color: var(--text-secondary); font-size: .8rem; }
 
-@media (max-width: 700px) { .manager-dashboard .manager-matrix-controls { grid-template-columns: 1fr; } .manager-risk-detail dl { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .manager-dashboard .manager-matrix-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); } .manager-dashboard .manager-matrix-controls label:first-child { grid-column: 1 / -1; } .manager-dashboard .manager-matrix-controls select { padding-inline: 4px; font-size: .72rem; } .manager-risk-detail dl { grid-template-columns: 1fr; } }
 .manager-dashboard { max-width: 100%; }
 .manager-dashboard .manager-primary-grid, .manager-dashboard .manager-risk-panel { min-width: 0; max-width: 100%; }
 .manager-dashboard .manager-risk-scroll { display: block; width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }
@@ -354,3 +354,10 @@ button, input, select { font: inherit; }
 
 .manager-fiscal-chart-wrap .manager-fiscal-name { display: flex; align-items: center; height: 42px; font-size: 12px; }
 .manager-fiscal-name span { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* VIS-005: compact only the approved balance and distribution panels. */
+.fiscal-contract-balances .panel-heading, .fiscal-band-distribution .panel-heading { margin-bottom: 8px; }
+.fiscal-contract-balances .source-note, .fiscal-band-distribution .source-note { margin: 0 0 6px; line-height: 1.35; }
+.fiscal-contract-balances .fiscal-contract-chart { margin-bottom: 8px; }
+.fiscal-band-distribution .item-band-chart-legend { margin: 4px 0 8px; }
+.manager-risk-panel .panel-heading { margin-bottom: 8px; }

@@ -33,8 +33,7 @@ export function FiscalContractBalanceChart({ balances }: { balances: Balances })
   return (
     <figure className="fiscal-contract-chart">
       <figcaption className="source-note">
-        Percentual disponível informado pela API, sem classificação de risco. Valores completos na tabela.
-        Carteira completa; filtros locais de itens não se aplicam.
+        Percentual disponível da API, sem classificação de risco. Valores completos na tabela.
       </figcaption>
       {missing > 0 && (
         <p role="status" className="source-note">
@@ -46,7 +45,7 @@ export function FiscalContractBalanceChart({ balances }: { balances: Balances })
         role="img"
         aria-label={`Percentual de saldo por contrato: ${data.map((row) => `${row.contract}: ${percent(row.balancePct)}`).join('; ')}.`}
       >
-        <div style={{ height: Math.max(275, data.length * 44) }}>
+        <div style={{ height: Math.max(110, data.length * 44 + 54) }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart
               data={chartData}

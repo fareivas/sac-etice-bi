@@ -92,6 +92,7 @@ try {
           'Contratos fiscalizados',
         ]);
         assert.equal(await page.locator('.fiscal-contract-chart .recharts-bar-rectangle').count(), 1);
+        assert.equal(await page.locator('.fiscal-contract-chart-scroll > div').evaluate(el => el.clientHeight), 110);
         assert.ok(
           (await page.locator('.fiscal-contract-chart [role="img"]').getAttribute('aria-label')).includes(
             '100%'
@@ -100,6 +101,22 @@ try {
       } else {
         const risk = page.locator('.manager-risk-panel');
         assert.equal(await risk.locator('.manager-risk-cell').count(), 12);
+        const supplier = risk.locator('th[scope="row"] small').nth(1);
+        assert.match(await supplier.innerText(), /nome extenso/);
+        assert.equal(await supplier.evaluate(el => getComputedStyle(el).fontSize), '12px');
+        assert.ok(await supplier.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
+        const controls = risk.locator('.manager-matrix-controls');
+        const searchControl = controls.getByLabel('Contrato ou fornecedor', { exact: true });
+        await searchControl.focus();
+        await page.keyboard.press('Tab');
+        assert.equal(await controls.getByLabel('Dimensão').evaluate(el => el === document.activeElement), true);
+        await page.keyboard.press('Tab');
+        assert.equal(await controls.getByLabel('Classificação').evaluate(el => el === document.activeElement), true);
+        if (width === 390) {
+          const boxes = await controls.locator('label').evaluateAll(els => els.map(el => ({top: el.getBoundingClientRect().top, bottom: el.getBoundingClientRect().bottom})));
+          assert.equal(boxes[1].top, boxes[2].top);
+          assert.ok(boxes[1].top >= boxes[0].bottom);
+        }
         assert.ok((await page.locator('.manager-quality-visual').innerText()).includes('50%'));
         assert.ok((await page.locator('.manager-quality-visual').innerText()).includes('0%'));
         assert.equal(await page.locator('.manager-quality-ring-progress[stroke-dasharray^="0 "]').evaluate(el => getComputedStyle(el).strokeLinecap), 'butt');
@@ -201,7 +218,34 @@ try {
         assert.ok((await graph.innerText()).includes('1 contrato(s) sem percentual disponível'));
         await graph.screenshot({ path: `${output}/fiscal-${screen}-balance-extremes.png` });
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+        current.data.contractBalances = Array.from({ length: 20 }, (_, index) => ({
+          ...originalBalances[0], contractId: index + 1, contractNumber: `Contrato ${index + 1}`, balancePct: index,
+        }));
+        await open();
+        const scroll = page.locator('.fiscal-contract-chart-scroll');
+        assert.ok(await scroll.evaluate(el => el.scrollHeight > el.clientHeight && el.clientHeight === 420));
+        assert.equal(await page.locator('.fiscal-contract-chart .recharts-bar-rectangle').count(), 19); // Zero has no bar area.
+        assert.match(await scroll.getAttribute('aria-label'), /Contrato 20: 19%/);
+        assert.match(await scroll.getAttribute('aria-label'), /Contrato 1: 0%/);
+        await scroll.evaluate(el => { el.scrollTop = el.scrollHeight; });
+        await graph.screenshot({ path: `${output}/fiscal-${screen}-balance-many.png` });
         current.data.contractBalances = originalBalances;
+      }
+      if (role === 'manager') {
+        const row = current.data.contractRiskMatrix[1];
+        const originalNumber = row.contractNumber;
+        row.contractNumber = 'Contrato com identificação extensa / 20 / 2022 / unidade administrativa';
+        current.data.contracts[1].contractNumber = row.contractNumber;
+        await open();
+        const label = page.locator('.manager-risk-table th[scope="row"]').nth(1);
+        assert.match(await label.innerText(), /unidade administrativa/);
+        assert.ok(await label.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
+        await page.locator('.manager-risk-table tbody tr').nth(1).getByRole('button').first().click();
+        assert.match(await page.locator('#manager-risk-detail').innerText(), /unidade administrativa/);
+        await page.locator('.manager-risk-panel').screenshot({ path: `${output}/manager-${screen}-matrix-long.png` });
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+        row.contractNumber = originalNumber;
+        current.data.contracts[1].contractNumber = originalNumber;
       }
       current.data.itemBalances.itens = [];
       current.data.itemBalances.resumo = { adequado: 0, atencao: 0, critico: 0, nao_verificavel: 0 };

@@ -9,7 +9,7 @@ const { fixture, responseForRequest, expectedCsv } = imported.default ?? importe
 const output = resolve(process.argv[3] ?? '/tmp/sac-fiscal-visual/band-distribution-captures');
 await mkdir(output, { recursive: true }); const browser = await chromium.launch(); const report = [];
 try {
-  for (const [screen, width, height] of [['desktop', 1440, 1000], ['narrow', 390, 844]]) {
+  for (const [screen, width, height] of [['desktop', 1440, 1000], ['tablet', 900, 1000], ['narrow', 390, 844]]) {
     const page = await browser.newPage({ viewport: { width, height } });
     const errors = []; let requests = 0; let current = structuredClone(fixture);
     page.on('pageerror', error => errors.push(error.message));
@@ -28,6 +28,11 @@ try {
     const expected = ['Adequado: 12', 'Atenção: 12', 'Crítico: 12', 'Não verificável: 12'];
     const initialRequests = requests; const cards = await page.locator('.fiscal-kpis').innerText(); const queue = await page.locator('.fiscal-action-queue').innerText();
     assert.deepEqual(await counts(), ['Adequado: 24', 'Atenção: 24', 'Crítico: 24', 'Não verificável: 24']);
+    const scopeId = await button('adequado').getAttribute('aria-describedby');
+    const scope = distribution.locator(`[id="${scopeId}"]`);
+    assert.equal(await scope.count(), 1);
+    assert.match(await scope.innerText(), /antes da faixa e da paginação/);
+    assert.match(await scope.innerText(), /remover somente esse filtro/);
     await button('adequado').focus(); assert.notEqual(await button('adequado').evaluate(el => getComputedStyle(el).outlineStyle), 'none');
     await page.keyboard.press('Space'); assert.equal(await filters.nth(2).inputValue(), 'adequado'); assert.equal(await button('adequado').getAttribute('aria-pressed'), 'true');
     await page.keyboard.press('Tab'); assert.equal(await button('atencao').evaluate(el => el === document.activeElement), true);

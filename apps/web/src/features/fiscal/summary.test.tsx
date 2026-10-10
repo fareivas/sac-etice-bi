@@ -1229,7 +1229,7 @@ it('selects, removes and switches bands while retaining pre-band counts, other f
     const queue = view.host.querySelector('.fiscal-action-queue')!.textContent;
     view.select('Fornecedor', 'Fornecedor A'); view.select('Contrato', '2'); view.search('SERVIÇO GRUPO A');
     expect(bands.counts()).toEqual([12, 12, 12, 12]);
-    expect(view.host.querySelector('.fiscal-band-distribution')!.textContent).toContain('antes de aplicar o filtro de faixa');
+    expect(view.host.querySelector('.fiscal-band-distribution')!.textContent).toContain('antes da faixa e da paginação');
     sort.select(0, 'identity'); sort.select(1, 'desc'); pages.size('10'); pages.next();
     expect(pages.nav().textContent).toContain('Página 2 de 5');
     bands.click('adequado');

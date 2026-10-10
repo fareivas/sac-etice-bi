@@ -475,7 +475,8 @@ export function FiscalDashboardView({
             <div className="fiscal-grid-two fiscal-balances-grid">
               <Panel
                 title="Saldo consolidado por contrato"
-                subtitle="Percentual financeiro ainda disponível. Carteira autorizada completa; filtros locais de itens não se aplicam."
+                subtitle="Carteira autorizada completa; filtros locais de itens não se aplicam."
+                className="fiscal-contract-balances"
               >
                 {summary.data.contractBalances && (
                   <FiscalContractBalanceChart balances={summary.data.contractBalances} />
@@ -517,22 +518,18 @@ export function FiscalDashboardView({
               </Panel>
               <Panel
                 title="Distribuição dos itens por faixa"
-                subtitle="Classificações retornadas para os itens do recorte."
                 className="fiscal-band-distribution"
               >
                 {itemBalances?.coverage === 'AVAILABLE' ? (
                   <>
-                    <p className="source-note" id={`${queueFilterId}-band-scope`}>
-                      Contagens considerando fornecedor, contrato e busca, antes de aplicar o filtro de faixa.
-                      Selecione uma faixa para filtrar; clique novamente na faixa selecionada para remover
-                      somente esse filtro.
-                    </p>
                     <BandDistribution
                       distribution={distributionBeforeBand}
                       available={true}
                       hasItems={!noRegisteredItems}
                       title="Distribuição dos itens por faixa"
-                      scope="Fornecedor, contrato e busca aplicados; antes da faixa e da paginação."
+                      scope="Contagens considerando fornecedor, contrato e busca, antes da faixa e da paginação."
+                      captionId={`${queueFilterId}-band-scope`}
+                      instructions="Selecione uma faixa para filtrar; clique novamente na faixa selecionada para remover somente esse filtro."
                     />
                     <div className="fiscal-band-buttons">
                       {(

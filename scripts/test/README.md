@@ -290,3 +290,30 @@ Reexecute os roteiros `fiscal-refresh.visual.mjs` e
 `dashboard-layout.visual.mjs` para regressão dos comportamentos e painéis
 anteriores. Respostas são interceptadas e nenhuma consulta chega ao SAC/banco.
 Documentação e resultados: `docs/visual/VIS-004.md`.
+
+## VIS-005 — saldo, matriz e distribuição
+
+Reutiliza `dashboard-layout.visual.mjs` e a fixture `dashboard-layout.ts` do
+VIS-003. Além da sequência, filtros e estados já verificados, confere altura do
+saldo com um contrato, 20 contratos com rolagem local (incluindo zero), nomes
+extensos completos na matriz e no detalhamento, fonte legível e ordem de Tab
+nos filtros. Em 390 px, busca ocupa a primeira linha e os dois seletores a segunda.
+`fiscal-band-distribution.visual.mjs` passa a validar também 900 px e a associação
+ARIA com a legenda única de escopo/instruções.
+
+Com o Vite na porta 5183 e Playwright/Chromium acima:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/dashboard-layout.ts \
+  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/vis003-fixtures.cjs
+PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
+FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
+  node scripts/test/dashboard-layout.visual.mjs \
+  /tmp/sac-fiscal-visual/vis003-fixtures.cjs /tmp/vis005-final
+```
+
+As capturas incluem os dois protótipos locais nos três tamanhos. Reexecutar os
+roteiros VIS-004 de densidade e fila e o roteiro de faixas com as respectivas
+fixtures descritas acima, usando a mesma URL e diretórios de saída separados.
+Nenhuma fixture ou dado demonstrativo é incluído no frontend de produção.
