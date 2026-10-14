@@ -188,6 +188,23 @@ button, input, select { font: inherit; }
 .manager-risk-observations ul { margin: 0; padding-left: 20px; line-height: 1.55; font-size: .82rem; }
 .manager-risk-observations li + li { margin-top: 6px; }
 .manager-risk-observations span { color: var(--text-secondary); }
+.manager-alert-controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0 12px; }
+.manager-alert-controls label { display: grid; gap: 5px; min-width: 0; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+.manager-alert-controls select, .manager-alert-controls input { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-card); color: var(--text-primary); }
+.manager-alert-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.manager-alert-actions p { margin: 0; color: var(--text-secondary); font-size: 12px; }
+.manager-alert-actions > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.manager-alert-actions button { padding: 8px 11px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--color-accent-soft); color: var(--color-accent); cursor: pointer; }
+.manager-alert-actions button:disabled { opacity: .5; cursor: default; }
+.manager-alert-groups { display: grid; gap: 14px; }
+.manager-alert-group { min-width: 0; }
+.manager-alert-group h3 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin: 0 0 7px; font-size: 14px; }
+.manager-alert-group h3 small { color: var(--text-muted); font-size: 12px; font-weight: 400; }
+.manager-alert-group table { min-width: 860px; }
+.manager-alert-group td { overflow-wrap: anywhere; white-space: pre-wrap; }
+.manager-alert-age { display: block; margin-top: 3px; color: var(--text-muted); font-size: 11px; }
+@media (max-width: 1050px) { .manager-alert-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .manager-alert-controls { grid-template-columns: 1fr; } }
 .manager-suppliers { border-top: 3px solid #164e63; }
 .manager-abc-note { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 12px; margin-bottom: 14px; padding: 12px 14px; border: 1px dashed #9ab9c1; border-radius: 10px; background: #eef4f8; color: #164e63; font-size: .83rem; }
 .manager-abc-note span { color: var(--text-secondary); }

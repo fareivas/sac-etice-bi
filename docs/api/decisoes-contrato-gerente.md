@@ -364,3 +364,17 @@ horizontal pertence apenas à tabela da matriz; as seis dimensões continuam
 acessíveis. O painel selecionável mantém o nome integral do fornecedor.
 `cards.activePortfolioValue` é exibido em BRL com duas casas decimais, mantendo
 `null` como **Indisponível** e zero disponível como `R$ 0,00`.
+
+## GC-033 — Consulta Gerencial de Pendências Contratuais (frontend)
+
+O painel da Visão principal passa a chamar-se **Intervenções e pendências contratuais**. Usa exclusivamente `data.contractAlerts` e `meta.dataCoverage.contractAlerts` da resposta já autorizada do resumo do Gerente. Não cria endpoint, consulta ou regra de prioridade.
+
+Filtros locais combináveis: contrato por `contractId`, tipo (inclusive tipo nulo), estado e pesquisa sem distinção de caixa/acentos em contrato, tipo, estado e descrição. A lista recebida não é mutada. A apresentação agrupa por `contractId` para não unir contratos com números iguais, ordena os grupos pelo número exibido do contrato (`pt-BR`, comparação numérica, ID como desempate) e os registros pela criação crescente, com datas nulas por último e `alertId` como desempate. A ordem do endpoint descrita em DEC-GC-026 permanece intacta; essa é apenas a ordem local de leitura e do CSV. Nenhum registro é criado ou descartado pela formação dos grupos.
+
+O contador mostra `visíveis de total recebido` somente quando a cobertura está disponível. São estados distintos: fonte indisponível, lista disponível vazia e filtro sem correspondência. Os controles locais não alteram cards executivos, observações da matriz ou outras consultas. As seleções persistem entre abas e respostas equivalentes; mudando gerente, recorte autorizado ou data de referência, os filtros são limpos. Quando a fonte fica temporariamente indisponível no mesmo contexto, as seleções são retidas para o retorno.
+
+`createdAt` é mostrado como data e hora na `meta.timezone`. A antiguidade usa **dias de calendário** entre a data local de criação e `meta.dataReference`, somente quando ambas permitem cálculo confiável e a criação não é futura. É identificada como antiguidade, nunca atraso, prazo de decisão ou SLA. `expiryDate` continua rotulado **Vencimento contratual**, sem inferência de prazo da pendência. Valores nulos são apresentados como Indisponível. O tipo `designacao_ausente` é exibido literalmente e não prova ausência atual de designação.
+
+A exportação CSV contém exatamente os registros visíveis na mesma ordem dos grupos e itens, com contrato, tipo, estado, descrição, data de registro e vencimento contratual. Reutiliza `encodeCsv` para aspas, delimitadores, quebras de linha, UTF-8 e proteção de fórmulas. A ação fica desabilitada quando não há registros visíveis. A seção **Observações da matriz** permanece independente dos filtros e conserva apenas observações factuais, sem recomendação individual inventada.
+
+Validação GC-033: testes unitários de seleção, ordenação, agrupamento, datas e CSV; interação React de filtros/abas/cobertura; Chromium com fixtures sintéticas em 1440, 900 e 390 px para ambos os dashboards, sem acesso a banco ou SAC oficial. Sem alteração de contrato HTTP, backend, SQL ou autorização.

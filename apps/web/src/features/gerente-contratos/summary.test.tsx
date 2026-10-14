@@ -246,7 +246,7 @@ it('renders real alerts, balance amounts and the financial chart while preservin
 
 it('distinguishes empty lists from unavailable coverage and omits the chart in both cases', () => {
   const empty = render(base);
-  expect(empty).toContain('Nenhum alerta contratual no recorte');
+  expect(empty).toContain('Nenhuma pendência contratual no recorte.');
   expect(empty).toContain('Nenhum saldo contratual no recorte');
   expect(empty.match(/Distribuição financeira por contrato[\s\S]*?<\/section>/)?.[0]).not.toContain('<svg');
   const unavailable: ManagerDashboardSummaryResponse = { ...base,
@@ -611,7 +611,7 @@ it('VIS-002 preserves the principal panel sequence and distinguishes complements
   const host = document.createElement('div'); host.innerHTML = render(base);
   const titles = [...host.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
   expect(titles.slice(0, 8)).toEqual(['Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal',
-    'Intervenções gerenciais priorizadas', 'Forecast 180 dias', 'Exposição financeira',
+    'Intervenções e pendências contratuais', 'Forecast 180 dias', 'Exposição financeira',
     'Qualidade da gestão', 'Eficiência do Ciclo Financeiro — carteira gerenciada',
     'Curva ABC de Fornecedores']);
   expect(host.querySelector('.manager-abc-pair')?.textContent).toContain('Curva ABC de Clientes');
@@ -716,7 +716,7 @@ it('VIS-007 places matrix beside fiscal load, interventions next, and preventive
   ]);
   const headings = [...main.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
   expect(headings.slice(0, 3)).toEqual([
-    'Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal', 'Intervenções gerenciais priorizadas',
+    'Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal', 'Intervenções e pendências contratuais',
   ]);
   expect(main.querySelector('.manager-quality-panel')).not.toBeNull();
   expect(complement.querySelector('.manager-quality-panel')).toBeNull();
@@ -732,7 +732,7 @@ it('VIS-008 keeps the approved main sequence and retains additional consultation
   const complement = host.querySelector<HTMLElement>('#manager-panel-complementary')!;
   expect([...main.querySelectorAll('.panel-heading h2')].map(node => node.textContent)).toEqual([
     'Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal',
-    'Intervenções gerenciais priorizadas', 'Forecast 180 dias', 'Exposição financeira',
+    'Intervenções e pendências contratuais', 'Forecast 180 dias', 'Exposição financeira',
     'Qualidade da gestão', 'Eficiência do Ciclo Financeiro — carteira gerenciada',
     'Curva ABC de Fornecedores', 'Curva ABC de Clientes',
   ]);
@@ -754,14 +754,74 @@ it('VIS-008 keeps the approved main sequence and retains additional consultation
     'SLA / glosas', 'Medições', 'Pagamento',
   ]);
   const interventions = [...main.querySelectorAll('section.fiscal-panel')].find(section =>
-    section.querySelector('h2')?.textContent === 'Intervenções gerenciais priorizadas')!;
-  expect(interventions.querySelector('table')).not.toBeNull();
+    section.querySelector('h2')?.textContent === 'Intervenções e pendências contratuais')!;
+  expect(interventions.textContent).toContain('Nenhuma pendência contratual no recorte.');
   const withObservation = structuredClone(base);
   withObservation.data.contractRiskMatrix = [{ contractId: 1, contractNumber: 'CT-1', supplierName: 'Fornecedor',
     saldo: { status: 'CRITICAL', partialCoverage: false, reason: null }, vigencia: 'OK',
     sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
+  withObservation.data.contractAlerts = [{ alertId: 1, contractId: 1, contractNumber: 'CT-1', type: 'vigencia',
+    status: 'aberta', description: 'Pendência', expiryDate: null, createdAt: null }];
   const observed = document.createElement('div'); observed.innerHTML = render(withObservation);
   const observedPanel = [...observed.querySelectorAll('section.fiscal-panel')].find(section =>
-    section.querySelector('h2')?.textContent === 'Intervenções gerenciais priorizadas')!;
+    section.querySelector('h2')?.textContent === 'Intervenções e pendências contratuais')!;
   expect(observedPanel.innerHTML.indexOf('<table>')).toBeLessThan(observedPanel.innerHTML.indexOf('manager-risk-observations'));
+});
+
+it('GC-033 combines local controls, keeps matrix observations and selections across tabs and refreshes', () => {
+  const data = structuredClone(base);
+  data.data.contractAlerts = [
+    { alertId: 3, contractId: 2, contractNumber: 'CT-10', type: 'vigencia', status: 'aberta',
+      description: 'Outra pendência', createdAt: null, expiryDate: null },
+    { alertId: 2, contractId: 1, contractNumber: 'CT-2', type: 'designacao_ausente', status: 'em_tratamento',
+      description: 'Fiscal Árvore', createdAt: '2026-09-20T12:00:00-03:00', expiryDate: '2026-10-20' },
+    { alertId: 1, contractId: 1, contractNumber: 'CT-2', type: 'vigencia', status: 'aberta',
+      description: 'Renovação', createdAt: '2026-09-19T12:00:00-03:00', expiryDate: '2026-10-20' },
+  ];
+  data.data.contractRiskMatrix = [{ contractId: 1, contractNumber: 'CT-2', supplierName: 'Fornecedor',
+    saldo: { status: 'CRITICAL', partialCoverage: false, reason: null }, vigencia: 'OK',
+    sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
+  const view = mount(data);
+  const controls = () => view.host.querySelector('.manager-alert-controls')!;
+  const select = (label: string, value: string) => {
+    const input = [...controls().querySelectorAll('label')].find(node => node.textContent?.startsWith(label))?.querySelector('select')!;
+    act(() => { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+  const search = (value: string) => {
+    const input = controls().querySelector('input[type="search"]')!;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true })); });
+  };
+  try {
+    expect(view.host.querySelector('.manager-alert-actions')?.textContent).toContain('3 de 3 pendências visíveis');
+    expect([...view.host.querySelectorAll('.manager-alert-group h3')].map(node => node.textContent)).toEqual([
+      'CT-2 2 pendências', 'CT-10 1 pendência',
+    ]);
+    select('Contrato', '1'); select('Tipo', 'value:designacao_ausente'); select('Estado', 'em_tratamento');
+    search('FISCAL ARVORE');
+    expect(view.host.querySelector('.manager-alert-actions')?.textContent).toContain('1 de 3 pendências visíveis');
+    expect(view.host.querySelectorAll('.manager-alert-group tbody tr')).toHaveLength(1);
+    expect(view.host.querySelector('.manager-alert-group')?.textContent).toContain('Antiguidade: 5 dias');
+    expect(view.host.querySelector('.manager-risk-observations')?.textContent).toContain('CT-2');
+    expect(view.host.querySelector('.manager-kpis')?.textContent).toContain('Contratos críticos');
+    const tabs = view.host.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    act(() => tabs[1].click()); act(() => tabs[0].click());
+    view.update(structuredClone(data));
+    expect(view.host.querySelector('.manager-alert-actions')?.textContent).toContain('1 de 3 pendências visíveis');
+    expect(controls().querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('FISCAL ARVORE');
+    act(() => view.host.querySelector<HTMLButtonElement>('.manager-alert-actions button')!.click());
+    expect(view.host.querySelector('.manager-alert-actions')?.textContent).toContain('3 de 3 pendências visíveis');
+    expect(controls().querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('');
+    const unavailable = structuredClone(data); unavailable.meta.dataCoverage.contractAlerts = 'UNAVAILABLE';
+    unavailable.data.contractAlerts = null;
+    view.update(unavailable);
+    expect(view.host.querySelector('.manager-alert-controls')).toBeNull();
+    expect(view.host.textContent).toContain('Pendências contratuais indisponíveis para esta referência.');
+    view.update(data);
+    search('sem correspondência');
+    expect(view.host.textContent).toContain('Nenhuma pendência encontrada com os filtros atuais.');
+    const nextScope = structuredClone(data); nextScope.data.manager.userId = 2;
+    view.update(nextScope);
+    expect(view.host.querySelector('.manager-alert-actions')?.textContent).toContain('3 de 3 pendências visíveis');
+  } finally { view.unmount(); }
 });

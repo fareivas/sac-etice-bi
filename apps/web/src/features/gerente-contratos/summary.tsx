@@ -1,4 +1,5 @@
 import { DashboardTabs } from '../dashboard-tabs';
+import { alertAgeDays, alertContractLabel, downloadManagerAlertsCsv, formatAlertRegistered, useManagerContractAlerts } from './contract-alerts';
 import { BandDistribution } from '../item-balances/band-distribution';
 import { useEffect, useRef, useState } from 'react';
 import type {
@@ -247,6 +248,12 @@ export function ManagerDashboardView({ state }: { state: State }) {
         [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b),
       ])
     : null;
+  const alertContext = summary ? JSON.stringify([
+    summary.data.manager.userId,
+    [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b),
+    summary.meta.dataReference,
+  ]) : null;
+  const contractAlerts = useManagerContractAlerts(summary?.data.contractAlerts, alertContext);
   const [matrixSearch, setMatrixSearch] = useState('');
   const [matrixDimension, setMatrixDimension] = useState('all');
   const [matrixClass, setMatrixClass] = useState('all');
@@ -662,48 +669,92 @@ export function ManagerDashboardView({ state }: { state: State }) {
             </div>
             <section className="fiscal-panel">
               <div className="panel-heading">
-                <h2>Intervenções gerenciais priorizadas</h2>
+                <h2>Intervenções e pendências contratuais</h2>
                 <p>
-                  Observações verificáveis de alertas abertos ou em tratamento. Avaliar encaminhamento
-                  conforme o caso; a fonte não define prioridade, impacto, responsável ou prazo.
+                  Pendências abertas ou em tratamento da carteira. Vencimento contratual não é prazo da pendência;
+                  a ordenação por contrato e registro não representa prioridade.
                 </p>
               </div>
-              <div className="fiscal-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Contrato</th>
-                      <th>Tipo</th>
-                      <th>Estado</th>
-                      <th>Descrição</th>
-                      <th>Vencimento contratual</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' &&
-                    summary.data.contractAlerts?.length ? (
-                      summary.data.contractAlerts.map((alert) => (
-                        <tr key={alert.alertId}>
-                          <td>{alert.contractNumber ?? `#${alert.contractId}`}</td>
-                          <td>{alert.type ?? 'Indisponível'}</td>
-                          <td>{alert.status}</td>
-                          <td>{alert.description ?? 'Indisponível'}</td>
-                          <td>{displayDate(alert.expiryDate, summary.meta.timezone)}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className="table-empty">
-                          {summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' ||
-                          summary.data.contractAlerts === null
-                            ? 'Indisponível'
-                            : 'Nenhum alerta contratual no recorte'}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              {summary.meta.dataCoverage.contractAlerts !== 'AVAILABLE' || summary.data.contractAlerts === null ? (
+                <div className="panel-unavailable" role="status">Pendências contratuais indisponíveis para esta referência.</div>
+              ) : (
+                <>
+                  <div className="manager-alert-controls" role="group" aria-label="Filtros das pendências contratuais">
+                    <label>Contrato
+                      <select value={contractAlerts.contract} onChange={event => contractAlerts.setFilter({ contract: event.target.value })}>
+                        <option value="">Todos os contratos</option>
+                        {contractAlerts.missingContract && <option value={contractAlerts.contract}>Contrato selecionado (não disponível na resposta)</option>}
+                        {contractAlerts.contracts.map(([id, number]) => <option key={id} value={id}>{number ?? `Contrato ID ${id}`}</option>)}
+                      </select>
+                    </label>
+                    <label>Tipo
+                      <select value={contractAlerts.type} onChange={event => contractAlerts.setFilter({ type: event.target.value })}>
+                        <option value="">Todos os tipos</option>
+                        {contractAlerts.missingType && <option value={contractAlerts.type}>Tipo selecionado (não disponível na resposta)</option>}
+                        {contractAlerts.types.map(([key, type]) => <option key={key} value={key}>{type ?? 'Indisponível'}</option>)}
+                      </select>
+                    </label>
+                    <label>Estado
+                      <select value={contractAlerts.status} onChange={event => contractAlerts.setFilter({ status: event.target.value })}>
+                        <option value="">Todos os estados</option>
+                        <option value="aberta">Aberta</option>
+                        <option value="em_tratamento">Em tratamento</option>
+                      </select>
+                    </label>
+                    <label>Pesquisar pendências
+                      <input type="search" value={contractAlerts.search}
+                        onChange={event => contractAlerts.setFilter({ search: event.target.value })}
+                        placeholder="Contrato, tipo, estado ou descrição" />
+                    </label>
+                  </div>
+                  <div className="manager-alert-actions">
+                    <p role="status">{contractAlerts.visible.length} de {contractAlerts.total} pendências visíveis</p>
+                    <div>
+                      <button type="button" onClick={contractAlerts.clearFilters} disabled={!contractAlerts.activeFilters}>Limpar filtros</button>
+                      <button type="button" disabled={contractAlerts.visible.length === 0}
+                        onClick={() => downloadManagerAlertsCsv(contractAlerts.visible, summary.meta.dataReference, summary.meta.timezone)}>
+                        Exportar pendências CSV
+                      </button>
+                    </div>
+                  </div>
+                  {contractAlerts.total === 0 ? (
+                    <p className="table-empty" role="status">Nenhuma pendência contratual no recorte.</p>
+                  ) : contractAlerts.visible.length === 0 ? (
+                    <p className="table-empty" role="status">Nenhuma pendência encontrada com os filtros atuais.</p>
+                  ) : (
+                    <div className="manager-alert-groups">
+                      {contractAlerts.groups.map(group => (
+                        <section className="manager-alert-group" key={group.contractId}>
+                          <h3>{alertContractLabel(group)} <small>{group.alerts.length} pendência{group.alerts.length === 1 ? '' : 's'}</small></h3>
+                          <div className="fiscal-table-wrap">
+                            <table>
+                              <caption className="visually-hidden">Pendências do {alertContractLabel(group)}</caption>
+                              <thead><tr>
+                                <th scope="col">Contrato</th><th scope="col">Tipo</th><th scope="col">Estado</th>
+                                <th scope="col">Descrição</th><th scope="col">Data de registro</th>
+                                <th scope="col">Vencimento contratual</th>
+                              </tr></thead>
+                              <tbody>{group.alerts.map(alert => {
+                                const age = alertAgeDays(alert.createdAt, summary.meta.dataReference, summary.meta.timezone);
+                                return <tr key={alert.alertId}>
+                                  <td>{alertContractLabel(alert)}</td>
+                                  <td>{alert.type ?? 'Indisponível'}</td>
+                                  <td>{alert.status === 'em_tratamento' ? 'Em tratamento' : 'Aberta'}</td>
+                                  <td>{alert.description ?? 'Indisponível'}</td>
+                                  <td>{formatAlertRegistered(alert.createdAt, summary.meta.timezone)}
+                                    {age !== null && <small className="manager-alert-age">Antiguidade: {age} dia{age === 1 ? '' : 's'}</small>}
+                                  </td>
+                                  <td>{displayDate(alert.expiryDate, summary.meta.timezone)}</td>
+                                </tr>;
+                              })}</tbody>
+                            </table>
+                          </div>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
               {matrix !== null &&
                 matrix !== undefined &&
                 matrix.filter((row) => row.saldo.status === 'CRITICAL' || row.vigencia === 'CRITICAL')
@@ -718,8 +769,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                             <strong>{row.contractNumber ?? `Contrato ID ${row.contractId}`}</strong>:{' '}
                             {row.saldo.status === 'CRITICAL' ? 'saldo crítico' : ''}
                             {row.saldo.status === 'CRITICAL' && row.vigencia === 'CRITICAL' ? ' e ' : ''}
-                            {row.vigencia === 'CRITICAL' ? 'vigência crítica' : ''}.{' '}
-                            <span>Recomendação: avaliar o contrato e o encaminhamento cabível.</span>
+                            {row.vigencia === 'CRITICAL' ? 'vigência crítica' : ''}.
                           </li>
                         ))}
                     </ul>
