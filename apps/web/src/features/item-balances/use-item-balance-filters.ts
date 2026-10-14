@@ -22,7 +22,7 @@ function sumMoney(values: (number | null)[]): number | null {
   return Number(cents) / 100;
 }
 
-function filteredAggregates(items: FiscalItemBalance[]) {
+export function filteredAggregates(items: FiscalItemBalance[]) {
   const count = items.length;
   return {
     itemCount: count,

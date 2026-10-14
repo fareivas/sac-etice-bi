@@ -3,6 +3,7 @@ import { FISCAL_PENDING_ORDER_PREDICATE } from '../../shared/db/fiscal-pending-o
 // Reuse DEC-026 eligibility; the fiscal comes only from the active designation.
 export const GET_MANAGER_FISCAL_LOAD = `
 SELECT d.usuario_id::text AS user_id, u.nome AS name,
+       ARRAY_AGG(DISTINCT c.id::text) AS contract_ids,
        COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'vigente')::text AS active_contracts,
        COUNT(DISTINCT os.id)::text AS pending_orders
 FROM contratos.designacao d

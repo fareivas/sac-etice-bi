@@ -25,7 +25,8 @@ function fixture(designations: { user: number; contract: number; role: string; a
         const active = contracts.filter((id) => (statuses[id] ?? 'vigente') === 'vigente');
         const pending = [...new Set(orders.filter((os) => contracts.includes(os.contract) && os.side === 'cliente' &&
           os.pendencies.some((p) => p.type === 'decisao_fiscal_p1' && ['aberta', 'em_tratamento'].includes(p.status))).map((os) => os.id))];
-        return { user_id: String(user), name: `Fiscal ${user}`, active_contracts: String(active.length), pending_orders: String(pending.length) };
+        return { user_id: String(user), name: `Fiscal ${user}`, contract_ids: contracts.map(String),
+          active_contracts: String(active.length), pending_orders: String(pending.length) };
       });
     }
     throw new Error('Unexpected SQL');
@@ -43,11 +44,13 @@ describe('manager fiscal load', () => {
       { id: 2, contract: 11, side: 'fornecedor', pendencies: [p(7)] },
       { id: 3, contract: 11, side: 'cliente', pendencies: [{ ...p(7), type: 'other' }] }]);
     const result = await composeManagerFiscalLoad(1, filters, repo, now);
-    expect(result.data.inspectors).toEqual([{ userId: 7, name: 'Fiscal 7', activeContracts: 2,
+    expect(result.data.inspectors).toEqual([{ userId: 7, name: 'Fiscal 7', contractIds: [10, 11], activeContracts: 2,
       pendingOrders: 1, capacity: null, weightedLoad: null, criticality: null, ranking: null, overdueActions: null }]);
     expect(GET_MANAGER_FISCAL_LOAD).toContain(FISCAL_PENDING_ORDER_PREDICATE);
     expect(GET_MANAGER_FISCAL_LOAD).toContain("COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'vigente')");
     expect(GET_MANAGER_FISCAL_LOAD).toContain('COUNT(DISTINCT os.id)');
+    expect(GET_MANAGER_FISCAL_LOAD).toContain('ARRAY_AGG(DISTINCT c.id::text) AS contract_ids');
+    expect(GET_MANAGER_FISCAL_LOAD).toContain('d.contrato_id = ANY($1::bigint[])');
     expect(ELIGIBLE_FISCAL_SERVICE_ORDERS).toContain(FISCAL_PENDING_ORDER_PREDICATE);
     expect(GET_MANAGER_FISCAL_LOAD).not.toContain('responsavel_id');
   });

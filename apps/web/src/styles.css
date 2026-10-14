@@ -203,6 +203,15 @@ button, input, select { font: inherit; }
 .manager-alert-group table { min-width: 860px; }
 .manager-alert-group td { overflow-wrap: anywhere; white-space: pre-wrap; }
 .manager-alert-age { display: block; margin-top: 3px; color: var(--text-muted); font-size: 11px; }
+.manager-global-filters { padding: 14px; margin-bottom: 14px; }
+.manager-global-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.manager-global-grid label { display: grid; align-content: start; gap: 5px; min-width: 0; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.manager-global-grid :is(select, input) { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-card); color: var(--text-primary); }
+.manager-global-grid :is(select, input):disabled { background: var(--surface-subtle); color: var(--text-muted); }
+.manager-global-grid small { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.manager-global-filters > p { margin: 10px 0 0; font-size: 12px; color: var(--text-secondary); }
+@media (max-width: 1050px) { .manager-global-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .manager-global-grid { grid-template-columns: 1fr; } }
 @media (max-width: 1050px) { .manager-alert-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .manager-alert-controls { grid-template-columns: 1fr; } }
 .manager-suppliers { border-top: 3px solid #164e63; }

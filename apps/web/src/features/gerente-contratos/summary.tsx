@@ -10,6 +10,7 @@ import type {
 import { loadManagerSummary, loadManagerFiscalLoad, loadManagerSuppliers } from '../../lib/api';
 import { displayDate } from '../../lib/display-date';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
+import { initialGlobalFilters, projectManagerSummary, selectGlobalContracts } from './global-filters';
 
 type State =
   | { status: 'loading' }
@@ -234,24 +235,36 @@ export function FiscalLoadChart({ inspectors }: { inspectors: readonly Inspector
     </figure>
   );
 }
-export function ManagerDashboardView({ state }: { state: State }) {
-  const summary = state.status === 'success' ? state.summary : null;
+export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { state: State; globalFiltersEnabled?: boolean }) {
+  const [globalFilters, setGlobalFilters] = useState(initialGlobalFilters);
+  const baseSummary = state.status === 'success' ? state.summary : null;
+  const selectedIds = globalFiltersEnabled && baseSummary
+    ? selectGlobalContracts(baseSummary, state.status === 'success' ? state.load : null, globalFilters) : null;
+  const selectionUnavailable = globalFiltersEnabled && baseSummary !== null && selectedIds === null;
+  const projection = baseSummary && selectedIds ? projectManagerSummary(baseSummary, selectedIds) : null;
+  const summary = projection?.summary ?? baseSummary;
+  const subset = projection?.subset ?? false;
+  const baseInspectors = state.status === 'success' && state.load?.meta.dataCoverage.inspectors === 'AVAILABLE'
+    ? state.load.data.inspectors : null;
   const inspectors =
     state.status === 'success' && state.load?.meta.dataCoverage.inspectors === 'AVAILABLE'
       ? state.load.data.inspectors
       : null;
-  const sortedInspectors = inspectors === null ? null : orderedInspectors(inspectors);
+  const sortedInspectors = inspectors === null ? null : orderedInspectors(subset && selectedIds
+    ? inspectors.filter(item => item.contractIds?.some(id => selectedIds.has(id)))
+      .map(item => ({ ...item, activeContracts: item.contractIds?.filter(id => selectedIds.has(id) &&
+        summary?.data.contracts?.some(contract => contract.contractId === id)).length ?? 0 })) : inspectors);
   const itemBalances = summary?.data.itemBalances;
   const context = summary
     ? JSON.stringify([
-        summary.data.manager.userId,
-        [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b),
+        baseSummary!.data.manager.userId,
+        [...baseSummary!.meta.filtersApplied.contratoId].sort((a, b) => a - b),
       ])
     : null;
   const alertContext = summary ? JSON.stringify([
-    summary.data.manager.userId,
-    [...summary.meta.filtersApplied.contratoId].sort((a, b) => a - b),
-    summary.meta.dataReference,
+    baseSummary!.data.manager.userId,
+    [...baseSummary!.meta.filtersApplied.contratoId].sort((a, b) => a - b),
+    baseSummary!.meta.dataReference,
   ]) : null;
   const contractAlerts = useManagerContractAlerts(summary?.data.contractAlerts, alertContext);
   const [matrixSearch, setMatrixSearch] = useState('');
@@ -266,6 +279,8 @@ export function ManagerDashboardView({ state }: { state: State }) {
     items,
     suppliers,
     contracts,
+    missingSupplier,
+    missingContract,
     supplier,
     contract,
     band,
@@ -277,7 +292,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
     aggregates,
     allItemsSelected,
     clearFilters,
-  } = useItemBalanceFilters(itemBalances, context);
+  } = useItemBalanceFilters(itemBalances, context, globalFiltersEnabled);
   const matrix = summary?.data.contractRiskMatrix;
   const dimensions = ['saldo', 'vigencia', 'sla', 'medicao', 'pagamento', 'indice'] as const;
   const matrixStatus = (row: NonNullable<typeof matrix>[number], dimension: (typeof dimensions)[number]) =>
@@ -395,17 +410,59 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 </span>
               </div>
             </section>
-            <DashboardTabs id="manager" main={<>
+            {globalFiltersEnabled && <section className="manager-global-filters fiscal-panel" aria-label="Filtros globais da carteira">
+              <div className="manager-global-grid">
+                <label>Fiscal
+                  <select value={globalFilters.fiscal} disabled={baseInspectors === null}
+                    onChange={event => setGlobalFilters(current => ({ ...current, fiscal: event.target.value }))}>
+                    <option value="">Todos os fiscais</option>
+                    {baseInspectors?.map(fiscal => <option key={fiscal.userId} value={fiscal.userId}>
+                      {inspectorName(fiscal)}</option>)}
+                  </select>
+                </label>
+                <label>Gerência
+                  <select disabled value=""><option value="">Todas as gerências</option></select>
+                  <small>Fonte de gerências não aprovada</small>
+                </label>
+                <label>Risco: Saldo ou Vigência
+                  <select value={globalFilters.risk} disabled={baseSummary?.data.contractRiskMatrix === null}
+                    onChange={event => setGlobalFilters(current => ({ ...current, risk: event.target.value }))}>
+                    <option value="">Todos os riscos</option>
+                    {Object.entries(riskLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                  </select>
+                </label>
+                <label>Janela de vencimento
+                  <select value={globalFilters.days}
+                    onChange={event => setGlobalFilters(current => ({ ...current, days: Number(event.target.value) as 90 | 180 | 365 }))}>
+                    <option value={90}>Próximos 90 dias</option>
+                    <option value={180}>Próximos 180 dias</option>
+                    <option value={365}>Próximos 365 dias</option>
+                  </select>
+                </label>
+                <label>Buscar fiscal, contrato ou fornecedor
+                  <input type="search" value={globalFilters.search} placeholder="Buscar fiscal, contrato ou fornecedor..."
+                    onChange={event => setGlobalFilters(current => ({ ...current, search: event.target.value }))} />
+                </label>
+              </div>
+              <p role="status">{selectedIds === null ? 'Recorte indisponível para esta referência ou fonte.' :
+                `${selectedIds.size} de ${baseSummary?.data.contracts?.length ?? 0} contratos no recorte global. `}
+                Janela selecionada: da data de referência (D0) até D+{globalFilters.days} dias, inclusive;
+                o padrão é 180 dias. Os indicadores e painéis abaixo seguem este recorte quando há dados suficientes.
+              </p>
+            </section>}
+            {selectionUnavailable ? <p className="panel-unavailable" role="status">
+              Não é possível determinar o recorte global com as fontes disponíveis. Ajuste os filtros ou consulte a cobertura dos dados.
+            </p> : <DashboardTabs id="manager" main={<>
             <section className="fiscal-kpis manager-kpis" aria-label="Indicadores executivos">
               <article className="fiscal-kpi">
                 <span>Contratos monitorados</span>
                 <strong>{summary.meta.dataCoverage.activeContracts === 'AVAILABLE' ? count(summary.data.cards.activeContracts) : 'Indisponível'}</strong>
-                <small>Contratos vigentes da carteira autorizada</small>
+                <small>Contratos vigentes da carteira autorizada no recorte global</small>
               </article>
               <article className="fiscal-kpi">
                 <span>Contratos críticos</span>
                 <strong>{count(criticalContracts)}</strong>
-                <small>Ao menos uma dimensão crítica na matriz; não há índice geral aprovado</small>
+                <small>Ao menos uma dimensão crítica na matriz do recorte global; não há índice geral aprovado</small>
               </article>
               <article className="fiscal-kpi">
                 <span>Valor contratado</span>
@@ -414,7 +471,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                     ? 'Indisponível'
                     : currency(summary.data.cards.activePortfolioValue)}
                 </strong>
-                <small>Valor da carteira ativa de contratos vigentes</small>
+                <small>Valor dos contratos vigentes no recorte global da carteira ativa</small>
               </article>
               <article className="fiscal-kpi">
                 <span>Renovações atrasadas</span>
@@ -434,12 +491,12 @@ export function ManagerDashboardView({ state }: { state: State }) {
             </section>
             {summary.meta.dataCoverage.activeContracts === 'AVAILABLE' && summary.data.cards.activeContracts === 0 && (
               <p className="empty-contracts" role="status">
-                Nenhum contrato vigente na carteira.
+                Nenhum contrato vigente no recorte global da carteira.
               </p>
             )}
             {summary.meta.dataCoverage.activePortfolioValue === 'UNAVAILABLE' && (
               <p className="coverage-note" role="status">
-                Valor total indisponível: há valor contratual ausente ou a fotografia histórica não pode ser
+                Valor do recorte global indisponível: há valor contratual ausente ou a fotografia histórica não pode ser
                 reconstruída.
               </p>
             )}
@@ -448,7 +505,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 <div className="panel-heading">
                   <h2>Matriz Contrato × Dimensão de Risco</h2>
                   <p>
-                    Classificação por itens contratuais e prazo até o fim da vigência. Demais dimensões
+                    Contratos do recorte global: classificação por itens e prazo até o fim da vigência. Demais dimensões
                     aguardam fonte aprovada.
                   </p>
                 </div>
@@ -509,7 +566,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                   </div>
                 ) : summary.data.contractRiskMatrix.length === 0 ? (
                   <p className="table-empty" role="status">
-                    Nenhum contrato vigente na carteira.
+                    Nenhum contrato vigente no recorte global.
                   </p>
                 ) : matrixRows.length === 0 ? (
                   <p className="table-empty" role="status">
@@ -619,7 +676,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 <div className="panel-heading">
                   <h2>Carga e risco por fiscal</h2>
                   <p>
-                    Fiscais e distribuição da carteira. Risco agregado indisponível; contagens operacionais
+                    Fiscais e distribuição da carteira no recorte global. Risco agregado indisponível; contagens operacionais
                     verificáveis abaixo.
                   </p>
                   <details className="manager-fiscal-explanation">
@@ -638,6 +695,13 @@ export function ManagerDashboardView({ state }: { state: State }) {
                   <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
                 ) : sortedInspectors.length === 0 ? (
                   <p role="status">Nenhum fiscal designado na carteira.</p>
+                ) : subset ? (
+                  <>
+                    <p role="status">OS pendentes por fiscal indisponíveis no recorte: a resposta de carga não associa cada OS a um contrato.</p>
+                    <div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes no recorte</th><th>OS pendentes</th></tr></thead>
+                      <tbody>{sortedInspectors.map(fiscal => <tr key={fiscal.userId}><td>{inspectorName(fiscal)}</td>
+                        <td>{fiscal.activeContracts}</td><td>Indisponível</td></tr>)}</tbody></table></div>
+                  </>
                 ) : (
                   <>
                     <FiscalLoadChart inspectors={sortedInspectors} />
@@ -671,7 +735,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
               <div className="panel-heading">
                 <h2>Intervenções e pendências contratuais</h2>
                 <p>
-                  Pendências abertas ou em tratamento da carteira. Vencimento contratual não é prazo da pendência;
+                  Pendências abertas ou em tratamento dos contratos no recorte global. Vencimento contratual não é prazo da pendência;
                   a ordenação por contrato e registro não representa prioridade.
                 </p>
               </div>
@@ -803,7 +867,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
               <section className="fiscal-panel manager-quality-panel">
                 <div className="panel-heading">
                   <h2>Qualidade da gestão</h2>
-                  <p>Indicadores preventivos disponíveis.</p>
+                  <p>Indicadores preventivos disponíveis para o recorte global quando há cobertura suficiente.</p>
                 </div>
                 <div className="manager-quality-visual">
                   <QualityBar
@@ -855,7 +919,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 <div className="panel-heading">
                   <h2>Curva ABC de Fornecedores</h2>
                   <p>
-                    Fornecedores da carteira. A classe depende de pagamentos efetivos acumulados em 12 meses e
+                    Fornecedores da carteira no recorte global quando há dados decomponíveis. A classe depende de pagamentos efetivos acumulados em 12 meses e
                     de regra aprovada; valor vigente não determina classe.
                   </p>
                 </div>
@@ -875,7 +939,9 @@ export function ManagerDashboardView({ state }: { state: State }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {state.status === 'success' && state.suppliers?.data.suppliers?.length ? (
+                      {subset ? (
+                        <tr><td colSpan={5} className="table-empty">Valor por fornecedor indisponível no recorte global: a resposta não vincula os agregados aos contratos selecionados.</td></tr>
+                      ) : state.status === 'success' && state.suppliers?.data.suppliers?.length ? (
                         state.suppliers.data.suppliers.map((supplier) => (
                           <tr key={supplier.supplierId}>
                             <td>{supplier.name}</td>
@@ -919,7 +985,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
               <div className="panel-heading">
                 <h2>Gestão dos Saldos dos Itens Contratuais</h2>
                 <p>
-                  Itens da carteira autorizada; filtros locais não alteram os indicadores globais nem os
+                  Itens dos contratos no recorte global da carteira autorizada; filtros locais não alteram os indicadores globais nem os
                   saldos por contrato.
                 </p>
               </div>
@@ -933,6 +999,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                         onChange={(event) => setFilter({ supplier: event.target.value })}
                       >
                         <option value="">Todos os fornecedores</option>
+                        {missingSupplier && <option value={supplier}>Fornecedor selecionado (fora do recorte global)</option>}
                         {suppliers.map((name) => (
                           <option key={name} value={name}>
                             {name}
@@ -947,6 +1014,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                         onChange={(event) => setFilter({ contract: event.target.value })}
                       >
                         <option value="">Todos os contratos</option>
+                        {missingContract && <option value={contract}>Contrato selecionado (fora do recorte global)</option>}
                         {contracts.map(([id, number]) => (
                           <option key={id} value={id}>
                             {number ?? `Contrato ID ${id}`} (ID {id})
@@ -1181,12 +1249,12 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 <article className="fiscal-kpi">
                   <span>Vencimento nos próximos 120 dias</span>
                   <strong>{summary.meta.dataCoverage.renewalsWithin120Days === 'AVAILABLE' ? count(summary.data.cards.renewalsWithin120Days) : 'Indisponível'}</strong>
-                  <small>Vencimento contratual, sem presumir renovação atrasada</small>
+                  <small>Vencimento contratual em até 120 dias dentro do recorte global; sem presumir renovação atrasada</small>
                 </article>
                 <article className="fiscal-kpi">
                   <span>Alertas contratuais</span>
                   <strong>{summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts !== null ? summary.data.contractAlerts.length : 'Indisponível'}</strong>
-                  <small>Pendências abertas ou em tratamento</small>
+                  <small>Pendências abertas ou em tratamento dos contratos no recorte global</small>
                 </article>
               </section>
               <section className="fiscal-panel manager-strategic">
@@ -1216,7 +1284,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
               <section className="fiscal-panel manager-quality-details">
                 <div className="panel-heading">
                   <h2>Detalhamento dos indicadores preventivos</h2>
-                  <p>Mede a disciplina operacional antes da materialização dos riscos.</p>
+                  <p>Indicadores preventivos do recorte global quando a fonte permite apuração.</p>
                 </div>
                 <div className="manager-quality-grid">
                   <article>
@@ -1331,8 +1399,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 <div className="panel-heading">
                   <h2>Saldos da carteira</h2>
                   <p>
-                    Valores da visão de saldo contratual para a carteira completa; filtros locais de itens não
-                    se aplicam.
+                    Valores da visão de saldo contratual para o recorte global; filtros locais de itens não se aplicam.
                   </p>
                 </div>
                 <div className="fiscal-table-wrap">
@@ -1376,8 +1443,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 <div className="panel-heading">
                   <h2>Distribuição financeira por contrato</h2>
                   <p>
-                    Contratado, consumido e saldo em reais, na mesma escala; filtros locais de itens não se
-                    aplicam.
+                    Contratado, consumido e saldo em reais no recorte global, na mesma escala; filtros locais de itens não se aplicam.
                   </p>
                 </div>
                 {summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' ||
@@ -1394,7 +1460,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
               <section className="fiscal-panel">
                 <div className="panel-heading">
                   <h2>Contratos vigentes da carteira</h2>
-                  <p>Dados atuais dos contratos autorizados.</p>
+                  <p>Dados atuais dos contratos autorizados selecionados pelo recorte global.</p>
                 </div>
                 <div className="fiscal-table-wrap">
                   <table>
@@ -1430,7 +1496,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
               <section className="fiscal-panel">
                 <div className="panel-heading">
                   <h2>Contratos vigentes com vencimento nos próximos 120 dias</h2>
-                  <p>Inclui a data de referência e o limite de 120 dias.</p>
+                  <p>Dentro do recorte global selecionado, inclui a data de referência e o limite próprio de 120 dias.</p>
                 </div>
                 <div className="fiscal-table-wrap">
                   <table>
@@ -1464,7 +1530,7 @@ export function ManagerDashboardView({ state }: { state: State }) {
                 </div>
               </section>
             </section>
-            </>} />
+            </>} />}
           </>
         )}
       </div>
@@ -1512,5 +1578,5 @@ export function ManagerDashboard() {
       active = false;
     };
   }, []);
-  return <ManagerDashboardView state={state} />;
+  return <ManagerDashboardView state={state} globalFiltersEnabled />;
 }

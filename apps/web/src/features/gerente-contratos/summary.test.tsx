@@ -273,7 +273,7 @@ it('renders preventive quality values without rounding the API counts or treatin
   const details = html.match(/Detalhamento dos indicadores preventivos[\s\S]*?<\/section>/)?.[0] ?? '';
   expect(section).toContain('66,67%');
   expect(section).toContain('33,33%');
-  expect(details).toContain('Mede a disciplina operacional antes da materialização dos riscos.');
+  expect(details).toContain('Indicadores preventivos do recorte global quando a fonte permite apuração.');
   expect(section).toContain('data-quality-bar="Dados completos"');
   expect(section).toContain('data-quality-bar="Decisões D-90"');
   expect(section.indexOf('data-quality-bar="Dados completos"')).toBeLessThan(section.indexOf('data-quality-bar="Decisões D-90"'));
@@ -824,4 +824,59 @@ it('GC-033 combines local controls, keeps matrix observations and selections acr
     view.update(nextScope);
     expect(view.host.querySelector('.manager-alert-actions')?.textContent).toContain('3 de 3 pendências visíveis');
   } finally { view.unmount(); }
+});
+
+it('GC-034 applies global fiscal/risk/window/search and keeps local state across tabs', () => {
+  const data = structuredClone(base);
+  data.data.contracts = [
+    { contractId: 1, contractNumber: 'CT-1', supplierName: 'Árvore', value: 100, expiryDate: '2026-10-01' },
+    { contractId: 2, contractNumber: 'CT-2', supplierName: 'Beta', value: 200, expiryDate: '2027-03-24' },
+  ];
+  data.data.cards = { activeContracts: 2, activePortfolioValue: 300, expiringContracts: 1, renewalsWithin120Days: 1 };
+  data.data.contractRiskMatrix = data.data.contracts.map((contract, index) => ({
+    contractId: contract.contractId, contractNumber: contract.contractNumber, supplierName: contract.supplierName,
+    saldo: { status: index ? 'OK' : 'CRITICAL', partialCoverage: false, reason: null },
+    vigencia: index ? 'ATTENTION' : 'OK', sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE',
+    pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE',
+  }));
+  const load = fiscalLoad([{ ...inspector(7, 'João', 1, 2), contractIds: [1] },
+    { ...inspector(8, 'Maria', 1, 1), contractIds: [2] }]);
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const view = () => <ManagerDashboardView state={{ status: 'success', summary: data, load }} globalFiltersEnabled />;
+  const select = (label: string, value: string) => {
+    const input = [...host.querySelectorAll('.manager-global-grid label')].find(node => node.textContent?.startsWith(label))?.querySelector('select')!;
+    act(() => { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); });
+  };
+  try {
+    act(() => root.render(view()));
+    expect([...host.querySelectorAll('.manager-global-grid label')].map(node => node.textContent?.trim().split('\n')[0])).toHaveLength(5);
+    expect(host.querySelector<HTMLSelectElement>('.manager-global-grid label:nth-child(2) select')?.disabled).toBe(true);
+    expect(host.querySelector<HTMLSelectElement>('.manager-global-grid label:nth-child(4) select')?.value).toBe('180');
+    expect(host.querySelector('.manager-global-filters p')?.textContent).toContain('2 de 2 contratos');
+    expect(host.querySelector('.manager-global-filters p')?.textContent).toContain('D+180 dias, inclusive');
+    expect(host.querySelector('.manager-kpis')?.textContent).toContain('Contratos vigentes da carteira autorizada no recorte global');
+    expect(host.querySelector('.manager-kpis')?.textContent).toContain('Valor dos contratos vigentes no recorte global');
+    expect(host.querySelector('.manager-risk-panel .panel-heading')?.textContent).toContain('Contratos do recorte global');
+    select('Janela de vencimento', '90');
+    expect(host.querySelector('.manager-global-filters p')?.textContent).toContain('D+90 dias, inclusive');
+    expect(host.querySelector('.manager-global-filters p')?.textContent).toContain('1 de 2 contratos');
+    select('Janela de vencimento', '180');
+    const matrixSearch = host.querySelector<HTMLInputElement>('.manager-matrix-controls input')!;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(matrixSearch, 'CT-1');
+      matrixSearch.dispatchEvent(new Event('input', { bubbles: true })); });
+    select('Fiscal', '7');
+    expect(host.querySelector('.manager-global-filters p')?.textContent).toContain('1 de 2 contratos');
+    expect(host.querySelector('.manager-kpis')?.textContent).toContain('R$ 100,00');
+    expect(host.querySelector('.manager-fiscals-panel')?.textContent).toContain('OS pendentes por fiscal indisponíveis no recorte');
+    select('Risco', 'ATTENTION');
+    expect(host.querySelector('.manager-global-filters p')?.textContent).toContain('0 de 2 contratos');
+    select('Risco', '');
+    const tabs = host.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    act(() => tabs[1].click()); act(() => tabs[0].click());
+    expect(host.querySelector('.manager-secondary-metrics')?.textContent).toContain('dentro do recorte global');
+    expect(host.querySelector('.manager-complementary')?.textContent).toContain('Dados atuais dos contratos autorizados selecionados pelo recorte global');
+    expect(host.querySelector<HTMLInputElement>('.manager-matrix-controls input')?.value).toBe('CT-1');
+    expect(host.querySelector<HTMLSelectElement>('.manager-global-grid label select')?.value).toBe('7');
+  } finally { act(() => root.unmount()); }
 });

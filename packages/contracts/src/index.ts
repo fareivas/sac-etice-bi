@@ -435,6 +435,7 @@ export const managerFiscalLoadResponseSchema = z.strictObject({
     inspectors: z.array(z.strictObject({
       userId: z.number().int().positive(),
       name: z.string().nullable(),
+      contractIds: z.array(z.number().int().positive().safe()).optional(),
       activeContracts: z.number().int().nonnegative(),
       pendingOrders: z.number().int().nonnegative(),
       capacity: z.null(),

@@ -81,9 +81,10 @@ export class PostgresManagerRepository {
   }
   async fiscalLoad(ids: readonly number[]) {
     if (!ids.length) return [];
-    interface Row { user_id: string | bigint; name: string | null; active_contracts: string | bigint; pending_orders: string | bigint }
+    interface Row { user_id: string | bigint; name: string | null; contract_ids: string[]; active_contracts: string | bigint; pending_orders: string | bigint }
     const rows = await this.db.query<Row>(GET_MANAGER_FISCAL_LOAD, [ids]);
     return rows.map((row) => ({ userId: safeBigintId(row.user_id), name: row.name,
+      contractIds: [...new Set(row.contract_ids.map(safeBigintId))].sort((a, b) => a - b),
       activeContracts: safeBigintId(row.active_contracts), pendingOrders: safeBigintId(row.pending_orders),
       capacity: null, weightedLoad: null, criticality: null, ranking: null, overdueActions: null }));
   }

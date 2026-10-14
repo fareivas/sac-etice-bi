@@ -317,3 +317,19 @@ As capturas incluem os dois protótipos locais nos três tamanhos. Reexecutar os
 roteiros VIS-004 de densidade e fila e o roteiro de faixas com as respectivas
 fixtures descritas acima, usando a mesma URL e diretórios de saída separados.
 Nenhuma fixture ou dado demonstrativo é incluído no frontend de produção.
+
+## GC-034 — filtros globais do gerente
+
+Com Vite local na porta 5183 e o módulo Playwright/Chromium disponível:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/manager-global-filters.ts \
+  --bundle --platform=node --format=esm --outfile=/tmp/gc034-fixtures.mjs
+PLAYWRIGHT_MODULE=/tmp/vis006-browser/node_modules/playwright/index.mjs \
+CHROMIUM_EXECUTABLE=/opt/google/chrome/chrome \
+FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
+  node scripts/test/manager-global-filters.visual.mjs \
+  /tmp/gc034-fixtures.mjs /tmp/gc034-captures
+```
+
+O roteiro intercepta todas as requisições `/api/**` com dados sintéticos, valida Fiscal e Gerente em 1440, 900 e 390 px nas duas abas, filtros, teclado e overflow horizontal da página. Não inicia SAM nem acessa banco ou SAC oficial.
