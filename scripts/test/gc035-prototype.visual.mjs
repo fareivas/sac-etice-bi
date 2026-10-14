@@ -67,8 +67,9 @@ try {
       assert.deepEqual(await page.locator('.manager-interventions thead th').allTextContents(),
         ['Prior.', 'Fiscal', 'Contrato / fornecedor', 'Sinal antecipado', 'Impacto',
           'Antecedência', 'Ação gerencial', 'Prazo']);
-      assert.equal(await page.locator('.manager-interventions tbody tr').count(), 1);
-      assert.ok((await page.locator('.manager-interventions').innerText()).includes('indisponíveis'));
+      assert.ok(await page.locator('.manager-interventions tbody tr').count() >= 1);
+      assert.ok((await page.locator('.manager-interventions').innerText()).includes('Alertas:'));
+      assert.equal(await page.locator('.manager-interventions').getByText('P1', { exact: true }).count(), 0);
       assert.deepEqual(await page.locator('.fiscal-saldos thead th').allTextContents(),
         ['Status', 'Fiscal', 'Contrato / fornecedor', 'Item', 'Total', 'Executado', 'Saldo', '% saldo', 'Direcionamento gerencial']);
       const filters = page.getByRole('region', { name: 'Filtros globais da carteira' });
@@ -78,6 +79,8 @@ try {
     } else if (role === 'aggregate') {
       assert.deepEqual(await page.locator('.aggregate-block').first().locator('thead th').allTextContents(),
         ['Prior.', 'Fiscal', 'Contrato / Empresa', 'Risco', 'Impacto', 'Ação gerencial', 'Prazo']);
+      assert.ok((await page.locator('.aggregate-block').first().innerText()).includes('Alertas:'));
+      assert.equal(await page.locator('.aggregate-block').first().getByText('P1', { exact: true }).count(), 0);
       assert.equal(await page.locator('.aggregate-kpi').count(), 6);
       assert.equal(await page.locator('.aggregate-phase').count(), 7);
       assert.equal(await page.locator('.aggregate-filters label').count(), 5);

@@ -3,6 +3,7 @@ import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse } from 
 import { loadManagerFiscalLoad, loadManagerSummary } from '../../lib/api';
 import { displayDate } from '../../lib/display-date';
 import { initialGlobalFilters, projectManagerSummary, selectGlobalContracts } from './global-filters';
+import { contractOccurrences, genericEvaluation, genericEvaluationNote, occurrenceCoverage, occurrenceEmptyMessage } from './occurrences';
 
 type State =
   | { status: 'loading' }
@@ -25,6 +26,7 @@ function AggregateView({ state }: { state: State }) {
   const projected = source && selectedIds ? projectManagerSummary(source, selectedIds) : null;
   const summary = projected?.summary ?? source;
   const scopeUnavailable = source !== null && selectedIds === null;
+  const occurrences = contractOccurrences(summary, scopeUnavailable, selectedIds?.size === 0);
   const emptyLabel = source?.data.contracts?.length === 0 ? 'Carteira autorizada sem contratos.' : 'Nenhum contrato no recorte selecionado.';
   const rows = scopeUnavailable ? null : summary?.data.contractRiskMatrix;
   const inspectors = load?.meta.dataCoverage.inspectors === 'AVAILABLE' ? load.data.inspectors : null;
@@ -100,8 +102,15 @@ function AggregateView({ state }: { state: State }) {
             </section>
           </div>
           <section className="aggregate-card aggregate-block"><h2>Intervenções gerenciais priorizadas</h2>
-            <EmptyTable columns={['Prior.', 'Fiscal', 'Contrato / Empresa', 'Risco', 'Impacto', 'Ação gerencial', 'Prazo']}
-              message="Intervenções indisponíveis: não há fonte e regra aprovadas para prioridade, impacto, ação e prazo." /></section>
+            <p className="aggregate-sub" role="status">{occurrenceCoverage(occurrences)} Sem classificação de prioridade ou ação formalmente atribuída.</p>
+            <div className="aggregate-table-wrap"><table><thead><tr>{['Prior.', 'Fiscal', 'Contrato / Empresa', 'Risco', 'Impacto', 'Ação gerencial', 'Prazo'].map(column => <th key={column}>{column}</th>)}</tr></thead>
+              <tbody>{occurrences.rows.length ? occurrences.rows.map((row, index) => <tr key={row.key} data-occurrence-id={row.key} data-contract-id={row.contractId}
+                className={index === 0 || occurrences.rows[index - 1].contractId !== row.contractId ? 'manager-occurrence-group-start' : undefined}>
+                <td>Indisponível</td><td>Indisponível</td>
+                <td><strong>{row.contractNumber ?? `Contrato ID ${row.contractId}`}</strong>{row.supplierName && <><br />{row.supplierName}</>}</td>
+                <td><strong>{row.signal}</strong><br />{row.detail}</td><td>Indisponível</td>
+                <td>{genericEvaluation}<small className="manager-occurrence-note">{genericEvaluationNote}</small></td><td>Indisponível</td>
+              </tr>) : <tr><td colSpan={7} className="table-empty">{occurrenceEmptyMessage(occurrences)}</td></tr>}</tbody></table></div></section>
           <div className="aggregate-grid-three">
             <section className="aggregate-card"><h2>Forecast 180 dias</h2><div className="aggregate-alert"><strong>{unavailable}</strong><span>Valor de contratos com risco de saldo ou vigência sem regra aprovada.</span></div>
               <div className="aggregate-alert aggregate-warn"><strong>{unavailable}</strong><span>Necessidade de renovação, aditivo ou licitação sem regra aprovada.</span></div></section>

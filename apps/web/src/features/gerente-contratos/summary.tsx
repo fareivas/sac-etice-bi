@@ -10,6 +10,7 @@ import { loadManagerSummary, loadManagerFiscalLoad, loadManagerSuppliers } from 
 import { displayDate } from '../../lib/display-date';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
 import { initialGlobalFilters, projectManagerSummary, selectGlobalContracts } from './global-filters';
+import { contractOccurrences, genericEvaluation, genericEvaluationNote, occurrenceCoverage, occurrenceEmptyMessage } from './occurrences';
 
 type State =
   | { status: 'loading' }
@@ -230,6 +231,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
   const selectionUnavailable = globalFiltersEnabled && baseSummary !== null && selectedIds === null;
   const projection = baseSummary && selectedIds ? projectManagerSummary(baseSummary, selectedIds) : null;
   const summary = projection?.summary ?? baseSummary;
+  const occurrences = contractOccurrences(summary, selectionUnavailable, selectedIds?.size === 0);
   const subset = projection?.subset ?? false;
   const baseInspectors = state.status === 'success' && state.load?.meta.dataCoverage.inspectors === 'AVAILABLE'
     ? state.load.data.inspectors : null;
@@ -763,8 +765,9 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
             <section className="fiscal-panel manager-interventions">
               <div className="panel-heading">
                 <h2>Intervenções gerenciais priorizadas</h2>
-                <p>Sem fonte e regra aprovadas para prioridade, impacto, antecedência, ação gerencial ou prazo.</p>
+                <p>Ocorrências verificáveis por contrato, sem classificação de prioridade. Impacto, antecedência e prazo sem fonte aprovada.</p>
               </div>
+              <p className="source-note" role="status">{occurrenceCoverage(occurrences)}</p>
               <div className="fiscal-table-wrap">
                 <table>
                   <thead><tr>
@@ -773,9 +776,15 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                     <th scope="col">Impacto</th><th scope="col">Antecedência</th>
                     <th scope="col">Ação gerencial</th><th scope="col">Prazo</th>
                   </tr></thead>
-                  <tbody><tr><td colSpan={8} className="table-empty" role="status">
-                    Intervenções gerenciais indisponíveis: não há fonte e regra aprovadas para esta tabela.
-                  </td></tr></tbody>
+                  <tbody>{occurrences.rows.length ? occurrences.rows.map((row, index) => <tr key={row.key} data-occurrence-id={row.key} data-contract-id={row.contractId}
+                    className={index === 0 || occurrences.rows[index - 1].contractId !== row.contractId ? 'manager-occurrence-group-start' : undefined}>
+                    <td>Indisponível</td><td>Indisponível</td>
+                    <td><strong>{row.contractNumber ?? `Contrato ID ${row.contractId}`}</strong>{row.supplierName && <><br />{row.supplierName}</>}</td>
+                    <td><strong>{row.signal}</strong><br />{row.detail}</td>
+                    <td>Indisponível</td><td>Indisponível</td>
+                    <td>{genericEvaluation}<small className="manager-occurrence-note">{genericEvaluationNote}</small></td>
+                    <td>Indisponível</td>
+                  </tr>) : <tr><td colSpan={8} className="table-empty" role="status">{occurrenceEmptyMessage(occurrences)}</td></tr>}</tbody>
                 </table>
               </div>
             </section>

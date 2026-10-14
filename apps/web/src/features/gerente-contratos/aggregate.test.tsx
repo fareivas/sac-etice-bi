@@ -66,7 +66,10 @@ it('uses authorized data, keeps unsupported measures unavailable and applies glo
   try {
     expect(view.host.querySelectorAll('.aggregate-kpi')).toHaveLength(6);
     expect(view.host.textContent).toContain('Fonte e regra aprovadas indisponíveis');
-    expect(view.host.textContent).toContain('Intervenções indisponíveis');
+    expect(view.host.querySelector('.aggregate-block tbody tr')?.getAttribute('data-occurrence-id')).toBe('matriz:7:Saldo');
+    expect(view.host.querySelector('.aggregate-block')?.textContent).toContain('Avaliar o contrato e o encaminhamento cabível');
+    const cells = [...view.host.querySelectorAll('.aggregate-block tbody tr:first-child td')].map(cell => cell.textContent);
+    for (const index of [0, 1, 4, 6]) expect(cells[index]).toBe('Indisponível');
     expect(view.host.textContent).not.toContain('Autorizar plano de contingência');
     const search = view.host.querySelector<HTMLInputElement>('input[type="search"]')!;
     act(() => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
@@ -103,6 +106,7 @@ it('distinguishes load failure, unavailable scope and summary error', () => {
     expect(host.querySelectorAll('.aggregate-card h2')).toHaveLength(9);
     expect(host.textContent).toContain('Recorte indisponível');
     expect(host.textContent).toContain('Matriz indisponível');
+    expect(host.querySelector('.aggregate-block tbody [data-occurrence-id]')).toBeNull();
     act(() => root.render(<AggregateView state={{ status: 'error', message: 'Erro sintético' }} />));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('Erro sintético');
   } finally { act(() => root.unmount()); }

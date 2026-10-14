@@ -364,3 +364,7 @@ Na GC-035D, o mesmo roteiro confere ainda os quatro indicadores principais
 dos saldos, o detalhe expansível dos controles e a ausência de eixos com valores
 no gráfico indisponível de fornecedores estratégicos. As capturas desta etapa
 ficam em `/tmp/gc035d-captures/`.
+
+Na GC-036, o roteiro confere as colunas de intervenções em ambas as telas,
+o estado de cobertura e a ausência de prioridade fictícia. As capturas são
+geradas em `/tmp/gc036-captures/`, sempre com fixtures HTTP sintéticas.

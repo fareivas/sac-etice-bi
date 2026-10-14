@@ -379,6 +379,26 @@ A exportação CSV contém exatamente os registros visíveis na mesma ordem dos 
 
 Validação GC-033: testes unitários de seleção, ordenação, agrupamento, datas e CSV; interação React de filtros/abas/cobertura; Chromium com fixtures sintéticas em 1440, 900 e 390 px para ambos os dashboards, sem acesso a banco ou SAC oficial. Sem alteração de contrato HTTP, backend, SQL ou autorização.
 
+## GC-036 — Ocorrências contratuais para avaliação gerencial
+
+Nas telas Supervisão e Visão agregada, a tabela visual de intervenções passa a
+mostrar ocorrências factuais do resumo autorizado. Cada alerta efetivo gera uma
+linha identificada por `alertId`. Cada célula `CRITICAL` de Saldo ou Vigência
+gera uma linha identificada por `contractId` e dimensão. Origens diferentes
+permanecem distintas. A apresentação agrupa por contrato e ordena por número
+do contrato, ID e identidade da ocorrência; essa ordem não representa
+prioridade. As colunas dos dois protótipos são preservadas.
+
+Contrato, fornecedor quando constar da matriz, tipo, estado e descrição do
+alerta e dimensão crítica são informações factuais. Fiscal responsável,
+prioridade, impacto, antecedência e prazo permanecem indisponíveis. A frase
+“Avaliar o contrato e o encaminhamento cabível” é orientação genérica, sem
+atribuição formal. O KPI de intervenções segue indisponível. Alertas e matriz
+têm cobertura independente; a interface distingue cobertura parcial, ambas
+as fontes indisponíveis, fontes disponíveis sem ocorrências e recorte vazio ou
+indisponível. O recorte global é aplicado antes da transformação. A consulta
+histórica GC-033 e seus filtros não são alterados.
+
 ## GC-034 — Filtros globais do Gerente
 
 A barra da visão gerencial combina fiscal, risco, janela de vencimento e busca por interseção sobre `data.contracts` da carteira autorizada. A gerência permanece visível e desabilitada porque não há fonte aprovada. A janela padrão é D0 a D+180, inclusiva, a partir de `meta.dataReference`; há opções D+90 e D+365. Data nula ou vencimento anterior a D0 não entra no recorte. Essa janela de seleção não altera os limites existentes de risco de 30/120 dias, D-90 ou o indicador específico de vencimento em 120 dias.

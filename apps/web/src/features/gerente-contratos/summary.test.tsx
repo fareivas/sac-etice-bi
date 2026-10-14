@@ -50,6 +50,8 @@ it('renders the contract risk matrix with distinct states and partial balance co
   const unavailable = structuredClone(base);
   unavailable.meta.dataCoverage.contractRiskMatrix = 'UNAVAILABLE';
   unavailable.data.contractRiskMatrix = null;
+  unavailable.data.contractAlerts = [{ alertId: 99, contractId: 7, contractNumber: 'CT-7', type: 'vigencia',
+    status: 'aberta', description: 'Não exibir no recorte indisponível', expiryDate: null, createdAt: null }];
   expect(render(unavailable)).toContain('Matriz indisponível para esta referência.');
   expect(render(unavailable)).not.toContain('Risco por contrato e dimensão');
 });
@@ -93,6 +95,8 @@ it('GC-035C keeps all four executive alerts visible when the global scope is una
   expect(host.querySelectorAll('.manager-decision-item')).toHaveLength(4);
   expect(host.querySelector('.manager-kpis')?.textContent).not.toContain('R$ 0,00');
   expect(host.textContent).toContain('Não é possível determinar o recorte global');
+  expect(host.querySelector('.manager-interventions [data-occurrence-id]')).toBeNull();
+  expect(host.textContent).not.toContain('Não exibir no recorte indisponível');
 });
 it.each([
   ['NO_ITEMS', false, 'Sem itens cadastrados para classificar o saldo'],
@@ -449,7 +453,7 @@ it('GC-035 renders the approved Gerente sequence in one page without tabs or exc
     expect([...host.querySelectorAll('.panel-heading h2')].map(node => node.textContent)).not.toContain(title);
 });
 
-it('GC-035 keeps interventions unavailable with the exact eight prototype columns', () => {
+it('GC-036 renders factual alerts in the exact eight prototype columns without invented decisions', () => {
   const data = structuredClone(base);
   data.data.contractAlerts = [{ alertId: 1, contractId: 2, contractNumber: 'CT-2', type: 'vigencia',
     status: 'aberta', description: 'Alerta factual', expiryDate: '2026-10-10', createdAt: null }];
@@ -460,9 +464,13 @@ it('GC-035 keeps interventions unavailable with the exact eight prototype column
     'Antecedência', 'Ação gerencial', 'Prazo',
   ]);
   expect(panel.querySelectorAll('tbody tr')).toHaveLength(1);
-  expect(panel.querySelector('tbody td')?.getAttribute('colspan')).toBe('8');
-  expect(panel.textContent).toContain('Intervenções gerenciais indisponíveis');
-  expect(panel.textContent).not.toContain('Alerta factual');
+  expect(panel.querySelector('tbody tr')?.getAttribute('data-occurrence-id')).toBe('alerta:1');
+  expect(panel.textContent).toContain('Alerta factual');
+  expect(panel.textContent).toContain('Avaliar o contrato e o encaminhamento cabível');
+  expect(panel.textContent).toContain('ação não formalmente atribuída');
+  expect(panel.textContent).not.toContain('P1');
+  const cells = [...panel.querySelectorAll('tbody tr:first-child td')].map(cell => cell.textContent);
+  for (const index of [0, 1, 4, 5, 7]) expect(cells[index]).toBe('Indisponível');
   expect(panel.querySelector('input, select, button')).toBeNull();
 });
 

@@ -372,6 +372,9 @@ button, input, select { font: inherit; }
 .manager-supplier-name[open] summary, .manager-supplier-name[open] span { white-space: normal; overflow-wrap: anywhere; }
 .manager-supplier-name span { display: block; padding: 5px 0; font-size: 11px; }
 .manager-supplier-name summary:focus-visible, .manager-saldo-tools summary:focus-visible, .manager-saldo-row-details summary:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
+.manager-occurrence-note { display: block; margin-top: 3px; color: #64748b; font-size: 11px; line-height: 1.35; }
+.manager-interventions .fiscal-table-wrap, .aggregate-block .aggregate-table-wrap { max-width: 100%; overflow-x: auto; }
+.manager-occurrence-group-start td { border-top: 2px solid #9fb6c5; }
 .manager-saldo-kpis > div { min-width: 0; border-top: 4px solid #164e63; background: #fff; border-radius: 12px; box-shadow: 0 8px 24px #0f172a14; }
 .manager-saldo-kpis strong { font-size: 20px; overflow-wrap: anywhere; }
 .manager-saldo-kpis small { color: #64748b; font-size: 11px; line-height: 1.4; }
