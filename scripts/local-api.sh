@@ -7,6 +7,11 @@ umask 077
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 fail() { printf 'Erro: %s\n' "$1" >&2; exit 1; }
+SAM_WARM_CONTAINERS="${SAM_WARM_CONTAINERS-LAZY}"
+case "$SAM_WARM_CONTAINERS" in
+  LAZY|EAGER|NONE) ;;
+  *) fail 'SAM_WARM_CONTAINERS inválido. Use LAZY, EAGER ou NONE.' ;;
+esac
 [[ -f .env.local ]] || fail 'Crie a configuração local: cp .env.local.example .env.local'
 [[ -f infra/sam/template.yaml ]] || fail 'Template infra/sam/template.yaml não encontrado.'
 for tool in node docker sam; do
@@ -30,9 +35,15 @@ node scripts/local-sam-env.mjs "$ENV_DIR/env.json"
 PATH="$ROOT/node_modules/.bin:$PATH" sam build \
   --template-file infra/sam/template.yaml \
   --build-dir .aws-sam/build
-sam local start-api \
-  --template-file .aws-sam/build/template.yaml \
-  --env-vars "$ENV_DIR/env.json" \
-  --host 127.0.0.1 \
-  --port 3000 \
+sam_args=(
+  local start-api
+  --template-file .aws-sam/build/template.yaml
+  --env-vars "$ENV_DIR/env.json"
+  --host 127.0.0.1
+  --port 3000
   --skip-pull-image
+)
+if [[ "$SAM_WARM_CONTAINERS" != NONE ]]; then
+  sam_args+=(--warm-containers "$SAM_WARM_CONTAINERS")
+fi
+sam "${sam_args[@]}"

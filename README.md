@@ -44,6 +44,18 @@ Terminal 1:
 npm run local:api
 ```
 
+O SAM usa `--warm-containers LAZY` por padrão. Para experimentar outro modo:
+
+```bash
+SAM_WARM_CONTAINERS=EAGER npm run local:api
+SAM_WARM_CONTAINERS=NONE npm run local:api
+```
+
+São aceitos `LAZY`, `EAGER` e `NONE`. Com `NONE`, o script omite a opção
+`--warm-containers`, permitindo testar invocações sem reaproveitamento de
+contêineres. Um valor inválido encerra o script com uma mensagem antes do build.
+Use apenas uma instância na porta 3000 por vez.
+
 Terminal 2:
 
 ```bash
@@ -62,6 +74,9 @@ privado, com arquivo de permissões 0600, e removido ao encerrar ou com Ctrl+C.
 Uma interrupção forçada (SIGKILL) ou queda da máquina pode impedir o cleanup.
 Não são necessários exports manuais. `DOCKER_HOST`/`DOCKER_CONTEXT` existentes
 são respeitados; na ausência deles, o socket padrão Linux é usado se disponível.
+No ambiente local observado, cada resposta HTTP ainda leva cerca de 2 segundos,
+embora os handlers executem em poucos milissegundos. A causa dessa latência
+continua desconhecida.
 
 Validação manual com o banco local disponível:
 
