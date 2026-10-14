@@ -769,7 +769,8 @@ export function ManagerDashboardView({ state }: { state: State }) {
                             <strong>{row.contractNumber ?? `Contrato ID ${row.contractId}`}</strong>:{' '}
                             {row.saldo.status === 'CRITICAL' ? 'saldo crítico' : ''}
                             {row.saldo.status === 'CRITICAL' && row.vigencia === 'CRITICAL' ? ' e ' : ''}
-                            {row.vigencia === 'CRITICAL' ? 'vigência crítica' : ''}.
+                            {row.vigencia === 'CRITICAL' ? 'vigência crítica' : ''}.{' '}
+                            <span>Recomendação: avaliar o contrato e o encaminhamento cabível.</span>
                           </li>
                         ))}
                     </ul>
