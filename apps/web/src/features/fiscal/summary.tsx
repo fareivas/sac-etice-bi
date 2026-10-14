@@ -1,3 +1,4 @@
+import { DashboardTabs } from '../dashboard-tabs';
 import { FiscalContractBalanceChart } from './contract-balance-chart';
 import { BandDistribution } from '../item-balances/band-distribution';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -252,6 +253,7 @@ export function FiscalDashboardView({
                 Cobertura parcial: indicadores marcados como indisponíveis não foram calculados.
               </p>
             )}
+            <DashboardTabs id="fiscal" main={<>
             <section className="fiscal-kpis" aria-label="Indicadores">
               {cards.map(({ key, label, detail }) => {
                 const value = summary.data.cards[key];
@@ -562,6 +564,23 @@ export function FiscalDashboardView({
                 )}
               </Panel>
             </div>
+            <Panel title="Ciclo financeiro do contrato" subtitle="Cliente → ETICE → fornecedor.">
+              <Unavailable label="Indisponível: a resposta atual não fornece etapas, valores ou tempos do ciclo financeiro." />
+            </Panel>
+            <Panel
+              title="Relevância Econômica das Partes do Contrato / ABC"
+              subtitle="Indisponível: não há classificação corporativa verificável de fornecedores e clientes na resposta atual."
+            >
+              <div className="fiscal-grid-two relevance">
+                <div>
+                  Fornecedores <strong>Indisponível</strong>
+                </div>
+                <div>
+                  Clientes <strong>Indisponível</strong>
+                </div>
+              </div>
+            </Panel>
+            </>} complementary={<>
             <Panel
               title="Gestão dos Saldos dos Itens Contratuais"
               subtitle="Total contratado, execução acumulada, saldo e ação do fiscal."
@@ -902,22 +921,6 @@ export function FiscalDashboardView({
                 <Unavailable label="Fonte de saldos por item indisponível para esta data." />
               )}
             </Panel>
-            <Panel title="Ciclo financeiro do contrato" subtitle="Cliente → ETICE → fornecedor.">
-              <Unavailable label="Indisponível: a resposta atual não fornece etapas, valores ou tempos do ciclo financeiro." />
-            </Panel>
-            <Panel
-              title="Relevância Econômica das Partes do Contrato / ABC"
-              subtitle="Indisponível: não há classificação corporativa verificável de fornecedores e clientes na resposta atual."
-            >
-              <div className="fiscal-grid-two relevance">
-                <div>
-                  Fornecedores <strong>Indisponível</strong>
-                </div>
-                <div>
-                  Clientes <strong>Indisponível</strong>
-                </div>
-              </div>
-            </Panel>
             <section
               className="dashboard-complementary fiscal-complementary"
               aria-labelledby="fiscal-complementary-title"
@@ -1062,6 +1065,7 @@ export function FiscalDashboardView({
               </Panel>
             </section>
 
+            </>} />
             <p className="source-note">
               Fonte KPI:{' '}
               {includeExternal

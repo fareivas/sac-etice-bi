@@ -55,7 +55,7 @@ it('renders the contract risk matrix with distinct states and partial balance co
   expect(panel.textContent).toContain('Contrato ID 8');
   for (const label of ['Crítico', 'Atenção', 'OK', 'Indisponível']) expect(panel.textContent).toContain(label);
   expect(panel.querySelectorAll('.manager-risk-cell')).toHaveLength(12);
-  expect(host.innerHTML.indexOf('Matriz Contrato × Dimensão de Risco')).toBeLessThan(host.innerHTML.indexOf('Intervenções gerenciais'));
+  expect(host.querySelector('.manager-focus-grid .manager-risk-panel h2')?.textContent).toBe('Matriz Contrato × Dimensão de Risco');
   const unavailable = structuredClone(base);
   unavailable.meta.dataCoverage.contractRiskMatrix = 'UNAVAILABLE';
   unavailable.data.contractRiskMatrix = null;
@@ -209,7 +209,7 @@ it('isolates a fiscal-load HTTP error without hiding the main summary', async ()
   try {
     await act(async () => { root.render(<ManagerDashboard />); await new Promise(resolve => setTimeout(resolve, 0)); });
     expect(host.textContent).toContain('Dashboard do Gerente de Contratos');
-    expect(host.textContent).toContain('Contratos ativos');
+    expect(host.textContent).toContain('Contratos monitorados');
     expect(host.textContent).toContain('Erro ao carregar distribuição dos fiscais');
     expect(host.textContent).not.toContain('Distribuição dos fiscais indisponível para esta referência');
   } finally { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
@@ -269,30 +269,30 @@ it('renders preventive quality values without rounding the API counts or treatin
       missingByField: { objeto: 1, valor_total: 1, data_assinatura: 1, vigencia_inicio: 0, vigencia_fim: 0 } },
   };
   const html = render(summary).replaceAll('\u00a0', ' ');
-  const section = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const section = html.match(/Qualidade da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
   const details = html.match(/Detalhamento dos indicadores preventivos[\s\S]*?<\/section>/)?.[0] ?? '';
   expect(section).toContain('66,67%');
   expect(section).toContain('33,33%');
   expect(details).toContain('Mede a disciplina operacional antes da materialização dos riscos.');
-  expect(section).toContain('data-quality-ring="Dados completos"');
-  expect(section).toContain('data-quality-ring="Decisões D-90"');
-  expect(section.indexOf('data-quality-ring="Dados completos"')).toBeLessThan(section.indexOf('data-quality-ring="Decisões D-90"'));
+  expect(section).toContain('data-quality-bar="Dados completos"');
+  expect(section).toContain('data-quality-bar="Decisões D-90"');
+  expect(section.indexOf('data-quality-bar="Dados completos"')).toBeLessThan(section.indexOf('data-quality-bar="Decisões D-90"'));
   const detailCards = details.match(/<div class="manager-quality-grid">([\s\S]*?)<\/div><p class="source-note">/)?.[1] ?? '';
   expect(detailCards.indexOf('<h3>Dados completos</h3>')).toBeLessThan(detailCards.indexOf('<h3>Decisões D-90</h3>'));
   expect(detailCards).not.toMatch(/\d+(?:,\d+)?%/);
   expect(section.match(/66,67%/g)).toHaveLength(1);
   expect(section.match(/33,33%/g)).toHaveLength(1);
-  expect(section.match(/manager-quality-ring-progress/g)).toHaveLength(2);
-  const arcs = [...section.matchAll(/stroke-dasharray="([\d.]+) ([\d.]+)"/g)];
-  expect(arcs).toHaveLength(2);
-  expect(Number(arcs[0][1]) / Number(arcs[0][2])).toBeCloseTo(1 / 3);
-  expect(Number(arcs[1][1]) / Number(arcs[1][2])).toBeCloseTo(2 / 3);
+  const visual = document.createElement('div'); visual.innerHTML = section;
+  const bars = visual.querySelectorAll<HTMLElement>('.manager-quality-bar-track span');
+  expect(bars).toHaveLength(2);
+  expect(parseFloat(bars[0].style.width)).toBeCloseTo(1 / 3 * 100);
+  expect(parseFloat(bars[1].style.width)).toBeCloseTo(2 / 3 * 100);
   for (const label of ['Contratos elegíveis', 'Contratos decididos', 'Intenções de prorrogar', 'Intenções de não renovar', 'Contratos sem decisão',
     'Contratos completos', 'Contratos vigentes', 'Sem objeto', 'Sem valor total', 'Sem data de assinatura',
     'Sem início da vigência', 'Sem fim da vigência']) expect(details).toContain(label);
   for (const value of ['>3</dd>', '>2</dd>', '>1</dd>', '>0</dd>']) expect(details).toContain(value);
   expect(details).toContain('intenção de prorrogar não significa prorrogação concluída');
-  expect(html.indexOf('Qualidade preventiva da gestão')).toBeLessThan(html.indexOf('Intervenções gerenciais'));
+  expect(html.indexOf('Qualidade da gestão')).toBeGreaterThan(html.indexOf('Intervenções gerenciais'));
   expect(html).toContain('Gestão dos Saldos dos Itens Contratuais');
 });
 
@@ -300,22 +300,22 @@ it('distinguishes empty populations, independent unavailable coverage and main l
   const empty = render(base);
   expect(empty).toContain('Sem população elegível');
   expect(empty).toContain('Sem contratos vigentes');
-  expect(empty).not.toContain('manager-quality-ring-progress');
+  expect(empty).not.toContain('manager-quality-bar-track span');
   expect(empty).not.toContain('>0%</strong>');
   const unavailable = structuredClone(base);
   unavailable.meta.dataCoverage.renewalDecisionsD90 = 'UNAVAILABLE';
   unavailable.data.preventiveQuality.renewalDecisionsD90 = null;
   const html = render(unavailable);
-  const section = html.match(/Qualidade preventiva da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
+  const section = html.match(/Qualidade da gestão[\s\S]*?<\/section>/)?.[0] ?? '';
   const details = html.match(/Detalhamento dos indicadores preventivos[\s\S]*?<\/section>/)?.[0] ?? '';
   expect(details).toContain('Fonte indisponível para esta referência');
   expect(details).toContain('Sem contratos vigentes');
   expect(details).not.toContain('Sem população elegível');
-  expect(section).not.toContain('manager-quality-ring-progress');
+  expect(section).not.toContain('manager-quality-bar-track span');
   expect(section).not.toContain('0%');
   const loadingError = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'error', message: 'HTTP 500' }} />);
   expect(loadingError).toContain('Erro ao carregar o resumo');
-  expect(loadingError).not.toContain('Qualidade preventiva da gestão');
+  expect(loadingError).not.toContain('Qualidade da gestão');
 });
 
 function item(id: number, contractId: number, supplierName: string | null, faixa: 'adequado' | 'critico' | 'nao_verificavel', overrides: Record<string, unknown> = {}) {
@@ -502,9 +502,12 @@ it('shows six factual executive cards and explicit gaps without prototype values
   const host = document.createElement('div'); host.innerHTML = render(summary);
   const cards = host.querySelectorAll('.manager-kpis .fiscal-kpi');
   expect(cards).toHaveLength(6);
-  expect(cards[1].textContent).toContain('Contratos com dimensão crítica1');
-  expect(cards[3].textContent).toContain('Vencimento nos próximos 120 dias1');
-  expect(cards[5].textContent).toContain('SLA abaixo da metaIndisponível');
+  expect([...cards].map(card => card.querySelector('span')?.textContent)).toEqual(['Contratos monitorados', 'Contratos críticos', 'Valor contratado', 'Renovações atrasadas', 'SLA abaixo da meta', 'Intervenções gerenciais']);
+  expect(cards[0].querySelector('strong')?.textContent).toBe('1');
+  expect(cards[1].querySelector('strong')?.textContent).toBe('1');
+  expect(cards[2].querySelector('strong')?.textContent?.replaceAll('\u00a0', ' ')).toContain('R$ 1.250,00');
+  for (const card of [...cards].slice(3)) expect(card.querySelector('strong')?.textContent).toBe('Indisponível');
+  expect(host.querySelector('.manager-secondary-metrics')?.textContent).toContain('Vencimento nos próximos 120 dias1');
   expect(host.textContent).toContain('Forecast 180 dias');
   expect(host.textContent).toContain('Saldo contratual não representa exposição');
   expect(host.textContent).toContain('Classificação ABC indisponível');
@@ -607,11 +610,11 @@ it('keeps a long supplier in the contract cell and full name in selectable detai
 it('VIS-002 preserves the principal panel sequence and distinguishes complements', () => {
   const host = document.createElement('div'); host.innerHTML = render(base);
   const titles = [...host.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
-  expect(titles.slice(0, 9)).toEqual(['Carga e risco por fiscal', 'Qualidade preventiva da gestão',
-    'Matriz Contrato × Dimensão de Risco', 'Fornecedores estratégicos: valor × risco', 'Intervenções gerenciais',
-    'Curva ABC de Fornecedores', 'Distribuição dos itens por faixa de saldo',
-    'Gestão dos Saldos dos Itens Contratuais', 'Eficiência do Ciclo Financeiro — carteira gerenciada']);
-  expect(host.querySelector('.manager-complementary')?.textContent).toContain('Curva ABC de Clientes');
+  expect(titles.slice(0, 8)).toEqual(['Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal',
+    'Intervenções gerenciais priorizadas', 'Forecast 180 dias', 'Exposição financeira',
+    'Qualidade da gestão', 'Eficiência do Ciclo Financeiro — carteira gerenciada',
+    'Curva ABC de Fornecedores']);
+  expect(host.querySelector('.manager-abc-pair')?.textContent).toContain('Curva ABC de Clientes');
 });
 it('VIS-002 manager distribution follows local filters, including zero and unavailable', () => {
   const view = mount(withItems([item(1, 1, 'A', 'adequado'), item(2, 2, 'B', 'critico'), item(3, 2, 'B', 'nao_verificavel')]));
@@ -637,7 +640,7 @@ it('VIS-003 retains contract and expiry lists in the accessible complementary ar
   expect(titles).toContain('Contratos vigentes da carteira');
   expect(titles).toContain('Contratos vigentes com vencimento nos próximos 120 dias');
   expect(titles).toContain('Detalhamento dos indicadores preventivos');
-  expect(host.querySelectorAll('[data-quality-ring]')).toHaveLength(2);
+  expect(host.querySelectorAll('[data-quality-bar]')).toHaveLength(2);
 });
 
 it('VIS-004 keeps long names and all fiscals in the chart and complete table with keyboard scrolling', () => {
@@ -655,4 +658,110 @@ it('VIS-004 keeps long names and all fiscals in the chart and complete table wit
   expect(panel.querySelector('.manager-fiscal-chart-legend')?.textContent).toContain('OS pendentes na carteira');
   expect(panel.querySelectorAll('.manager-fiscal-value')).toHaveLength(60);
   expect(panel.textContent).toContain('não devem ser somadas como OS únicas');
+});
+
+it('VIS-006 keeps the manager item consultation mounted with filters across tab switches', () => {
+  const view = mount(withItems([item(1, 1, 'Fornecedor A', 'adequado')]));
+  try {
+    const panels = [...view.host.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
+    const tabs = [...view.host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(panels.map(panel => panel.hidden)).toEqual([false, true]);
+    expect(panels[0].querySelector('.fiscal-saldos')).toBeNull();
+    expect(panels[1].querySelector('.fiscal-saldos')).not.toBeNull();
+    act(() => tabs[1].click());
+    view.select('Fornecedor', 'Fornecedor A');
+    act(() => tabs[0].click());
+    act(() => tabs[1].click());
+    expect(view.selected('Fornecedor')).toBe('Fornecedor A');
+  } finally { view.unmount(); }
+});
+
+it('VIS-007 maps executive values to approved sources and keeps distinct metrics in complements', () => {
+  const data = structuredClone(base);
+  data.data.cards.activeContracts = 4;
+  data.data.cards.activePortfolioValue = 1250;
+  data.data.cards.renewalsWithin120Days = 2;
+  data.data.contractAlerts = [{ alertId: 1, contractId: 1, contractNumber: 'CT-1', type: null,
+    status: 'aberta', description: null, expiryDate: null, createdAt: null }];
+  const host = document.createElement('div'); host.innerHTML = render(data);
+  const cards = [...host.querySelectorAll('.manager-kpis .fiscal-kpi')];
+  expect(cards.map(card => card.querySelector('span')?.textContent)).toEqual([
+    'Contratos monitorados', 'Contratos críticos', 'Valor contratado', 'Renovações atrasadas',
+    'SLA abaixo da meta', 'Intervenções gerenciais',
+  ]);
+  expect(cards[0].querySelector('strong')?.textContent).toBe('4');
+  expect(cards[2].querySelector('strong')?.textContent?.replaceAll('\u00a0', ' ')).toContain('R$ 1.250,00');
+  expect(cards[3].querySelector('strong')?.textContent).toBe('Indisponível');
+  expect(cards[5].querySelector('strong')?.textContent).toBe('Indisponível');
+  expect(host.querySelector('.manager-secondary-metrics')?.textContent).toContain('Vencimento nos próximos 120 dias2');
+  expect(host.querySelector('.manager-secondary-metrics')?.textContent).toContain('Alertas contratuais1');
+  data.meta.dataCoverage.activeContracts = 'UNAVAILABLE';
+  data.meta.dataCoverage.activePortfolioValue = 'UNAVAILABLE';
+  data.meta.dataCoverage.renewalsWithin120Days = 'UNAVAILABLE';
+  data.meta.dataCoverage.contractAlerts = 'UNAVAILABLE';
+  const unavailable = document.createElement('div'); unavailable.innerHTML = render(data);
+  const unavailableCards = unavailable.querySelectorAll('.manager-kpis .fiscal-kpi strong');
+  expect(unavailableCards[0].textContent).toBe('Indisponível');
+  expect(unavailableCards[2].textContent).toBe('Indisponível');
+  expect(unavailable.querySelector('.manager-secondary-metrics')?.textContent).not.toContain('Alertas contratuais1');
+  expect(unavailable.querySelector('.manager-secondary-metrics')?.textContent).not.toContain('Vencimento nos próximos 120 dias2');
+});
+
+it('VIS-007 places matrix beside fiscal load, interventions next, and preventive quality in complements', () => {
+  const host = document.createElement('div'); host.innerHTML = render(base);
+  const main = host.querySelector<HTMLElement>('#manager-panel-main')!;
+  const complement = host.querySelector<HTMLElement>('#manager-panel-complementary')!;
+  expect([...main.querySelectorAll('.manager-focus-grid > section h2')].map(node => node.textContent)).toEqual([
+    'Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal',
+  ]);
+  const headings = [...main.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
+  expect(headings.slice(0, 3)).toEqual([
+    'Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal', 'Intervenções gerenciais priorizadas',
+  ]);
+  expect(main.querySelector('.manager-quality-panel')).not.toBeNull();
+  expect(complement.querySelector('.manager-quality-panel')).toBeNull();
+  expect(complement.querySelector('.manager-quality-details')).not.toBeNull();
+  expect(main.querySelector('.manager-suppliers')).not.toBeNull();
+  expect(main.querySelector('.manager-band-distribution')).toBeNull();
+  expect(complement.querySelector('.manager-band-distribution')).not.toBeNull();
+});
+
+it('VIS-008 keeps the approved main sequence and retains additional consultations only in the second tab', () => {
+  const host = document.createElement('div'); host.innerHTML = render(base);
+  const main = host.querySelector<HTMLElement>('#manager-panel-main')!;
+  const complement = host.querySelector<HTMLElement>('#manager-panel-complementary')!;
+  expect([...main.querySelectorAll('.panel-heading h2')].map(node => node.textContent)).toEqual([
+    'Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal',
+    'Intervenções gerenciais priorizadas', 'Forecast 180 dias', 'Exposição financeira',
+    'Qualidade da gestão', 'Eficiência do Ciclo Financeiro — carteira gerenciada',
+    'Curva ABC de Fornecedores', 'Curva ABC de Clientes',
+  ]);
+  expect([...main.querySelectorAll('.manager-overview-grid > section h2')].map(node => node.textContent)).toEqual([
+    'Forecast 180 dias', 'Exposição financeira', 'Qualidade da gestão',
+  ]);
+  expect([...main.querySelectorAll('.manager-abc-pair > section h2')].map(node => node.textContent)).toEqual([
+    'Curva ABC de Fornecedores', 'Curva ABC de Clientes',
+  ]);
+  expect(main.querySelector('.manager-strategic')).toBeNull();
+  expect(main.querySelector('.manager-band-distribution')).toBeNull();
+  expect(complement.querySelector('.manager-strategic')).not.toBeNull();
+  expect(complement.querySelector('.manager-band-distribution')).not.toBeNull();
+  expect(complement.querySelector('.manager-quality-details')).not.toBeNull();
+  expect(main.querySelectorAll('.manager-cycle-flow > div')).toHaveLength(7);
+  expect(main.querySelector('.manager-quality-panel')?.textContent).not.toContain('Ações no prazo');
+  expect(host.querySelector('.manager-header h1')?.textContent).toBe('ETICE • Dashboard do Gerente de Contratos');
+  expect([...main.querySelectorAll('.manager-exposure-rows span')].map(node => node.textContent)).toEqual([
+    'SLA / glosas', 'Medições', 'Pagamento',
+  ]);
+  const interventions = [...main.querySelectorAll('section.fiscal-panel')].find(section =>
+    section.querySelector('h2')?.textContent === 'Intervenções gerenciais priorizadas')!;
+  expect(interventions.querySelector('table')).not.toBeNull();
+  const withObservation = structuredClone(base);
+  withObservation.data.contractRiskMatrix = [{ contractId: 1, contractNumber: 'CT-1', supplierName: 'Fornecedor',
+    saldo: { status: 'CRITICAL', partialCoverage: false, reason: null }, vigencia: 'OK',
+    sla: 'UNAVAILABLE', medicao: 'UNAVAILABLE', pagamento: 'UNAVAILABLE', indice: 'UNAVAILABLE' }];
+  const observed = document.createElement('div'); observed.innerHTML = render(withObservation);
+  const observedPanel = [...observed.querySelectorAll('section.fiscal-panel')].find(section =>
+    section.querySelector('h2')?.textContent === 'Intervenções gerenciais priorizadas')!;
+  expect(observedPanel.innerHTML.indexOf('<table>')).toBeLessThan(observedPanel.innerHTML.indexOf('manager-risk-observations'));
 });

@@ -1286,8 +1286,8 @@ it('VIS-003 keeps the principal fiscal sequence in the DOM and preserves complem
   const titles = [...host.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
   expect(titles.slice(0, 7)).toEqual([
     'Minha fila de ação', 'Saúde da carteira', 'Saldo consolidado por contrato',
-    'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais',
-    'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato / ABC',
+    'Distribuição dos itens por faixa', 'Ciclo financeiro do contrato',
+    'Relevância Econômica das Partes do Contrato / ABC', 'Gestão dos Saldos dos Itens Contratuais',
   ]);
   const complement = host.querySelector('.fiscal-complementary')!;
   expect(complement.getAttribute('aria-labelledby')).toBe('fiscal-complementary-title');
@@ -1336,4 +1336,22 @@ it('VIS-004 groups queue counts and actions without changing keyboard order or v
   expect(panel.querySelectorAll('.fiscal-queue-filters :is(select,input)')).toHaveLength(3);
   for (const text of ['não comprova tarefa atribuída', 'não representa prioridade',
     'Não há fonte aprovada de severidade', 'As decisões são registradas no SAC']) expect(panel.textContent).toContain(text);
+});
+
+it('VIS-006 keeps the item consultation mounted with filters across tab switches', () => {
+  const view = mount(withItems(sampleItems()));
+  try {
+    const panels = [...view.host.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
+    const tabs = [...view.host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(panels.map(panel => panel.hidden)).toEqual([false, true]);
+    expect(panels[0].querySelector('.fiscal-saldos')).toBeNull();
+    expect(panels[1].querySelector('.fiscal-saldos')).not.toBeNull();
+    act(() => tabs[1].click());
+    view.select('Fornecedor', 'Árvore');
+    act(() => tabs[0].click());
+    expect(view.selected('Fornecedor')).toBe('Árvore');
+    act(() => tabs[1].click());
+    expect(view.selected('Fornecedor')).toBe('Árvore');
+    expect(view.host.querySelector('.fiscal-saldos button')?.textContent).toContain('Exportar itens CSV');
+  } finally { view.unmount(); }
 });
