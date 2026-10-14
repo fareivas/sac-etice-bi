@@ -320,6 +320,9 @@ Nenhuma fixture ou dado demonstrativo é incluído no frontend de produção.
 
 ## GC-034 — filtros globais do gerente
 
+Roteiro histórico do GC-034. Ele pressupõe a navegação em abas removida no
+GC-035; para a estrutura atual, execute o roteiro GC-035 abaixo.
+
 Com Vite local na porta 5183 e o módulo Playwright/Chromium disponível:
 
 ```bash
@@ -333,3 +336,31 @@ FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
 ```
 
 O roteiro intercepta todas as requisições `/api/**` com dados sintéticos, valida Fiscal e Gerente em 1440, 900 e 390 px nas duas abas, filtros, teclado e overflow horizontal da página. Não inicia SAM nem acessa banco ou SAC oficial.
+
+## GC-035B/GC-035C — três páginas independentes
+
+O roteiro GC-035 substitui as verificações visuais históricas que pressupunham
+abas e painéis complementares. Com Vite local na porta 5183:
+
+```bash
+node_modules/.bin/esbuild scripts/test/fixtures/manager-global-filters.ts \
+  --bundle --platform=node --format=esm --outfile=/tmp/gc035-fixtures.mjs
+PLAYWRIGHT_MODULE=/tmp/vis006-browser/node_modules/playwright/index.mjs \
+CHROMIUM_EXECUTABLE=/opt/google/chrome/chrome \
+FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
+  node scripts/test/gc035-prototype.visual.mjs \
+  /tmp/gc035-fixtures.mjs /tmp/gc035c-captures
+```
+
+O roteiro usa apenas fixtures HTTP sintéticas e os protótipos locais. Gera
+capturas comparativas do Fiscal, da Supervisão e da Visão agregada em 1440,
+900 e 390 px, cada qual contra seu próprio protótipo. Confere ordem, tabelas,
+foco por teclado e ausência de overflow horizontal da página.
+Na Supervisão, também confere subtítulo, quatro alertas, posição dos filtros,
+gráfico combinado e radar. Os valores demonstrativos dos HTMLs não entram nas
+respostas da aplicação.
+
+Na GC-035D, o mesmo roteiro confere ainda os quatro indicadores principais
+dos saldos, o detalhe expansível dos controles e a ausência de eixos com valores
+no gráfico indisponível de fornecedores estratégicos. As capturas desta etapa
+ficam em `/tmp/gc035d-captures/`.

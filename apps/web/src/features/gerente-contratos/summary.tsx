@@ -1,7 +1,6 @@
-import { DashboardTabs } from '../dashboard-tabs';
-import { alertAgeDays, alertContractLabel, downloadManagerAlertsCsv, formatAlertRegistered, useManagerContractAlerts } from './contract-alerts';
 import { BandDistribution } from '../item-balances/band-distribution';
 import { useEffect, useRef, useState } from 'react';
+import { Bar, CartesianGrid, ComposedChart, Line, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import type {
   ManagerDashboardSummaryResponse,
   ManagerFiscalLoadResponse,
@@ -51,6 +50,54 @@ function QualityBar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
+function ManagerCombinedChart({ inspectors }: { inspectors: readonly Inspector[] | null }) {
+  const data = inspectors?.map(inspector => ({ name: inspectorName(inspector), contracts: inspector.activeContracts,
+    critical: null, performance: null })) ?? [];
+  return <figure className="manager-combined-chart" aria-label="Carga, criticidade e desempenho por fiscal">
+    <div className="manager-chart-area">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 12, right: 16, bottom: 10, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#dbe3ef" />
+          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+          <YAxis yAxisId="count" tick={{ fontSize: 10 }} allowDecimals={false} />
+          <YAxis yAxisId="percent" orientation="right" domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
+          <Bar yAxisId="count" dataKey="contracts" name="Contratos" fill="#164e63" radius={[4, 4, 0, 0]} />
+          <Bar yAxisId="count" dataKey="critical" name="Críticos" fill="#dc2626" />
+          <Line yAxisId="percent" dataKey="performance" name="Ações no prazo" stroke="#0f766e" strokeWidth={3} dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+    <figcaption><span><i className="manager-legend-contracts" />Contratos vigentes</span>
+      <span><i className="manager-legend-critical" />Críticos: indisponível</span>
+      <span><i className="manager-legend-performance" />Ações no prazo: indisponível</span></figcaption>
+    {inspectors === null ? <p role="status">Distribuição dos fiscais indisponível.</p> : inspectors.length === 0 ?
+      <p role="status">Nenhum fiscal designado na carteira.</p> : null}
+  </figure>;
+}
+
+function ManagerPreventiveRadar({ completeness }: { completeness: number | null }) {
+  const data = [
+    { subject: 'Dados completos', score: completeness },
+    { subject: 'Ações no prazo', score: null },
+    { subject: 'Renovações D-90', score: null },
+    { subject: 'Medições', score: null },
+    { subject: 'Previsibilidade', score: null },
+  ];
+  return <figure className="manager-radar" aria-label="Radar de qualidade preventiva da gestão">
+    <div className="manager-chart-area">
+      <ResponsiveContainer width="100%" height="100%">
+        <RadarChart data={data} outerRadius="68%">
+          <PolarGrid stroke="#dbe3ef" />
+          <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
+          <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+          <Radar name="Qualidade" dataKey="score" stroke="#0f766e" fill="#14b8a6" fillOpacity={0.35} connectNulls={false} />
+        </RadarChart>
+      </ResponsiveContainer>
+    </div>
+    <figcaption>Dados completos: {percentage(completeness)}. Ações no prazo, Renovações D-90, Medições e Previsibilidade: indisponíveis.</figcaption>
+  </figure>;
+}
+
 const balanceReasonLabels = {
   NO_ITEMS: 'Sem itens cadastrados para classificar o saldo',
   ALL_ITEMS_UNVERIFIABLE: 'Todos os itens são não verificáveis para classificar o saldo',
@@ -62,66 +109,6 @@ const riskLabels = {
   OK: 'OK',
   UNAVAILABLE: 'Indisponível',
 } as const;
-
-export function PortfolioFinancialChart({
-  balances,
-}: {
-  balances: NonNullable<ManagerDashboardSummaryResponse['data']['contractBalances']>;
-}) {
-  const values = balances.flatMap((item) => [item.contractedValue, item.consumedValue, item.balanceValue]);
-  const min = Math.min(0, ...values);
-  const max = Math.max(0, ...values);
-  const scale = (value: number) => 200 + ((value - min) / (max - min || 1)) * 360;
-  const origin = scale(0);
-  const series = [
-    { key: 'contractedValue', label: 'Contratado', opacity: 1 },
-    { key: 'consumedValue', label: 'Consumido', opacity: 0.65 },
-    { key: 'balanceValue', label: 'Saldo', opacity: 0.35 },
-  ] as const;
-  return (
-    <div className="fiscal-table-wrap">
-      <svg
-        style={{ minWidth: 640, display: 'block' }}
-        viewBox={`0 0 800 ${balances.length * 110 + 30}`}
-        width="100%"
-        role="img"
-        aria-label="Distribuição financeira por contrato"
-      >
-        <title>Distribuição financeira por contrato: contratado, consumido e saldo em reais</title>
-        {balances.map((item, index) => (
-          <g key={item.contractId}>
-            <text x="8" y={index * 110 + 20} fontSize="14">
-              {item.contractNumber ?? `#${item.contractId}`}
-            </text>
-            {series.map((entry, row) => {
-              const value = item[entry.key];
-              const y = index * 110 + row * 28 + 30;
-              return (
-                <g key={entry.key}>
-                  <title>{`${entry.label}: ${currency(value)}`}</title>
-                  <text x="8" y={y + 15} fontSize="12">
-                    {entry.label}
-                  </text>
-                  <rect
-                    x={Math.min(origin, scale(value))}
-                    y={y}
-                    width={Math.abs(scale(value) - origin)}
-                    height="18"
-                    fill="currentColor"
-                    opacity={entry.opacity}
-                  />
-                  <text x="575" y={y + 15} fontSize="12">
-                    {currency(value)}
-                  </text>
-                </g>
-              );
-            })}
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
 
 type Inspector = NonNullable<ManagerFiscalLoadResponse['data']['inspectors']>[number];
 const inspectorName = (inspector: Inspector) => inspector.name ?? `Fiscal ${inspector.userId}`;
@@ -250,10 +237,16 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
     state.status === 'success' && state.load?.meta.dataCoverage.inspectors === 'AVAILABLE'
       ? state.load.data.inspectors
       : null;
-  const sortedInspectors = inspectors === null ? null : orderedInspectors(subset && selectedIds
+  const sortedInspectors = inspectors === null || (subset && inspectors.some(item => item.contractIds === undefined))
+    ? null : orderedInspectors(subset && selectedIds
     ? inspectors.filter(item => item.contractIds?.some(id => selectedIds.has(id)))
       .map(item => ({ ...item, activeContracts: item.contractIds?.filter(id => selectedIds.has(id) &&
         summary?.data.contracts?.some(contract => contract.contractId === id)).length ?? 0 })) : inspectors);
+  const fiscalNamesForContract = (contractId: number) => {
+    if (inspectors === null || inspectors.some(inspector => inspector.contractIds === undefined)) return 'Indisponível';
+    const names = inspectors.filter(inspector => inspector.contractIds?.includes(contractId)).map(inspectorName);
+    return names.length ? names.join(', ') : 'Sem designação fiscal ativa';
+  };
   const itemBalances = summary?.data.itemBalances;
   const context = summary
     ? JSON.stringify([
@@ -261,12 +254,6 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
         [...baseSummary!.meta.filtersApplied.contratoId].sort((a, b) => a - b),
       ])
     : null;
-  const alertContext = summary ? JSON.stringify([
-    baseSummary!.data.manager.userId,
-    [...baseSummary!.meta.filtersApplied.contratoId].sort((a, b) => a - b),
-    baseSummary!.meta.dataReference,
-  ]) : null;
-  const contractAlerts = useManagerContractAlerts(summary?.data.contractAlerts, alertContext);
   const [matrixSearch, setMatrixSearch] = useState('');
   const [matrixDimension, setMatrixDimension] = useState('all');
   const [matrixClass, setMatrixClass] = useState('all');
@@ -373,7 +360,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
         <div className="fiscal-header-inner">
           <div>
             <h1>ETICE • Dashboard do Gerente de Contratos</h1>
-            <p>Visão agregada de contratos, fiscais, riscos e intervenções</p>
+            <p>Supervisão de fiscais, fornecedores estratégicos e prevenção de riscos</p>
           </div>
           <div className="header-meta">
             <span className="header-chip">
@@ -396,19 +383,52 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
         )}
         {summary && (
           <>
-            <section className="fiscal-filters" aria-label="Escopo da carteira">
-              <div>
-                <strong>Carteira autorizada</strong>
-                <span>Designações atuais do gestor</span>
-              </div>
-              <div className="filter-values">
-                <span>
-                  Contrato:{' '}
-                  {summary.meta.filtersApplied.contratoId.length
-                    ? summary.meta.filtersApplied.contratoId.join(', ')
-                    : 'Todos'}
-                </span>
-              </div>
+            <section className="fiscal-kpis manager-kpis" aria-label="Indicadores executivos">
+              <article className="fiscal-kpi">
+                <span>Contratos monitorados</span>
+                <strong>{!selectionUnavailable && summary.meta.dataCoverage.activeContracts === 'AVAILABLE' ? count(summary.data.cards.activeContracts) : 'Indisponível'}</strong>
+                <small>Contratos vigentes da carteira autorizada no recorte global</small>
+              </article>
+              <article className="fiscal-kpi">
+                <span>Contratos críticos</span>
+                <strong>{selectionUnavailable ? 'Indisponível' : count(criticalContracts)}</strong>
+                <small>Ao menos uma dimensão crítica na matriz do recorte global; não há índice geral aprovado</small>
+              </article>
+              <article className="fiscal-kpi">
+                <span>Valor contratado</span>
+                <strong>
+                  {selectionUnavailable || summary.meta.dataCoverage.activePortfolioValue !== 'AVAILABLE' || summary.data.cards.activePortfolioValue === null
+                    ? 'Indisponível'
+                    : currency(summary.data.cards.activePortfolioValue)}
+                </strong>
+                <small>Valor dos contratos vigentes no recorte global da carteira ativa</small>
+              </article>
+              <article className="fiscal-kpi">
+                <span>Renovações atrasadas</span>
+                <strong className="unavailable-value">Indisponível</strong>
+                <small>Sem fonte e regra aprovadas para atraso de renovação</small>
+              </article>
+              <article className="fiscal-kpi">
+                <span>SLA abaixo da meta</span>
+                <strong className="unavailable-value">Indisponível</strong>
+                <small>Depende do Projeto de KPIs</small>
+              </article>
+              <article className="fiscal-kpi">
+                <span>Intervenções gerenciais</span>
+                <strong className="unavailable-value">Indisponível</strong>
+                <small>Sem indicador agregado e regra de intervenção aprovados</small>
+              </article>
+            </section>
+            <section className="manager-decision" aria-label="Alertas executivos">
+              {[
+                ['Decisão imediata', 'red', 'Sem prioridade e prazo de intervenção aprovados.'],
+                ['Capacidade', 'yellow', 'Capacidade e sobrecarga dos fiscais indisponíveis.'],
+                ['Concentração', 'purple', 'Classe ABC e risco agregado por fornecedor indisponíveis.'],
+                ['Antecipação', 'blue', 'Antecedência de intervenções indisponível.'],
+              ].map(([label, tone, detail]) => <article className="manager-decision-item" key={label}>
+                <span className={`manager-decision-tag ${tone}`}>{label}</span>
+                <strong>Indisponível</strong><small>{detail}</small>
+              </article>)}
             </section>
             {globalFiltersEnabled && <section className="manager-global-filters fiscal-panel" aria-label="Filtros globais da carteira">
               <div className="manager-global-grid">
@@ -452,43 +472,8 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
             </section>}
             {selectionUnavailable ? <p className="panel-unavailable" role="status">
               Não é possível determinar o recorte global com as fontes disponíveis. Ajuste os filtros ou consulte a cobertura dos dados.
-            </p> : <DashboardTabs id="manager" main={<>
-            <section className="fiscal-kpis manager-kpis" aria-label="Indicadores executivos">
-              <article className="fiscal-kpi">
-                <span>Contratos monitorados</span>
-                <strong>{summary.meta.dataCoverage.activeContracts === 'AVAILABLE' ? count(summary.data.cards.activeContracts) : 'Indisponível'}</strong>
-                <small>Contratos vigentes da carteira autorizada no recorte global</small>
-              </article>
-              <article className="fiscal-kpi">
-                <span>Contratos críticos</span>
-                <strong>{count(criticalContracts)}</strong>
-                <small>Ao menos uma dimensão crítica na matriz do recorte global; não há índice geral aprovado</small>
-              </article>
-              <article className="fiscal-kpi">
-                <span>Valor contratado</span>
-                <strong>
-                  {summary.meta.dataCoverage.activePortfolioValue !== 'AVAILABLE' || summary.data.cards.activePortfolioValue === null
-                    ? 'Indisponível'
-                    : currency(summary.data.cards.activePortfolioValue)}
-                </strong>
-                <small>Valor dos contratos vigentes no recorte global da carteira ativa</small>
-              </article>
-              <article className="fiscal-kpi">
-                <span>Renovações atrasadas</span>
-                <strong className="unavailable-value">Indisponível</strong>
-                <small>Sem fonte e regra aprovadas para atraso de renovação</small>
-              </article>
-              <article className="fiscal-kpi">
-                <span>SLA abaixo da meta</span>
-                <strong className="unavailable-value">Indisponível</strong>
-                <small>Depende do Projeto de KPIs</small>
-              </article>
-              <article className="fiscal-kpi">
-                <span>Intervenções gerenciais</span>
-                <strong className="unavailable-value">Indisponível</strong>
-                <small>Sem indicador agregado aprovado; veja os alertas abaixo</small>
-              </article>
-            </section>
+            </p> : <>
+
             {summary.meta.dataCoverage.activeContracts === 'AVAILABLE' && summary.data.cards.activeContracts === 0 && (
               <p className="empty-contracts" role="status">
                 Nenhum contrato vigente no recorte global da carteira.
@@ -500,8 +485,98 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                 reconstruída.
               </p>
             )}
-            <div className="manager-focus-grid">
-              <section className="fiscal-panel manager-risk-panel">
+
+            <div className="manager-focus-grid manager-first-grid">
+<section className="fiscal-panel manager-fiscals-panel">
+                <div className="panel-heading">
+                  <h2>Carga, criticidade e desempenho por fiscal</h2>
+                  <p>Barras: contratos vigentes e críticos. Linha: ações concluídas no prazo; séries sem fonte aprovada ficam indisponíveis.</p>
+                  <details className="manager-fiscal-explanation">
+                    <summary>Como são contados contratos e OS</summary>
+                    <p>
+                      Contratos vigentes designados e OS com decisão fiscal pendente. OS pendentes são
+                      vinculadas aos contratos da carteira do fiscal e não representam necessariamente
+                      atribuições individuais. Uma mesma OS pode aparecer para fiscais diferentes; as
+                      contagens não devem ser somadas como OS únicas da carteira gerencial.
+                    </p>
+                  </details>
+                </div>
+                <ManagerCombinedChart inspectors={state.status === 'success' && state.loadError ? null : sortedInspectors} />
+                {state.status === 'success' && state.loadError && <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>}
+                <details className="manager-operational-details"><summary>Ver contagens operacionais e explicações</summary>
+                {state.status === 'success' && state.loadError ? (
+                  <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>
+                ) : sortedInspectors === null ? (
+                  <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
+                ) : sortedInspectors.length === 0 ? (
+                  <p role="status">Nenhum fiscal designado na carteira.</p>
+                ) : subset ? (
+                  <>
+                    <p role="status">OS pendentes por fiscal indisponíveis no recorte: a resposta de carga não associa cada OS a um contrato.</p>
+                    <div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes no recorte</th><th>OS pendentes</th></tr></thead>
+                      <tbody>{sortedInspectors.map(fiscal => <tr key={fiscal.userId}><td>{inspectorName(fiscal)}</td>
+                        <td>{fiscal.activeContracts}</td><td>Indisponível</td></tr>)}</tbody></table></div>
+                  </>
+                ) : (
+                  <>
+                    <FiscalLoadChart inspectors={sortedInspectors} />
+                    <div className="fiscal-table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Fiscal</th>
+                            <th>Contratos vigentes</th>
+                            <th>OS pendentes</th>
+                            <th>Capacidade</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedInspectors.map((fiscal) => (
+                            <tr key={fiscal.userId}>
+                              <td>{inspectorName(fiscal)}</td>
+                              <td>{fiscal.activeContracts}</td>
+                              <td>{fiscal.pendingOrders}</td>
+                              <td>Indisponível</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+                </details>
+              </section>
+<section className="fiscal-panel manager-quality-panel">
+                <div className="panel-heading">
+                  <h2>Qualidade preventiva da gestão</h2>
+                  <p>Mede a disciplina operacional antes da materialização dos riscos.</p>
+                </div>
+                <ManagerPreventiveRadar completeness={summary.meta.dataCoverage.registrationCompleteness === 'AVAILABLE'
+                  ? summary.data.preventiveQuality.registrationCompleteness?.percentage ?? null : null} />
+                <details className="manager-quality-details"><summary>Ver medidas preventivas disponíveis</summary>
+                <div className="manager-quality-visual">
+                  <QualityBar
+                    label="Dados completos"
+                    value={
+                      summary.meta.dataCoverage.registrationCompleteness === 'AVAILABLE'
+                        ? (summary.data.preventiveQuality.registrationCompleteness?.percentage ?? null)
+                        : null
+                    }
+                  />
+                  <QualityBar
+                    label="Decisões D-90"
+                    value={
+                      summary.meta.dataCoverage.renewalDecisionsD90 === 'AVAILABLE'
+                        ? (summary.data.preventiveQuality.renewalDecisionsD90?.percentage ?? null)
+                        : null
+                    }
+                  />
+                </div>
+                </details>
+              </section>
+            </div>
+            <div className="manager-focus-grid manager-second-grid">
+<section className="fiscal-panel manager-risk-panel">
                 <div className="panel-heading">
                   <h2>Matriz Contrato × Dimensão de Risco</h2>
                   <p>
@@ -510,6 +585,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                   </p>
                 </div>
                 {matrix !== null && matrix !== undefined && (
+                  <details className="manager-matrix-filter-details"><summary>Filtrar matriz</summary>
                   <div className="manager-matrix-controls">
                     <label>
                       Contrato ou fornecedor
@@ -546,6 +622,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                       </select>
                     </label>
                   </div>
+                  </details>
                 )}
                 {matrix !== null && matrix !== undefined && (
                   <div className="manager-matrix-counts" role="status">
@@ -672,255 +749,42 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                   ) : null}
                 </div>
               </section>
-              <section className="fiscal-panel manager-fiscals-panel">
+<section className="fiscal-panel manager-strategic">
                 <div className="panel-heading">
-                  <h2>Carga e risco por fiscal</h2>
-                  <p>
-                    Fiscais e distribuição da carteira no recorte global. Risco agregado indisponível; contagens operacionais
-                    verificáveis abaixo.
-                  </p>
-                  <details className="manager-fiscal-explanation">
-                    <summary>Como são contados contratos e OS</summary>
-                    <p>
-                      Contratos vigentes designados e OS com decisão fiscal pendente. OS pendentes são
-                      vinculadas aos contratos da carteira do fiscal e não representam necessariamente
-                      atribuições individuais. Uma mesma OS pode aparecer para fiscais diferentes; as
-                      contagens não devem ser somadas como OS únicas da carteira gerencial.
-                    </p>
-                  </details>
+                  <h2>Fornecedores estratégicos: valor × risco</h2>
+                  <p>Classe ABC, participação e tendência de ocorrências.</p>
                 </div>
-                {state.status === 'success' && state.loadError ? (
-                  <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>
-                ) : sortedInspectors === null ? (
-                  <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
-                ) : sortedInspectors.length === 0 ? (
-                  <p role="status">Nenhum fiscal designado na carteira.</p>
-                ) : subset ? (
-                  <>
-                    <p role="status">OS pendentes por fiscal indisponíveis no recorte: a resposta de carga não associa cada OS a um contrato.</p>
-                    <div className="fiscal-table-wrap"><table><thead><tr><th>Fiscal</th><th>Contratos vigentes no recorte</th><th>OS pendentes</th></tr></thead>
-                      <tbody>{sortedInspectors.map(fiscal => <tr key={fiscal.userId}><td>{inspectorName(fiscal)}</td>
-                        <td>{fiscal.activeContracts}</td><td>Indisponível</td></tr>)}</tbody></table></div>
-                  </>
-                ) : (
-                  <>
-                    <FiscalLoadChart inspectors={sortedInspectors} />
-                    <div className="fiscal-table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Fiscal</th>
-                            <th>Contratos vigentes</th>
-                            <th>OS pendentes</th>
-                            <th>Capacidade</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sortedInspectors.map((fiscal) => (
-                            <tr key={fiscal.userId}>
-                              <td>{inspectorName(fiscal)}</td>
-                              <td>{fiscal.activeContracts}</td>
-                              <td>{fiscal.pendingOrders}</td>
-                              <td>Indisponível</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
-                )}
+                <figure className="manager-strategic-chart" aria-label="Fornecedores estratégicos: valor por risco indisponível">
+                  <div className="manager-strategic-plot" aria-hidden="true" />
+                  <figcaption>Indisponível: valor de pagamentos em 12 meses, classe ABC, risco e tendência sem fonte e regra aprovadas.</figcaption>
+                </figure>
               </section>
             </div>
-            <section className="fiscal-panel">
+            <section className="fiscal-panel manager-interventions">
               <div className="panel-heading">
-                <h2>Intervenções e pendências contratuais</h2>
-                <p>
-                  Pendências abertas ou em tratamento dos contratos no recorte global. Vencimento contratual não é prazo da pendência;
-                  a ordenação por contrato e registro não representa prioridade.
-                </p>
+                <h2>Intervenções gerenciais priorizadas</h2>
+                <p>Sem fonte e regra aprovadas para prioridade, impacto, antecedência, ação gerencial ou prazo.</p>
               </div>
-              {summary.meta.dataCoverage.contractAlerts !== 'AVAILABLE' || summary.data.contractAlerts === null ? (
-                <div className="panel-unavailable" role="status">Pendências contratuais indisponíveis para esta referência.</div>
-              ) : (
-                <>
-                  <div className="manager-alert-controls" role="group" aria-label="Filtros das pendências contratuais">
-                    <label>Contrato
-                      <select value={contractAlerts.contract} onChange={event => contractAlerts.setFilter({ contract: event.target.value })}>
-                        <option value="">Todos os contratos</option>
-                        {contractAlerts.missingContract && <option value={contractAlerts.contract}>Contrato selecionado (não disponível na resposta)</option>}
-                        {contractAlerts.contracts.map(([id, number]) => <option key={id} value={id}>{number ?? `Contrato ID ${id}`}</option>)}
-                      </select>
-                    </label>
-                    <label>Tipo
-                      <select value={contractAlerts.type} onChange={event => contractAlerts.setFilter({ type: event.target.value })}>
-                        <option value="">Todos os tipos</option>
-                        {contractAlerts.missingType && <option value={contractAlerts.type}>Tipo selecionado (não disponível na resposta)</option>}
-                        {contractAlerts.types.map(([key, type]) => <option key={key} value={key}>{type ?? 'Indisponível'}</option>)}
-                      </select>
-                    </label>
-                    <label>Estado
-                      <select value={contractAlerts.status} onChange={event => contractAlerts.setFilter({ status: event.target.value })}>
-                        <option value="">Todos os estados</option>
-                        <option value="aberta">Aberta</option>
-                        <option value="em_tratamento">Em tratamento</option>
-                      </select>
-                    </label>
-                    <label>Pesquisar pendências
-                      <input type="search" value={contractAlerts.search}
-                        onChange={event => contractAlerts.setFilter({ search: event.target.value })}
-                        placeholder="Contrato, tipo, estado ou descrição" />
-                    </label>
-                  </div>
-                  <div className="manager-alert-actions">
-                    <p role="status">{contractAlerts.visible.length} de {contractAlerts.total} pendências visíveis</p>
-                    <div>
-                      <button type="button" onClick={contractAlerts.clearFilters} disabled={!contractAlerts.activeFilters}>Limpar filtros</button>
-                      <button type="button" disabled={contractAlerts.visible.length === 0}
-                        onClick={() => downloadManagerAlertsCsv(contractAlerts.visible, summary.meta.dataReference, summary.meta.timezone)}>
-                        Exportar pendências CSV
-                      </button>
-                    </div>
-                  </div>
-                  {contractAlerts.total === 0 ? (
-                    <p className="table-empty" role="status">Nenhuma pendência contratual no recorte.</p>
-                  ) : contractAlerts.visible.length === 0 ? (
-                    <p className="table-empty" role="status">Nenhuma pendência encontrada com os filtros atuais.</p>
-                  ) : (
-                    <div className="manager-alert-groups">
-                      {contractAlerts.groups.map(group => (
-                        <section className="manager-alert-group" key={group.contractId}>
-                          <h3>{alertContractLabel(group)} <small>{group.alerts.length} pendência{group.alerts.length === 1 ? '' : 's'}</small></h3>
-                          <div className="fiscal-table-wrap">
-                            <table>
-                              <caption className="visually-hidden">Pendências do {alertContractLabel(group)}</caption>
-                              <thead><tr>
-                                <th scope="col">Contrato</th><th scope="col">Tipo</th><th scope="col">Estado</th>
-                                <th scope="col">Descrição</th><th scope="col">Data de registro</th>
-                                <th scope="col">Vencimento contratual</th>
-                              </tr></thead>
-                              <tbody>{group.alerts.map(alert => {
-                                const age = alertAgeDays(alert.createdAt, summary.meta.dataReference, summary.meta.timezone);
-                                return <tr key={alert.alertId}>
-                                  <td>{alertContractLabel(alert)}</td>
-                                  <td>{alert.type ?? 'Indisponível'}</td>
-                                  <td>{alert.status === 'em_tratamento' ? 'Em tratamento' : 'Aberta'}</td>
-                                  <td>{alert.description ?? 'Indisponível'}</td>
-                                  <td>{formatAlertRegistered(alert.createdAt, summary.meta.timezone)}
-                                    {age !== null && <small className="manager-alert-age">Antiguidade: {age} dia{age === 1 ? '' : 's'}</small>}
-                                  </td>
-                                  <td>{displayDate(alert.expiryDate, summary.meta.timezone)}</td>
-                                </tr>;
-                              })}</tbody>
-                            </table>
-                          </div>
-                        </section>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-              {matrix !== null &&
-                matrix !== undefined &&
-                matrix.filter((row) => row.saldo.status === 'CRITICAL' || row.vigencia === 'CRITICAL')
-                  .length > 0 && (
-                  <div className="manager-risk-observations">
-                    <h3>Observações da matriz</h3>
-                    <ul>
-                      {matrix
-                        .filter((row) => row.saldo.status === 'CRITICAL' || row.vigencia === 'CRITICAL')
-                        .map((row) => (
-                          <li key={row.contractId}>
-                            <strong>{row.contractNumber ?? `Contrato ID ${row.contractId}`}</strong>:{' '}
-                            {row.saldo.status === 'CRITICAL' ? 'saldo crítico' : ''}
-                            {row.saldo.status === 'CRITICAL' && row.vigencia === 'CRITICAL' ? ' e ' : ''}
-                            {row.vigencia === 'CRITICAL' ? 'vigência crítica' : ''}.{' '}
-                            <span>Recomendação: avaliar o contrato e o encaminhamento cabível.</span>
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                )}
-            </section>
-            <div className="manager-insight-grid manager-overview-grid">
-                <section className="fiscal-panel">
-                  <div className="panel-heading">
-                    <h2>Forecast 180 dias</h2>
-                    <p>Projeção de saldo e vigência.</p>
-                  </div>
-                  <div className="manager-unavailable" role="status">
-                    <strong>Indisponível</strong>
-                    <span>Não há série ou regra aprovada para previsão de 180 dias.</span>
-                  </div>
-                </section>
-                <section className="fiscal-panel manager-exposure-panel">
-                  <div className="panel-heading">
-                    <h2>Exposição financeira</h2>
-                    <p>SLA, glosas, medições e pagamentos.</p>
-                  </div>
-                  <div className="manager-exposure-rows" role="status">
-                    {['SLA / glosas', 'Medições', 'Pagamento'].map((label) => (
-                      <div key={label}><span>{label}</span><strong>Indisponível</strong></div>
-                    ))}
-                  </div>
-                  <p className="source-note">Faltam fontes financeiras e regras aprovadas. Saldo contratual não representa exposição.</p>
-                </section>
-              <section className="fiscal-panel manager-quality-panel">
-                <div className="panel-heading">
-                  <h2>Qualidade da gestão</h2>
-                  <p>Indicadores preventivos disponíveis para o recorte global quando há cobertura suficiente.</p>
-                </div>
-                <div className="manager-quality-visual">
-                  <QualityBar
-                    label="Dados completos"
-                    value={
-                      summary.meta.dataCoverage.registrationCompleteness === 'AVAILABLE'
-                        ? (summary.data.preventiveQuality.registrationCompleteness?.percentage ?? null)
-                        : null
-                    }
-                  />
-                  <QualityBar
-                    label="Decisões D-90"
-                    value={
-                      summary.meta.dataCoverage.renewalDecisionsD90 === 'AVAILABLE'
-                        ? (summary.data.preventiveQuality.renewalDecisionsD90?.percentage ?? null)
-                        : null
-                    }
-                  />
-                </div>
-              </section>
-            </div>
-            <section className="fiscal-panel manager-cycle">
-              <div className="panel-heading">
-                <h2>Eficiência do Ciclo Financeiro — carteira gerenciada</h2>
-                <p>Etapas entre faturamento, medição e pagamento.</p>
+              <div className="fiscal-table-wrap">
+                <table>
+                  <thead><tr>
+                    <th scope="col">Prior.</th><th scope="col">Fiscal</th>
+                    <th scope="col">Contrato / fornecedor</th><th scope="col">Sinal antecipado</th>
+                    <th scope="col">Impacto</th><th scope="col">Antecedência</th>
+                    <th scope="col">Ação gerencial</th><th scope="col">Prazo</th>
+                  </tr></thead>
+                  <tbody><tr><td colSpan={8} className="table-empty" role="status">
+                    Intervenções gerenciais indisponíveis: não há fonte e regra aprovadas para esta tabela.
+                  </td></tr></tbody>
+                </table>
               </div>
-              <div className="manager-cycle-flow" aria-label="Etapas do ciclo financeiro">
-                {[
-                  'Faturado clientes',
-                  'A receber',
-                  'Recebido ETICE',
-                  'Medição fornecedor',
-                  'Processando pagamento',
-                  'Programado',
-                  'Pago fornecedor',
-                ].map((phase) => (
-                  <div key={phase}>
-                    <span>{phase}</span>
-                    <strong>Indisponível</strong>
-                  </div>
-                ))}
-              </div>
-              <p className="source-note" role="status">
-                Volumes e tempos por etapa indisponíveis: não há fonte e regra aprovadas para este ciclo.
-              </p>
             </section>
             <div className="manager-abc-grid manager-abc-pair">
-              <section className="fiscal-panel manager-suppliers">
+<section className="fiscal-panel manager-suppliers">
                 <div className="panel-heading">
-                  <h2>Curva ABC de Fornecedores</h2>
+                  <h2>Curva ABC dos principais fornecedores</h2>
                   <p>
-                    Fornecedores da carteira no recorte global quando há dados decomponíveis. A classe depende de pagamentos efetivos acumulados em 12 meses e
-                    de regra aprovada; valor vigente não determina classe.
+                    Base: pagamentos efetivos dos últimos 12 meses. Classificação, participação e tendência aguardam fonte e regra aprovadas.
                   </p>
                 </div>
                 <div className="manager-abc-note" role="status">
@@ -931,29 +795,26 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                   <table>
                     <thead>
                       <tr>
-                        <th>Fornecedor</th>
-                        <th>Valor vigente</th>
-                        <th>ABC</th>
-                        <th>Financeiro em aberto</th>
-                        <th>Riscos críticos</th>
+                        <th>Classe</th><th>Fornecedor</th><th>Valor 12m</th><th>%</th>
+                        <th>% acum.</th><th>Contratos</th><th>Risco</th><th>Tendência</th>
                       </tr>
                     </thead>
                     <tbody>
                       {subset ? (
-                        <tr><td colSpan={5} className="table-empty">Valor por fornecedor indisponível no recorte global: a resposta não vincula os agregados aos contratos selecionados.</td></tr>
+                        <tr><td colSpan={8} className="table-empty">Curva ABC indisponível no recorte global: a resposta não vincula pagamentos aos contratos selecionados.</td></tr>
                       ) : state.status === 'success' && state.suppliers?.data.suppliers?.length ? (
                         state.suppliers.data.suppliers.map((supplier) => (
                           <tr key={supplier.supplierId}>
-                            <td>{supplier.name}</td>
-                            <td>{money(supplier.vigentValue)}</td>
-                            <td>Indisponível</td>
-                            <td>Indisponível</td>
-                            <td>Indisponível</td>
+                            <td>Indisponível</td><td>{supplier.name.length > 28 ?
+                              <details className="manager-supplier-name"><summary title={supplier.name} aria-label={`Fornecedor ${supplier.name}`}>
+                                {supplier.name}</summary><span>{supplier.name}</span></details> : supplier.name}</td><td>Indisponível</td>
+                            <td>Indisponível</td><td>Indisponível</td><td>Indisponível</td>
+                            <td>Indisponível</td><td>Indisponível</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="table-empty">
+                          <td colSpan={8} className="table-empty">
                             {state.status === 'success' && state.suppliersError
                               ? `Erro ao carregar fornecedores: ${state.suppliersError}`
                               : state.status === 'success' && state.suppliers?.data.suppliers?.length === 0
@@ -965,23 +826,32 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                     </tbody>
                   </table>
                 </div>
+                <details className="manager-supplier-details"><summary>Ver valores vigentes verificáveis</summary>
+                  <p>Valor vigente não equivale a pagamentos acumulados em 12 meses nem determina classe ABC.</p>
+                  {subset ? <p role="status">Valores vigentes por fornecedor indisponíveis no recorte global.</p>
+                    : state.status === 'success' && state.suppliers?.data.suppliers?.length ?
+                      <div className="fiscal-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Valor vigente</th></tr></thead>
+                        <tbody>{state.suppliers.data.suppliers.map(supplier => <tr key={supplier.supplierId}>
+                          <td>{supplier.name}</td><td>{money(supplier.vigentValue)}</td></tr>)}</tbody></table></div> :
+                      <p role="status">Valores vigentes indisponíveis.</p>}
+                </details>
               </section>
-              <section className="fiscal-panel">
+<section className="fiscal-panel manager-band-distribution">
                 <div className="panel-heading">
-                  <h2>Curva ABC de Clientes</h2>
-                  <p>Relevância econômica dos clientes relacionados à carteira.</p>
+                  <h2>Distribuição dos itens por faixa de saldo</h2>
+                  <p>Resultado atualizado conforme os filtros locais aplicados.</p>
                 </div>
-                <div className="manager-abc-note" role="status">
-                  <strong>Classificação ABC indisponível</strong>
-                  <span>
-                    A resposta atual não fornece recebimentos acumulados de clientes nem classificação
-                    corporativa verificável.
-                  </span>
-                </div>
+                <BandDistribution
+                  distribution={distribution}
+                  available={itemBalances?.coverage === 'AVAILABLE'}
+                  hasItems={items.length > 0}
+                  title="Distribuição dos itens por faixa de saldo"
+                  scope="Fornecedor, contrato, faixa e busca aplicados."
+                  outerRadius={96}
+                />
               </section>
             </div>
-            </>} complementary={<>
-            <section className="fiscal-panel fiscal-saldos">
+<section className="fiscal-panel fiscal-saldos">
               <div className="panel-heading">
                 <h2>Gestão dos Saldos dos Itens Contratuais</h2>
                 <p>
@@ -991,6 +861,109 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
               </div>
               {itemBalances?.coverage === 'AVAILABLE' ? (
                 <>
+                  <div className="saldo-summary manager-saldo-kpis" aria-label="Indicadores dos saldos dos itens">
+                    <div><span>Total contratado</span><strong>{aggregates.totalContratado === null ? 'Indisponível' : currency(aggregates.totalContratado)}</strong>
+                      <small>{aggregates.contractedValueRows} de {filteredItems.length} itens cobertos</small></div>
+                    <div><span>Saldo disponível</span><strong>{aggregates.saldoComprometido === null ? 'Indisponível' : currency(aggregates.saldoComprometido)}</strong>
+                      <small>Saldo comprometido · {aggregates.committedBalanceRows} de {filteredItems.length} itens cobertos</small></div>
+                    <div><span>Saldo consolidado</span><strong>Indisponível</strong><small>Percentual agregado sem regra aprovada</small></div>
+                    <div><span>Itens críticos</span><strong>{distribution.critico}</strong><small>Faixa crítica verificável no recorte</small></div>
+                  </div>
+                  <p className="manager-saldo-coverage" role="status">Cobertura do recorte: {filteredItems.length} de {items.length} itens; total contratado {aggregates.contractedValueRows}/{filteredItems.length}, saldo comprometido {aggregates.committedBalanceRows}/{filteredItems.length}, saldo medido {aggregates.measuredBalanceRows}/{filteredItems.length}.</p>
+                  <div className="fiscal-table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Status</th>
+                          <th>Fiscal</th>
+                          <th>Contrato / fornecedor</th>
+                          <th>Item</th>
+                          <th>Total</th>
+                          <th>Executado</th>
+                          <th>Saldo</th>
+                          <th>% saldo</th>
+                          <th>Direcionamento gerencial</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredItems.length ? (
+                          filteredItems.map((item) => {
+                            const quantity = itemBalances.criterio.dimensao === 'quantidade';
+                            const total = quantity ? item.quantityContracted : item.valueContracted;
+                            const measuredBase = itemBalances.criterio.base === 'medido';
+                            const executed = quantity
+                              ? measuredBase
+                                ? total === null
+                                  ? null
+                                  : item.quantityMeasured
+                                : item.quantityConsumed
+                              : measuredBase
+                                ? total === null
+                                  ? null
+                                  : item.valueMeasured
+                                : item.valueConsumed;
+                            const balance = measuredBase
+                              ? quantity
+                                ? item.quantityMeasuredBalance
+                                : item.valueMeasuredBalance
+                              : quantity
+                                ? item.quantityBalance
+                                : item.valueBalance;
+                            const balancePercent = measuredBase ? item.pctSaldoMedido : item.pctSaldo;
+                            const bandLabel = { adequado: 'Adequado', atencao: 'Atenção', critico: 'Crítico', nao_verificavel: 'Não verificável' }[item.faixa];
+                            const format = quantity
+                              ? (value: number | null) =>
+                                  value === null ? 'Não calculável' : `${value} ${item.unit ?? ''}`
+                              : (value: number | null) => (value === null ? 'Indisponível' : currency(value));
+                            return (
+                              <tr key={item.itemId}>
+                                <td><span className={`manager-saldo-status ${item.faixa}`}>{bandLabel}</span>
+                                  {(item.statusVerificacao || item.blockedAt) && <details className="manager-saldo-row-details"><summary>Ver detalhes</summary>
+                                    {item.statusVerificacao && <small>Verificação: {item.statusVerificacao}</small>}
+                                    {item.blockedAt && <small>Bloqueado: {item.blockReason ?? 'motivo indisponível'}</small>}
+                                  </details>}
+                                </td>
+                                <td>{fiscalNamesForContract(item.contractId)}</td>
+                                <td>
+                                  {item.contractNumber ?? `Contrato ID ${item.contractId}`}
+                                  <br />
+                                  {item.supplierName ?? 'Fornecedor indisponível'}
+                                </td>
+                                <td>
+                                  {item.sequence ?? '—'} · {item.specification ?? 'Sem especificação'}
+                                </td>
+                                <td>{format(total)}</td>
+                                <td>{format(executed)}</td>
+                                <td>
+                                  {format(balance)}
+                                  {balance !== null && balance < 0 && <strong> · Saldo negativo</strong>}
+                                </td>
+                                <td>
+                                  {balancePercent === null ? 'Indisponível' : <>
+                                    <div className={`manager-saldo-progress ${item.faixa}`} role="img" aria-label={`${bandLabel}: ${percentage(balancePercent * 100)} de saldo`}>
+                                      <span style={{ width: `${Math.max(0, Math.min(100, balancePercent * 100))}%` }} /></div>
+                                    <strong>{percentage(balancePercent * 100)}</strong>
+                                  </>}
+                                </td>
+                                <td>
+                                  Indisponível — sem direcionamento individual aprovado
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan={9} className="table-empty">
+                              {items.length
+                                ? 'Nenhum item encontrado com os filtros atuais.'
+                                : 'Nenhum item contratual cadastrado na carteira.'}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <details className="manager-saldo-tools"><summary>Filtros, busca e informações da consulta</summary>
                   <div className="saldo-filters" aria-label="Filtros dos saldos contratuais">
                     <label>
                       Fornecedor
@@ -1050,38 +1023,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                       Limpar todos os filtros
                     </button>
                   </div>
-                  <div className="saldo-summary">
-                    <div>
-                      <span>Total contratado dos itens</span>
-                      <strong>
-                        {aggregates.totalContratado === null
-                          ? 'Indisponível'
-                          : currency(aggregates.totalContratado)}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>Saldo comprometido dos itens</span>
-                      <strong>
-                        {aggregates.saldoComprometido === null
-                          ? 'Indisponível'
-                          : currency(aggregates.saldoComprometido)}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>Saldo medido dos itens</span>
-                      <strong>
-                        {aggregates.saldoMedido === null ? 'Indisponível' : currency(aggregates.saldoMedido)}
-                      </strong>
-                    </div>
-                    <div>
-                      <span>Itens críticos</span>
-                      <strong>{distribution.critico}</strong>
-                    </div>
-                    <div>
-                      <span>Não verificáveis</span>
-                      <strong>{distribution.nao_verificavel}</strong>
-                    </div>
-                  </div>
+                    <div className="manager-saldo-secondary-measures"><span>Saldo medido dos itens: {aggregates.saldoMedido === null ? 'Indisponível' : currency(aggregates.saldoMedido)}</span><span>Não verificáveis: {distribution.nao_verificavel}</span></div>
                   {aggregates.contractedValueRows < filteredItems.length && (
                     <p role="status">
                       Total contratado incompleto: {aggregates.contractedValueRows} de {filteredItems.length}{' '}
@@ -1126,111 +1068,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                     {distribution.atencao} · Crítico: {distribution.critico} · Não verificável:{' '}
                     {distribution.nao_verificavel}
                   </p>
-                  <div className="fiscal-table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Faixa / verificação</th>
-                          <th>Contrato / fornecedor</th>
-                          <th>Item contratual</th>
-                          <th>Total</th>
-                          <th>Executado</th>
-                          <th>Saldo</th>
-                          <th>% saldo</th>
-                          <th>Orientação ao gerente</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredItems.length ? (
-                          filteredItems.map((item) => {
-                            const quantity = itemBalances.criterio.dimensao === 'quantidade';
-                            const total = quantity ? item.quantityContracted : item.valueContracted;
-                            const measuredBase = itemBalances.criterio.base === 'medido';
-                            const executed = quantity
-                              ? measuredBase
-                                ? total === null
-                                  ? null
-                                  : item.quantityMeasured
-                                : item.quantityConsumed
-                              : measuredBase
-                                ? total === null
-                                  ? null
-                                  : item.valueMeasured
-                                : item.valueConsumed;
-                            const balance = measuredBase
-                              ? quantity
-                                ? item.quantityMeasuredBalance
-                                : item.valueMeasuredBalance
-                              : quantity
-                                ? item.quantityBalance
-                                : item.valueBalance;
-                            const format = quantity
-                              ? (value: number | null) =>
-                                  value === null ? 'Não calculável' : `${value} ${item.unit ?? ''}`
-                              : (value: number | null) => (value === null ? 'Indisponível' : currency(value));
-                            return (
-                              <tr key={item.itemId}>
-                                <td>
-                                  {item.faixa}
-                                  {item.statusVerificacao && (
-                                    <>
-                                      {' '}
-                                      <small>Verificação: {item.statusVerificacao}</small>
-                                    </>
-                                  )}
-                                  {item.blockedAt && (
-                                    <small> Bloqueado: {item.blockReason ?? 'motivo indisponível'}</small>
-                                  )}
-                                </td>
-                                <td>
-                                  {item.contractNumber ?? `Contrato ID ${item.contractId}`}
-                                  <br />
-                                  {item.supplierName ?? 'Fornecedor indisponível'}
-                                </td>
-                                <td>
-                                  {item.sequence ?? '—'} · {item.specification ?? 'Sem especificação'}
-                                </td>
-                                <td>{format(total)}</td>
-                                <td>{format(executed)}</td>
-                                <td>
-                                  {format(balance)}
-                                  {balance !== null && balance < 0 && <strong> · Saldo negativo</strong>}
-                                </td>
-                                <td>
-                                  {percentage(
-                                    (itemBalances.criterio.base === 'medido'
-                                      ? item.pctSaldoMedido
-                                      : item.pctSaldo) === null
-                                      ? null
-                                      : (itemBalances.criterio.base === 'medido'
-                                          ? item.pctSaldoMedido!
-                                          : item.pctSaldo!) * 100
-                                  )}
-                                </td>
-                                <td>
-                                  {item.faixa === 'critico'
-                                    ? 'Avaliar saldo e planejamento do item.'
-                                    : item.faixa === 'nao_verificavel'
-                                      ? 'Conferir dados do item.'
-                                      : item.faixa === 'atencao'
-                                        ? 'Acompanhar consumo do item.'
-                                        : 'Manter acompanhamento do item.'}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        ) : (
-                          <tr>
-                            <td colSpan={8} className="table-empty">
-                              {items.length
-                                ? 'Nenhum item encontrado com os filtros atuais.'
-                                : 'Nenhum item contratual cadastrado na carteira.'}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                  </details>
                 </>
               ) : (
                 <div className="panel-unavailable" role="status">
@@ -1238,299 +1076,32 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                 </div>
               )}
             </section>
-            <section
-              className="dashboard-complementary manager-complementary"
-              aria-labelledby="manager-complementary-title"
-            >
-              <h2 id="manager-complementary-title" className="dashboard-complementary-heading">
-                Painéis complementares
-              </h2>{' '}
-              <section className="manager-secondary-metrics" aria-label="Indicadores contratuais complementares">
-                <article className="fiscal-kpi">
-                  <span>Vencimento nos próximos 120 dias</span>
-                  <strong>{summary.meta.dataCoverage.renewalsWithin120Days === 'AVAILABLE' ? count(summary.data.cards.renewalsWithin120Days) : 'Indisponível'}</strong>
-                  <small>Vencimento contratual em até 120 dias dentro do recorte global; sem presumir renovação atrasada</small>
-                </article>
-                <article className="fiscal-kpi">
-                  <span>Alertas contratuais</span>
-                  <strong>{summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' && summary.data.contractAlerts !== null ? summary.data.contractAlerts.length : 'Indisponível'}</strong>
-                  <small>Pendências abertas ou em tratamento dos contratos no recorte global</small>
-                </article>
-              </section>
-              <section className="fiscal-panel manager-strategic">
-                <div className="panel-heading">
-                  <h2>Fornecedores estratégicos: valor × risco</h2>
-                  <p>Classe ABC, participação e tendência de ocorrências.</p>
-                </div>
-                <div className="panel-unavailable" role="status">
-                  Indisponível: não há fonte e regra aprovadas para classe ABC, risco ou tendência dos
-                  fornecedores.
-                </div>
-              </section>
-              <section className="fiscal-panel manager-band-distribution">
-                <div className="panel-heading">
-                  <h2>Distribuição dos itens por faixa de saldo</h2>
-                  <p>Resultado atualizado conforme os filtros locais aplicados.</p>
-                </div>
-                <BandDistribution
-                  distribution={distribution}
-                  available={itemBalances?.coverage === 'AVAILABLE'}
-                  hasItems={items.length > 0}
-                  title="Distribuição dos itens por faixa de saldo"
-                  scope="Fornecedor, contrato, faixa e busca aplicados."
-                  outerRadius={96}
-                />
-              </section>
-              <section className="fiscal-panel manager-quality-details">
-                <div className="panel-heading">
-                  <h2>Detalhamento dos indicadores preventivos</h2>
-                  <p>Indicadores preventivos do recorte global quando a fonte permite apuração.</p>
-                </div>
-                <div className="manager-quality-grid">
-                  <article>
-                    <h3>Dados completos</h3>
-                    {summary.meta.dataCoverage.registrationCompleteness === 'UNAVAILABLE' ||
-                    summary.data.preventiveQuality.registrationCompleteness === null ? (
-                      <p role="status">Fonte indisponível para esta referência.</p>
-                    ) : (
-                      <>
-                        {summary.data.preventiveQuality.registrationCompleteness.activeContracts === 0 && (
-                          <p role="status">Sem contratos vigentes</p>
-                        )}
-                        <dl>
-                          <div>
-                            <dt>Contratos vigentes</dt>
-                            <dd>{summary.data.preventiveQuality.registrationCompleteness.activeContracts}</dd>
-                          </div>
-                          <div>
-                            <dt>Contratos completos</dt>
-                            <dd>
-                              {summary.data.preventiveQuality.registrationCompleteness.completeContracts}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Sem objeto</dt>
-                            <dd>
-                              {summary.data.preventiveQuality.registrationCompleteness.missingByField.objeto}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Sem valor total</dt>
-                            <dd>
-                              {
-                                summary.data.preventiveQuality.registrationCompleteness.missingByField
-                                  .valor_total
-                              }
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Sem data de assinatura</dt>
-                            <dd>
-                              {
-                                summary.data.preventiveQuality.registrationCompleteness.missingByField
-                                  .data_assinatura
-                              }
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Sem início da vigência</dt>
-                            <dd>
-                              {
-                                summary.data.preventiveQuality.registrationCompleteness.missingByField
-                                  .vigencia_inicio
-                              }
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Sem fim da vigência</dt>
-                            <dd>
-                              {
-                                summary.data.preventiveQuality.registrationCompleteness.missingByField
-                                  .vigencia_fim
-                              }
-                            </dd>
-                          </div>
-                        </dl>
-                      </>
-                    )}
-                  </article>
-                  <article>
-                    <h3>Decisões D-90</h3>
-                    {summary.meta.dataCoverage.renewalDecisionsD90 === 'UNAVAILABLE' ||
-                    summary.data.preventiveQuality.renewalDecisionsD90 === null ? (
-                      <p role="status">Fonte indisponível para esta referência.</p>
-                    ) : (
-                      <>
-                        {summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts === 0 && (
-                          <p role="status">Sem população elegível</p>
-                        )}
-                        <dl>
-                          <div>
-                            <dt>Contratos elegíveis</dt>
-                            <dd>{summary.data.preventiveQuality.renewalDecisionsD90.eligibleContracts}</dd>
-                          </div>
-                          <div>
-                            <dt>Contratos decididos</dt>
-                            <dd>{summary.data.preventiveQuality.renewalDecisionsD90.decidedContracts}</dd>
-                          </div>
-                          <div>
-                            <dt>Intenções de prorrogar</dt>
-                            <dd>{summary.data.preventiveQuality.renewalDecisionsD90.extendContracts}</dd>
-                          </div>
-                          <div>
-                            <dt>Intenções de não renovar</dt>
-                            <dd>{summary.data.preventiveQuality.renewalDecisionsD90.nonRenewalContracts}</dd>
-                          </div>
-                          <div>
-                            <dt>Contratos sem decisão</dt>
-                            <dd>{summary.data.preventiveQuality.renewalDecisionsD90.undecidedContracts}</dd>
-                          </div>
-                        </dl>
-                      </>
-                    )}
-                  </article>
-                </div>
-                <p className="source-note">
-                  Preenchimento cadastral indica presença dos campos; intenção de prorrogar não significa
-                  prorrogação concluída.
-                </p>
-              </section>
-              <section className="fiscal-panel">
-                <div className="panel-heading">
-                  <h2>Saldos da carteira</h2>
-                  <p>
-                    Valores da visão de saldo contratual para o recorte global; filtros locais de itens não se aplicam.
-                  </p>
-                </div>
-                <div className="fiscal-table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Contrato</th>
-                        <th>Valor contratado</th>
-                        <th>Valor consumido</th>
-                        <th>Saldo</th>
-                        <th>Percentual disponível</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.meta.dataCoverage.contractBalances === 'AVAILABLE' &&
-                      summary.data.contractBalances?.length ? (
-                        summary.data.contractBalances.map((item) => (
-                          <tr key={item.contractId}>
-                            <td>{item.contractNumber ?? `#${item.contractId}`}</td>
-                            <td>{currency(item.contractedValue)}</td>
-                            <td>{currency(item.consumedValue)}</td>
-                            <td>{currency(item.balanceValue)}</td>
-                            <td>{percentage(item.balancePct)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="table-empty">
-                            {summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' ||
-                            summary.data.contractBalances === null
-                              ? 'Indisponível'
-                              : 'Nenhum saldo contratual no recorte'}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-              <section className="fiscal-panel">
-                <div className="panel-heading">
-                  <h2>Distribuição financeira por contrato</h2>
-                  <p>
-                    Contratado, consumido e saldo em reais no recorte global, na mesma escala; filtros locais de itens não se aplicam.
-                  </p>
-                </div>
-                {summary.meta.dataCoverage.contractBalances === 'UNAVAILABLE' ||
-                summary.data.contractBalances === null ? (
-                  <div className="panel-unavailable" role="status">
-                    Indisponível
+<section className="fiscal-panel manager-cycle">
+              <div className="panel-heading">
+                <h2>Eficiência do Ciclo Financeiro — carteira gerenciada</h2>
+                <p>Etapas entre faturamento, medição e pagamento.</p>
+              </div>
+              <div className="manager-cycle-flow" aria-label="Etapas do ciclo financeiro">
+                {[
+                  'Faturado clientes',
+                  'A receber',
+                  'Recebido ETICE',
+                  'Medição fornecedor',
+                  'Processando pagamento',
+                  'Programado',
+                  'Pago fornecedor',
+                ].map((phase) => (
+                  <div key={phase}>
+                    <span>{phase}</span>
+                    <strong>Indisponível</strong>
                   </div>
-                ) : summary.data.contractBalances.length === 0 ? (
-                  <p className="table-empty">Nenhum saldo contratual no recorte</p>
-                ) : (
-                  <PortfolioFinancialChart balances={summary.data.contractBalances} />
-                )}
-              </section>
-              <section className="fiscal-panel">
-                <div className="panel-heading">
-                  <h2>Contratos vigentes da carteira</h2>
-                  <p>Dados atuais dos contratos autorizados selecionados pelo recorte global.</p>
-                </div>
-                <div className="fiscal-table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Contrato</th>
-                        <th>Fornecedor</th>
-                        <th>Valor atual</th>
-                        <th>Fim da vigência</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.data.contracts?.length ? (
-                        summary.data.contracts.map((contract) => (
-                          <tr key={contract.contractId}>
-                            <td>{contract.contractNumber ?? `#${contract.contractId}`}</td>
-                            <td>{contract.supplierName ?? 'Indisponível'}</td>
-                            <td>{money(contract.value)}</td>
-                            <td>{displayDate(contract.expiryDate, summary.meta.timezone)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={4} className="table-empty">
-                            {summary.data.contracts === null ? 'Indisponível' : 'Nenhum contrato vigente'}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-              <section className="fiscal-panel">
-                <div className="panel-heading">
-                  <h2>Contratos vigentes com vencimento nos próximos 120 dias</h2>
-                  <p>Dentro do recorte global selecionado, inclui a data de referência e o limite próprio de 120 dias.</p>
-                </div>
-                <div className="fiscal-table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Contrato</th>
-                        <th>Fornecedor</th>
-                        <th>Fim da vigência</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.data.expiringContractList?.length ? (
-                        summary.data.expiringContractList.map((contract) => (
-                          <tr key={contract.contractId}>
-                            <td>{contract.contractNumber ?? `#${contract.contractId}`}</td>
-                            <td>{contract.supplierName ?? 'Indisponível'}</td>
-                            <td>{displayDate(contract.expiryDate, summary.meta.timezone)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={3} className="table-empty">
-                            {summary.data.expiringContractList === null
-                              ? 'Indisponível'
-                              : 'Nenhum contrato na janela'}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+                ))}
+              </div>
+              <p className="source-note" role="status">
+                Volumes e tempos por etapa indisponíveis: não há fonte e regra aprovadas para este ciclo.
+              </p>
             </section>
-            </>} />}
+            </>}
           </>
         )}
       </div>

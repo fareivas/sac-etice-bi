@@ -66,6 +66,11 @@ No navegador:
 
 - Fiscal: http://127.0.0.1:5173/
 - Gerente de Contratos: http://127.0.0.1:5173/gerente-contratos
+- Supervisão (React/Recharts): http://127.0.0.1:5173/gerente-contratos/supervisao
+- Visão agregada (Autocontido v4 ABC): http://127.0.0.1:5173/gerente-contratos/visao-agregada
+
+`/gerente-contratos` redireciona para Supervisão. URLs desconhecidas exibem
+uma página de erro explícita.
 
 O Vite pode escolher outra porta se 5173 estiver ocupada; confira seu terminal.
 A API escuta em `127.0.0.1:3000`. A cada execução, o SAM refaz o build em
@@ -89,10 +94,15 @@ e `activeContracts = 1`; esses valores dependem do banco atual.
 
 ## Referência visual dos dashboards
 
-Para Fiscal e Gerente de Contratos, os protótipos **React/Recharts** são a
-referência principal; **Autocontido v4 ABC** é secundária. Implementação,
+Para Fiscal e Supervisão do Gerente, os protótipos **React/Recharts** são a
+referência. Para a Visão agregada do Gerente, a referência é o
+**Autocontido v4 ABC**. Implementação,
 diferenças intencionais e evidências do lote estão em
 [VIS-002](docs/visual/VIS-002.md), preservando as decisões funcionais anteriores.
+O estado atual de página única e sua correspondência com os dois protótipos
+React/Recharts estão em [GC-035](docs/visual/GC-035.md).
+O GC-035B mantém essa Supervisão e acrescenta uma Visão agregada independente,
+baseada no protótipo Autocontido v4 ABC, conforme a mesma documentação.
 
 O refinamento de organização, proporções e saldo consolidado está documentado
 em [VIS-003](docs/visual/VIS-003.md), mantendo as decisões e referências do VIS-002.

@@ -80,24 +80,6 @@ describe('Fiscal summary presentation', () => {
   });
 });
 
-it('renders contracts and view balances while keeping unsupported panels unavailable', () => {
-  const data = summary(1, []);
-  data.data.contracts = [{ contractId: 23, contractNumber: '13/2025', supplierName: 'Fornecedor de teste', value: 300000, expiryDate: '2026-10-20' }];
-  data.data.contractBalances = [{ contractId: 23, contractNumber: '13/2025', contractedValue: 300000, consumedValue: 0, balanceValue: 300000, balancePct: 100 }];
-  const html = render({ status: 'success', summary: data });
-  expect(html).toContain('13/2025');
-  expect(html).toContain('Fornecedor de teste');
-  expect(html.replaceAll('\u00a0', ' ')).toContain('R$ 300.000,00');
-  expect(html.replaceAll('\u00a0', ' ')).toContain('R$ 0,00');
-  expect(html).toContain('100%');
-  expect(html).toContain('20/10/2026');
-  for (const title of ['Saúde da carteira', 'Distribuição dos itens por faixa']) {
-    expect(html).toMatch(new RegExp(`${title}[\\s\\S]*?Indisponível[\\s\\S]*?</section>`));
-  }
-  expect(html).toContain('Itens críticos');
-  expect(html).toContain('Ações vencidas');
-});
-
 it('distinguishes empty portfolio from unavailable contract lists and balances', () => {
   const empty = render({ status: 'success', summary: summary(0, []) });
   expect(empty).toContain('Nenhum contrato vigente na carteira');
@@ -109,25 +91,6 @@ it('distinguishes empty portfolio from unavailable contract lists and balances',
   const html = render({ status: 'success', summary: unavailable });
   expect(html).not.toContain('Nenhum contrato vigente na carteira');
   expect(html).not.toContain('R$ 0,00');
-});
-
-it('renders contractual alerts separately from the fiscal queue and overdue actions', () => {
-  const data = summary(1, []);
-  data.data.contractAlerts = [{ alertId: 126, contractId: 2, contractNumber: 'CT-2', description: 'Vigência próxima do fim', expiryDate: '2026-10-20', createdAt: '2026-10-01T12:00:00Z' }];
-  const html = render({ status: 'success', summary: data });
-  expect(html).toMatch(/Alertas contratuais[\s\S]*CT-2[\s\S]*Vigência próxima do fim[\s\S]*20\/10\/2026/);
-  expect(html).toContain('Fila apurada sem ocorrências');
-  expect(data.data.cards.overdueActions).toBeNull();
-});
-
-it('distinguishes empty alerts from unavailable coverage', () => {
-  const data = summary(0, []);
-  expect(render({ status: 'success', summary: data })).toContain('Nenhum alerta contratual no recorte');
-  data.data.contractAlerts = null;
-  data.meta.dataCoverage.contractAlerts = 'UNAVAILABLE';
-  const html = render({ status: 'success', summary: data });
-  expect(html).toMatch(/Alertas contratuais[\s\S]*?Indisponível[\s\S]*?<\/section>/);
-  expect(html).not.toContain('Nenhum alerta contratual no recorte');
 });
 
 it('formats queue timestamps in the dashboard timezone', () => {
@@ -637,33 +600,6 @@ it('expands item details without changing filters, totals, portfolio balances or
     expect(view.host.querySelector('.fiscal-item-details')).toBeNull();
     expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Sem itens cadastrados');
   } finally { view.unmount(); }
-});
-
-it('shows calendar-relative expiry in existing alert and contract rows without changing their inclusion or queue deadlines', () => {
-  const data = summary(4, [{ ...pendingOrder, dueAt: '2026-10-09T01:00:00Z' }]);
-  data.meta.dataReference = '2026-10-08';
-  const dates = ['2026-10-07', '2026-10-08', '2026-10-09', null];
-  data.data.contracts = dates.map((expiryDate, index) => ({ contractId: index + 1, contractNumber: `CT-${index + 1}`,
-    supplierName: 'Fornecedor', value: 100, expiryDate }));
-  data.data.contractAlerts = dates.map((expiryDate, index) => ({ alertId: index + 1, contractId: index + 1,
-    contractNumber: `CT-${index + 1}`, description: 'Pendência já retornada pela API', expiryDate, createdAt: null }));
-  const original = structuredClone(data);
-  const host = document.createElement('div');
-  host.innerHTML = render({ status: 'success', summary: data });
-  for (const title of ['Alertas contratuais', 'Contratos fiscalizados']) {
-    const panel = [...host.querySelectorAll('.fiscal-panel')].find(panel => panel.querySelector('h2')?.textContent === title)!;
-    expect(panel.querySelectorAll('tbody tr')).toHaveLength(4);
-    expect([...panel.querySelectorAll('.fiscal-contract-expiry small')].map(node => node.textContent)).toEqual([
-      'Vencido há 1 dia', 'Vence hoje', 'Vence em 1 dia', 'Data de vigência indisponível',
-    ]);
-    expect(panel.textContent).toContain('07/10/2026');
-    expect(panel.textContent).toContain('08/10/2026');
-    expect(panel.textContent).toContain('09/10/2026');
-    expect(panel.textContent).toContain('vigência contratual, não ao prazo de decisão fiscal');
-    expect(panel.textContent).toContain('referência 08/10/2026');
-  }
-  expect(host.querySelector('.fiscal-action-queue')?.textContent).not.toContain('Vence em');
-  expect(data).toEqual(original);
 });
 
 it('keeps unavailable historical contract and alert lists without manufacturing expiry rows', () => {
@@ -1280,43 +1216,23 @@ it('keeps zero pre-band buttons on an empty portfolio distinct from unavailable 
   } finally { view.unmount(); }
 });
 
-it('VIS-003 keeps the principal fiscal sequence in the DOM and preserves complementary content', () => {
+it('GC-035 presents the Fiscal prototype panels in one accessible page', () => {
   const host = document.createElement('div');
   host.innerHTML = render({ status: 'success', summary: bandFixture });
   const titles = [...host.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
   expect(titles.slice(0, 7)).toEqual([
     'Minha fila de ação', 'Saúde da carteira', 'Saldo consolidado por contrato',
-    'Distribuição dos itens por faixa', 'Ciclo financeiro do contrato',
-    'Relevância Econômica das Partes do Contrato / ABC', 'Gestão dos Saldos dos Itens Contratuais',
+    'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais',
+    'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato / ABC',
   ]);
-  const complement = host.querySelector('.fiscal-complementary')!;
-  expect(complement.getAttribute('aria-labelledby')).toBe('fiscal-complementary-title');
-  expect([...complement.querySelectorAll('.panel-heading h2')].map(node => node.textContent)).toEqual([
-    'Vigências e renovações', 'Pagamento e medição', 'Alertas contratuais', 'Contratos fiscalizados',
-  ]);
-  expect(complement.textContent).toContain('Alerta independente dos filtros da fila');
-  expect(complement.querySelectorAll('.fiscal-contract-expiry').length).toBeGreaterThan(0);
+  expect(host.querySelector('[role="tablist"], [role="tab"], .fiscal-complementary')).toBeNull();
+  expect(titles).toHaveLength(7);
   const balanceRow = host.querySelector('.fiscal-balances-grid')!;
   expect([...balanceRow.children].map(node => node.querySelector('h2')?.textContent)).toEqual([
     'Saldo consolidado por contrato', 'Distribuição dos itens por faixa',
   ]);
   expect(host.querySelectorAll('.fiscal-band-buttons button')).toHaveLength(4);
   expect(host.querySelector('.fiscal-saldos')?.textContent).toContain('Exportar itens CSV');
-});
-
-it('VIS-003 keeps unavailable and empty complementary fiscal panels distinct', () => {
-  const empty = summary(0, []);
-  const host = document.createElement('div');
-  host.innerHTML = render({ status: 'success', summary: empty });
-  expect(host.querySelector('.fiscal-complementary')?.textContent).toContain('Nenhum alerta contratual no recorte');
-  expect(host.querySelector('.fiscal-complementary')?.textContent).toContain('Nenhum contrato vigente na carteira');
-  const unavailable = structuredClone(empty);
-  unavailable.data.contractAlerts = null; unavailable.meta.dataCoverage.contractAlerts = 'UNAVAILABLE';
-  unavailable.data.contracts = null; unavailable.meta.dataCoverage.contracts = 'UNAVAILABLE';
-  host.innerHTML = render({ status: 'success', summary: unavailable });
-  expect(host.querySelector('.fiscal-complementary')?.textContent).toContain('Indisponível');
-  expect(host.querySelector('.fiscal-complementary')?.textContent).not.toContain('Nenhum alerta contratual no recorte');
-  expect(host.querySelector('.fiscal-complementary')?.textContent).not.toContain('Nenhum contrato vigente na carteira');
 });
 
 it('VIS-004 groups queue counts and actions without changing keyboard order or visible export guidance', () => {
@@ -1338,20 +1254,17 @@ it('VIS-004 groups queue counts and actions without changing keyboard order or v
     'Não há fonte aprovada de severidade', 'As decisões são registradas no SAC']) expect(panel.textContent).toContain(text);
 });
 
-it('VIS-006 keeps the item consultation mounted with filters across tab switches', () => {
+it('GC-035 keeps the item consultation directly visible with its local filters and exact columns', () => {
   const view = mount(withItems(sampleItems()));
   try {
-    const panels = [...view.host.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
-    const tabs = [...view.host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-    expect(panels.map(panel => panel.hidden)).toEqual([false, true]);
-    expect(panels[0].querySelector('.fiscal-saldos')).toBeNull();
-    expect(panels[1].querySelector('.fiscal-saldos')).not.toBeNull();
-    act(() => tabs[1].click());
+    expect(view.host.querySelector('[role="tablist"]')).toBeNull();
+    expect(view.host.querySelector('.fiscal-saldos')).not.toBeNull();
     view.select('Fornecedor', 'Árvore');
-    act(() => tabs[0].click());
     expect(view.selected('Fornecedor')).toBe('Árvore');
-    act(() => tabs[1].click());
-    expect(view.selected('Fornecedor')).toBe('Árvore');
+    expect([...view.host.querySelectorAll('.fiscal-saldos thead th')].map(node => node.textContent)).toEqual([
+      'Status', 'Contrato / fornecedor', 'Item contratual', 'Total', 'Executado', 'Saldo', '% saldo', 'Ação do fiscal',
+    ]);
+    expect(view.host.querySelector('.fiscal-saldos tbody')?.textContent).toContain('sem ação individual aprovada');
     expect(view.host.querySelector('.fiscal-saldos button')?.textContent).toContain('Exportar itens CSV');
   } finally { view.unmount(); }
 });

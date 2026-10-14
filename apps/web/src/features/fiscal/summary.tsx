@@ -1,9 +1,7 @@
-import { DashboardTabs } from '../dashboard-tabs';
 import { FiscalContractBalanceChart } from './contract-balance-chart';
 import { BandDistribution } from '../item-balances/band-distribution';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FiscalDashboardSummaryResponse } from '@sac-etice-bi/contracts';
-import { FiscalContractExpiry, FiscalExpiryReferenceNote } from './contract-expiry';
 import { FiscalItemBalanceDetails } from './item-balance-details';
 import { downloadFiscalItemsCsv } from './item-balances-csv';
 import { downloadFiscalQueueCsv } from './queue-csv';
@@ -253,7 +251,7 @@ export function FiscalDashboardView({
                 Cobertura parcial: indicadores marcados como indisponíveis não foram calculados.
               </p>
             )}
-            <DashboardTabs id="fiscal" main={<>
+            <>
             <section className="fiscal-kpis" aria-label="Indicadores">
               {cards.map(({ key, label, detail }) => {
                 const value = summary.data.cards[key];
@@ -564,23 +562,6 @@ export function FiscalDashboardView({
                 )}
               </Panel>
             </div>
-            <Panel title="Ciclo financeiro do contrato" subtitle="Cliente → ETICE → fornecedor.">
-              <Unavailable label="Indisponível: a resposta atual não fornece etapas, valores ou tempos do ciclo financeiro." />
-            </Panel>
-            <Panel
-              title="Relevância Econômica das Partes do Contrato / ABC"
-              subtitle="Indisponível: não há classificação corporativa verificável de fornecedores e clientes na resposta atual."
-            >
-              <div className="fiscal-grid-two relevance">
-                <div>
-                  Fornecedores <strong>Indisponível</strong>
-                </div>
-                <div>
-                  Clientes <strong>Indisponível</strong>
-                </div>
-              </div>
-            </Panel>
-            </>} complementary={<>
             <Panel
               title="Gestão dos Saldos dos Itens Contratuais"
               subtitle="Total contratado, execução acumulada, saldo e ação do fiscal."
@@ -829,14 +810,14 @@ export function FiscalDashboardView({
                     <table>
                       <thead>
                         <tr>
-                          <th>Faixa / verificação</th>
+                          <th>Status</th>
                           <th>Contrato / fornecedor</th>
                           <th>Item contratual</th>
                           <th>Total</th>
                           <th>Executado</th>
                           <th>Saldo</th>
                           <th>% saldo</th>
-                          <th>Orientação ao fiscal</th>
+                          <th>Ação do fiscal</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -893,13 +874,7 @@ export function FiscalDashboardView({
                                 </td>
                                 <td>{percentage(ratio === null ? null : ratio * 100)}</td>
                                 <td>
-                                  {item.faixa === 'critico'
-                                    ? 'Avaliar o saldo e o planejamento do item.'
-                                    : item.faixa === 'nao_verificavel'
-                                      ? 'Conferir dados do item.'
-                                      : item.faixa === 'atencao'
-                                        ? 'Acompanhar o consumo do item.'
-                                        : 'Acompanhar normalmente.'}
+                                  Indisponível — sem ação individual aprovada
                                 </td>
                               </tr>
                             );
@@ -921,151 +896,23 @@ export function FiscalDashboardView({
                 <Unavailable label="Fonte de saldos por item indisponível para esta data." />
               )}
             </Panel>
-            <section
-              className="dashboard-complementary fiscal-complementary"
-              aria-labelledby="fiscal-complementary-title"
+            <Panel title="Ciclo financeiro do contrato" subtitle="Cliente → ETICE → fornecedor.">
+              <Unavailable label="Indisponível: a resposta atual não fornece etapas, valores ou tempos do ciclo financeiro." />
+            </Panel>
+            <Panel
+              title="Relevância Econômica das Partes do Contrato / ABC"
+              subtitle="Indisponível: não há classificação corporativa verificável de fornecedores e clientes na resposta atual."
             >
-              <h2 id="fiscal-complementary-title" className="dashboard-complementary-heading">
-                Painéis complementares
-              </h2>
-              <div className="fiscal-grid-two">
-                <Panel
-                  title="Vigências e renovações"
-                  subtitle="Alertas abertos de vigência; a fonte não apura o andamento das renovações."
-                >
-                  <div className="fiscal-table-wrap executive-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Contrato</th>
-                          <th>Fim da vigência</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' &&
-                        summary.data.contractAlerts?.length ? (
-                          summary.data.contractAlerts.map((alert) => (
-                            <tr key={alert.alertId}>
-                              <td>{alert.contractNumber ?? 'Indisponível'}</td>
-                              <td>
-                                <FiscalContractExpiry
-                                  expiryDate={alert.expiryDate}
-                                  reference={summary.meta.dataReference}
-                                  timezone={summary.meta.timezone}
-                                />
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={2} className="table-empty">
-                              {summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' ||
-                              summary.data.contractAlerts === null
-                                ? 'Indisponível'
-                                : 'Nenhum alerta contratual no recorte'}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  <FiscalExpiryReferenceNote reference={summary.meta.dataReference} />
-                </Panel>
-                <Panel title="Pagamento e medição" subtitle="Situação financeira e medições dos contratos.">
-                  <Unavailable label="Indisponível: não há dados verificáveis de pagamentos e medições na resposta atual." />
-                </Panel>
+              <div className="fiscal-grid-two relevance">
+                <div>
+                  Fornecedores <strong>Indisponível</strong>
+                </div>
+                <div>
+                  Clientes <strong>Indisponível</strong>
+                </div>
               </div>
-              <Panel
-                title="Alertas contratuais"
-                subtitle="Pendências abertas de vigência dos contratos da carteira."
-              >
-                <div className="fiscal-table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Contrato</th>
-                        <th>Descrição</th>
-                        <th>Vencimento do contrato</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.meta.dataCoverage.contractAlerts === 'AVAILABLE' &&
-                      summary.data.contractAlerts?.length ? (
-                        summary.data.contractAlerts.map((alert) => (
-                          <tr key={alert.alertId}>
-                            <td>{alert.contractNumber ?? 'Indisponível'}</td>
-                            <td>{alert.description ?? 'Indisponível'}</td>
-                            <td>
-                              <FiscalContractExpiry
-                                expiryDate={alert.expiryDate}
-                                reference={summary.meta.dataReference}
-                                timezone={summary.meta.timezone}
-                              />
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={3} className="table-empty">
-                            {summary.meta.dataCoverage.contractAlerts === 'UNAVAILABLE' ||
-                            summary.data.contractAlerts === null
-                              ? 'Indisponível'
-                              : 'Nenhum alerta contratual no recorte'}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <FiscalExpiryReferenceNote reference={summary.meta.dataReference} />
-              </Panel>
-              <Panel
-                title="Contratos fiscalizados"
-                subtitle="Contratos vigentes da carteira autorizada atual."
-              >
-                <div className="fiscal-table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Contrato</th>
-                        <th>Fornecedor</th>
-                        <th>Valor atual</th>
-                        <th>Fim da vigência</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.data.contracts?.length ? (
-                        summary.data.contracts.map((contract) => (
-                          <tr key={contract.contractId}>
-                            <td>{contract.contractNumber ?? 'Indisponível'}</td>
-                            <td>{contract.supplierName ?? 'Indisponível'}</td>
-                            <td>{money(contract.value)}</td>
-                            <td>
-                              <FiscalContractExpiry
-                                expiryDate={contract.expiryDate}
-                                reference={summary.meta.dataReference}
-                                timezone={summary.meta.timezone}
-                              />
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={4} className="table-empty">
-                            {summary.data.contracts === null
-                              ? 'Indisponível'
-                              : 'Nenhum contrato vigente na carteira'}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <FiscalExpiryReferenceNote reference={summary.meta.dataReference} />
-              </Panel>
-            </section>
-
-            </>} />
+            </Panel>
+            </>
             <p className="source-note">
               Fonte KPI:{' '}
               {includeExternal
