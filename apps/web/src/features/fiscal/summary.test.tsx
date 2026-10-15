@@ -49,7 +49,9 @@ describe('Fiscal summary presentation', () => {
     expect(html).toContain('Indisponível');
     expect(html).toContain('Fila indisponível');
     expect(html).toContain('Consulta desabilitada');
-    expect(html.match(/>0<\/strong>/g)).toHaveLength(1); // Alertas disponíveis sem ocorrências; demais fontes seguem indisponíveis.
+    const host = document.createElement('div'); host.innerHTML = html;
+    expect(host.querySelector('.fiscal-legacy-kpis')?.textContent).toContain('Alertas contratuais0');
+    expect(host.querySelectorAll('.fiscal-kpis .fiscal-kpi')).toHaveLength(6);
   });
 
   it('shows real zero and an available empty queue distinctly', () => {
@@ -1220,13 +1222,23 @@ it('GC-035 presents the Fiscal prototype panels in one accessible page', () => {
   const host = document.createElement('div');
   host.innerHTML = render({ status: 'success', summary: bandFixture });
   const titles = [...host.querySelectorAll('.panel-heading h2')].map(node => node.textContent);
-  expect(titles.slice(0, 7)).toEqual([
-    'Minha fila de ação', 'Saúde da carteira', 'Saldo consolidado por contrato',
-    'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais',
+  expect(titles).toEqual([
+    'Minha fila de ação', 'Saúde da carteira', 'Saldos por contrato', 'Vigências e renovações', 'Pagamento e medição',
     'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato / ABC',
+    'Saldo consolidado por contrato', 'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais',
   ]);
   expect(host.querySelector('[role="tablist"], [role="tab"], .fiscal-complementary')).toBeNull();
-  expect(titles).toHaveLength(7);
+  expect(titles).toHaveLength(10);
+  expect(host.querySelector('.fiscal-header p')?.textContent).toBe('Visão operacional da carteira individual de contratos');
+  const sequence = [...host.querySelectorAll('.fiscal-page > section, .fiscal-page > div, .fiscal-page > details')];
+  const cycle = sequence.findIndex(node => node.querySelector('h2')?.textContent === 'Ciclo financeiro do contrato');
+  const abc = sequence.findIndex(node => node.querySelector('h2')?.textContent === 'Relevância Econômica das Partes do Contrato / ABC');
+  const indicators = sequence.findIndex(node => node.matches('.fiscal-operational-indicators'));
+  const balances = sequence.findIndex(node => node.matches('.fiscal-balances-grid'));
+  expect(cycle).toBeGreaterThan(sequence.findIndex(node => node.matches('.fiscal-operational-grid')));
+  expect(abc).toBe(cycle + 1);
+  expect(indicators).toBe(abc + 1);
+  expect(balances).toBe(indicators + 1);
   const balanceRow = host.querySelector('.fiscal-balances-grid')!;
   expect([...balanceRow.children].map(node => node.querySelector('h2')?.textContent)).toEqual([
     'Saldo consolidado por contrato', 'Distribuição dos itens por faixa',
@@ -1267,4 +1279,127 @@ it('GC-035 keeps the item consultation directly visible with its local filters a
     expect(view.host.querySelector('.fiscal-saldos tbody')?.textContent).toContain('sem ação individual aprovada');
     expect(view.host.querySelector('.fiscal-saldos button')?.textContent).toContain('Exportar itens CSV');
   } finally { view.unmount(); }
+});
+
+function operationalFixture() {
+  const data = summary(2);
+  data.data.contracts = [
+    { contractId: 1, contractNumber: 'CT-1', supplierName: 'Árvore', value: 100, expiryDate: '2026-09-24' },
+    { contractId: 2, contractNumber: 'CT-2', supplierName: 'Outro', value: 200, expiryDate: '2027-09-24' },
+  ];
+  data.data.contractBalances = [
+    { contractId: 1, contractNumber: 'CT-1', contractedValue: 100, consumedValue: 50, balanceValue: 50, balancePct: 50 },
+    { contractId: 2, contractNumber: 'CT-2', contractedValue: 200, consumedValue: 200, balanceValue: 0, balancePct: 0 },
+  ];
+  data.data.contractAlerts = [{ alertId: 3, contractId: 1, contractNumber: 'CT-1', description: 'Alerta factual', expiryDate: '2026-09-24', createdAt: null }];
+  return data;
+}
+function overviewControls(host: HTMLElement) {
+  const filters = host.querySelector('.fiscal-overview-controls')!;
+  return {
+    select(index: number, value: string) { const node = filters.querySelectorAll('select')[index]; act(() => { node.value = value; node.dispatchEvent(new Event('change', { bubbles: true })); }); },
+    search(value: string) { const node = filters.querySelector('input')!; act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(node, value); node.dispatchEvent(new Event('input', { bubbles: true })); }); },
+    expiry: () => host.querySelector('.fiscal-operational-expiry')!,
+  };
+}
+it('reforms six fiscal KPIs, keeps operational indicators and does not fabricate health percentages', () => {
+  const host = document.createElement('div'); host.innerHTML = render({ status: 'success', summary: operationalFixture() });
+  expect([...host.querySelectorAll('.fiscal-kpis .fiscal-kpi > span')].map(row => row.textContent)).toEqual([
+    'Contratos sob fiscalização', 'Saldo disponível', 'Vencimentos', 'SLA', 'Medições', 'Pagamentos',
+  ]);
+  expect([...host.querySelectorAll('.fiscal-kpis strong')].map(row => row.textContent)).toEqual(['2', 'R$\u00a050,00', '1', 'Indisponível', 'Indisponível', 'Indisponível']);
+  expect(host.querySelectorAll('.fiscal-health-row')).toHaveLength(5);
+  expect(host.querySelector('.fiscal-health')?.textContent).not.toContain('%');
+  expect(host.querySelector('.fiscal-health [role="progressbar"]')).toBeNull();
+  expect(host.querySelectorAll('.fiscal-health-track[style]')).toHaveLength(0);
+  expect(host.querySelector('.fiscal-legacy-kpis')?.textContent).toContain('OS pendentes');
+  expect(host.querySelector('.fiscal-legacy-kpis')?.textContent).toContain('Violações de SLA');
+  expect(host.querySelectorAll('.fiscal-operational-grid > section')).toHaveLength(3);
+  expect(host.querySelectorAll('.fiscal-contract-chart')).toHaveLength(1);
+});
+it('combines operational filters without changing full-portfolio KPIs, queue or item details', () => {
+  const view = mount(operationalFixture()); const controls = overviewControls(view.host);
+  try {
+    const kpis = view.host.querySelector('.fiscal-kpis')!.textContent;
+    const queue = view.host.querySelector('.fiscal-action-queue')!.textContent;
+    const items = view.host.querySelector('.fiscal-saldos')!.textContent;
+    controls.select(0, '1'); controls.select(1, 'Árvore'); controls.select(3, '30'); controls.search('arvore');
+    expect(controls.expiry().textContent).toContain('CT-1'); expect(controls.expiry().textContent).not.toContain('CT-2');
+    expect(controls.expiry().textContent).toContain('Vence hoje'); expect(controls.expiry().textContent).toContain('Alerta factual');
+    expect(controls.expiry().textContent).toContain('não comprovam processo ou decisão de renovação');
+    expect(view.host.querySelector('.fiscal-kpis')!.textContent).toBe(kpis);
+    expect(view.host.querySelector('.fiscal-action-queue')!.textContent).toBe(queue);
+    expect(view.host.querySelector('.fiscal-saldos')!.textContent).toBe(items);
+    controls.search('sem resultado'); expect(controls.expiry().textContent).toContain('Nenhum contrato no recorte operacional');
+    expect(controls.expiry().querySelector('.fiscal-contract-expiry')).toBeNull();
+    expect(view.host.querySelector<HTMLSelectElement>('.fiscal-overview-controls select:disabled')?.textContent).toContain('Indisponível');
+  } finally { view.unmount(); }
+});
+it('keeps operational selection across unavailable sources and refresh, retains missing IDs and resets on scope change', () => {
+  const data = operationalFixture(); const view = mount(data); const controls = overviewControls(view.host);
+  try {
+    controls.select(0, '1');
+    view.update(structuredClone(data));
+    expect(view.host.querySelector<HTMLSelectElement>('.fiscal-overview-controls select')?.value).toBe('1');
+    const unavailable = structuredClone(data); unavailable.meta.dataCoverage.contracts = 'UNAVAILABLE'; unavailable.data.contracts = null;
+    view.update(unavailable);
+    expect(view.host.querySelectorAll('.fiscal-operational-grid .fiscal-contract-expiry')).toHaveLength(0);
+    expect(view.host.querySelector('.fiscal-operational-balances')?.textContent).toContain('Indisponível');
+    expect(view.host.querySelector('.fiscal-kpis')?.textContent).not.toContain('R$');
+    view.update(data); expect(view.host.querySelector<HTMLSelectElement>('.fiscal-overview-controls select')?.value).toBe('1');
+    const missing = structuredClone(data); missing.data.contracts = missing.data.contracts!.filter(row => row.contractId !== 1);
+    view.update(missing); expect(controls.expiry().querySelector('.fiscal-contract-expiry')).toBeNull();
+    expect(view.host.querySelector('.fiscal-overview-controls')?.textContent).toContain('não disponível na resposta');
+    const next = structuredClone(data); next.data.fiscal.userId++;
+    view.update(next); expect(view.host.querySelector<HTMLSelectElement>('.fiscal-overview-controls select')?.value).toBe('');
+  } finally { view.unmount(); }
+});
+it('keeps expiry and total balance unavailable for incomplete coverage while showing known contracts', () => {
+  const data = operationalFixture(); data.data.contracts![0].expiryDate = null; data.data.contractBalances!.pop();
+  const host = document.createElement('div'); host.innerHTML = render({ status: 'success', summary: data });
+  expect([...host.querySelectorAll('.fiscal-kpis strong')].slice(1, 3).map(row => row.textContent)).toEqual(['Indisponível', 'Indisponível']);
+  expect(host.querySelector('.fiscal-operational-expiry')?.textContent).toContain('Data de vigência indisponível');
+});
+
+it('groups generation time, reference and partial coverage without removing their explanations', () => {
+  const host = document.createElement('div'); host.innerHTML = render({ status: 'success', summary: operationalFixture() });
+  const strip = host.querySelector('.fiscal-status-strip')!;
+  expect(strip.getAttribute('aria-label')).toBe('Atualização, referência e cobertura');
+  expect(strip.querySelector('button')?.textContent).toContain('Atualizar dados');
+  expect(strip.textContent).toContain('Última atualização do dashboard:');
+  expect(strip.textContent).toContain('Referência: 24/09/2026');
+  expect(strip.textContent).toContain('Horário de geração da resposta, não de atualização do banco.');
+  expect(strip.querySelector('.coverage-note[role="status"]')?.textContent).toContain('não foram calculados');
+  expect(host.querySelectorAll('.coverage-note')).toHaveLength(1);
+});
+it('uses alert API fields and preserves SAC description verbatim in native accessible details', () => {
+  const data = operationalFixture();
+  const original = '  Contrato CT-1: prazo informado pelo SAC.\nDetalhe <original> & sem edição.  ';
+  data.data.contractAlerts![0].description = original;
+  data.data.contractAlerts![0].expiryDate = '2026-12-31';
+  const view = mount(data);
+  try {
+    const alert = view.host.querySelector('[data-contract-alert-id="3"]')!;
+    expect(alert.querySelector('strong')?.textContent).toBe('Alerta contratual');
+    expect([...alert.querySelectorAll('dd')].map(node => node.textContent)).toEqual(['CT-1', '31/12/2026']);
+    const details = alert.querySelector('details')!;
+    expect(details.querySelector('summary')?.textContent).toBe('Descrição original do SAC · alerta 3');
+    expect(details.querySelector('p')?.textContent).toBe(original);
+    expect(details.hasAttribute('open')).toBe(false);
+    act(() => details.querySelector('summary')!.click());
+    expect(details.hasAttribute('open')).toBe(true);
+    expect(details.querySelector('p')?.textContent).toBe(original);
+    expect(data.data.contractAlerts![0].description).toBe(original);
+  } finally { view.unmount(); }
+});
+it('keeps missing alert dates unavailable and an empty original description distinct from null', () => {
+  const data = operationalFixture(); data.data.contractAlerts![0].expiryDate = null;
+  data.data.contractAlerts![0].contractNumber = null; data.data.contractAlerts![0].description = '';
+  const host = document.createElement('div'); host.innerHTML = render({ status: 'success', summary: data });
+  const alert = host.querySelector('[data-contract-alert-id="3"]')!;
+  expect([...alert.querySelectorAll('dd')].map(node => node.textContent)).toEqual(['Contrato ID 1', 'Indisponível']);
+  expect(alert.querySelector('details p')?.textContent).toBe('');
+  data.data.contractAlerts![0].description = null;
+  host.innerHTML = render({ status: 'success', summary: data });
+  expect(host.querySelector('[data-contract-alert-id="3"] details p')?.textContent).toBe('Descrição indisponível');
 });

@@ -9,9 +9,9 @@ const output = resolve(process.argv[3] ?? '/tmp/gc035-captures');
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE, args: ['--no-sandbox'] });
 const expected = {
-  fiscal: ['Minha fila de ação', 'Saúde da carteira', 'Saldo consolidado por contrato',
-    'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais',
-    'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato / ABC'],
+  fiscal: ['Minha fila de ação', 'Saúde da carteira', 'Saldos por contrato', 'Vigências e renovações', 'Pagamento e medição',
+    'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato / ABC',
+    'Saldo consolidado por contrato', 'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais'],
   manager: ['Carga, criticidade e desempenho por fiscal', 'Qualidade preventiva da gestão',
     'Matriz Contrato × Dimensão de Risco', 'Fornecedores estratégicos: valor × risco',
     'Intervenções gerenciais priorizadas', 'Curva ABC dos principais fornecedores',

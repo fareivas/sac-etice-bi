@@ -368,3 +368,13 @@ ficam em `/tmp/gc035d-captures/`.
 Na GC-036, o roteiro confere as colunas de intervenções em ambas as telas,
 o estado de cobertura e a ausência de prioridade fictícia. As capturas são
 geradas em `/tmp/gc036-captures/`, sempre com fixtures HTTP sintéticas.
+
+## Reformulação visual fiscal
+
+`scripts/test/fiscal-visual-reform.visual.mjs` usa o mesmo bundle ESM de
+`manager-global-filters.ts` do roteiro GC-035. Confere seis KPIs, cinco dimensões
+sem percentuais inventados, barra de filtros operacionais, três painéis, recortes
+combinados, fonte parcial/vazia/indisponível e overflow em 1440, 900 e 390 px.
+O roteiro GC-035 foi atualizado para os três painéis novos; o roteiro de fila
+foi ajustado para os indicadores complementares e ressalvas expansíveis.
+Documentação, comandos e evidências: `docs/visual/FISCAL-reformulacao.md`.

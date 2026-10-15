@@ -32,7 +32,7 @@ try {
     const clear = panel.getByRole('button', { name: 'Limpar filtros da fila' });
     const count = panel.locator('.fiscal-queue-filter-meta [role="status"]');
     const waitCount = expected => page.waitForFunction(expected => document.querySelector('.fiscal-queue-filter-meta [role="status"]')?.textContent === expected, expected);
-    const pendingCard = page.locator('.fiscal-kpi').filter({ has: page.getByText('OS pendentes', { exact: true }) }).locator('strong');
+    const pendingCard = page.locator('.fiscal-legacy-kpis article').filter({ has: page.getByText('OS pendentes', { exact: true }) }).locator('strong');
     await waitCount('4 de 4 OS');
     const controls = await panel.locator('.fiscal-queue-filters > div').evaluateAll(elements => elements.map(el => {
       const box = el.getBoundingClientRect(); return { top: box.top, left: box.left, right: box.right, bottom: box.bottom };
@@ -47,6 +47,12 @@ try {
     const clearBox = await clear.boundingBox(); const exportBox = await exportCsv.boundingBox();
     if (width > 600) assert.ok(Math.abs(clearBox.y - exportBox.y) < 1);
     else assert.ok(exportBox.y >= clearBox.y + clearBox.height);
+    for (const details of await panel.locator('.fiscal-queue-guidance').all()) {
+      assert.equal(await details.getAttribute('open'), null);
+      await details.locator('summary').click();
+      for (const note of await details.locator('p.source-note').all()) assert.ok(await note.isVisible());
+    }
+    await page.locator('.fiscal-operational-indicators > summary').click();
     for (const note of await panel.locator('p.source-note').all()) assert.ok(await note.isVisible());
     const exportNote = await exportCsv.getAttribute('aria-describedby');
     assert.ok((await page.locator(`[id="${exportNote}"]`).innerText()).includes('Cada linha representa uma pendência'));
