@@ -12,12 +12,15 @@ const report = [];
 try {
   for (const width of [1440, 900, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 1000 } });
-    const errors = []; let current = structuredClone(fiscal); let requests = 0;
+    const errors = []; let current = structuredClone(fiscal); let requests = 0; let invalidDateResponse = false;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', route => {
       requests++;
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(responseForRequest(current,
-        new URL(route.request().url()).searchParams.get('includeExternal') === 'true')) });
+      const response = responseForRequest(invalidDateResponse ? fiscal : current,
+        new URL(route.request().url()).searchParams.get('includeExternal') === 'true');
+      // Deliberately bypass the fixture's own validator for this negative HTTP test only.
+      if (invalidDateResponse) response.data.contracts[0].expiryDate = '2026-02-31';
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(response) });
     });
     await page.goto(process.env.FISCAL_PREVIEW_URL ?? 'http://127.0.0.1:5183', { waitUntil: 'networkidle' });
     const filters = page.locator('.fiscal-overview-controls'); const expiry = page.locator('.fiscal-operational-expiry');
@@ -31,21 +34,22 @@ try {
     assert.equal(await page.locator('.fiscal-header p').innerText(), 'Visão operacional da carteira individual de contratos');
     assert.deepEqual(await page.locator('.panel-heading h2').allTextContents(), [
       'Minha fila de ação', 'Saúde da carteira', 'Saldos por contrato', 'Vigências e renovações', 'Pagamento e medição',
-      'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato / ABC',
-      'Saldo consolidado por contrato', 'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais',
+      'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato',
     ]);
     const layout = await page.evaluate(() => {
       const box = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, width: r.width, height: r.height }; };
       const panels = [...document.querySelectorAll('.fiscal-page > .fiscal-panel')];
       const cycle = panels.find(node => node.querySelector('h2').textContent === 'Ciclo financeiro do contrato').getBoundingClientRect();
-      const abc = panels.find(node => node.querySelector('h2').textContent === 'Relevância Econômica das Partes do Contrato / ABC').getBoundingClientRect();
+      const abc = panels.find(node => node.querySelector('h2').textContent === 'Relevância Econômica das Partes do Contrato').getBoundingClientRect();
       return { page: box('.fiscal-page'), queue: box('.fiscal-action-queue'), health: box('.fiscal-health'),
-        operational: box('.fiscal-operational-grid'), indicators: box('.fiscal-operational-indicators'),
+        operational: box('.fiscal-operational-grid'),
         cycle: { top: cycle.top, bottom: cycle.bottom, width: cycle.width }, abc: { top: abc.top, bottom: abc.bottom, width: abc.width } };
     });
     assert.ok(layout.cycle.top >= layout.operational.bottom);
     assert.ok(layout.abc.top >= layout.cycle.bottom);
-    assert.ok(layout.indicators.top >= layout.abc.bottom);
+    assert.equal(await page.locator('.fiscal-saldos, .fiscal-band-distribution, .fiscal-contract-balances, .fiscal-operational-indicators').count(), 0);
+    assert.equal(await page.locator('.fiscal-page > :last-child h2').innerText(), 'Relevância Econômica das Partes do Contrato');
+    assert.equal(await page.locator('.fiscal-dashboard a[href^="#"]').count(), 0);
     assert.ok(Math.abs(layout.cycle.width - layout.abc.width) < 1);
     assert.ok(Math.abs(layout.cycle.width - (layout.page.width - (width > 650 ? 40 : 24))) < 1);
     if (width === 1440) {
@@ -74,8 +78,8 @@ try {
     assert.equal(await page.locator('.relevance .fiscal-model-info').count(), 2);
     assert.equal(await page.locator('.fiscal-operational-balances svg').count(), 0);
     assert.equal(await page.locator('.fiscal-queue-tools').getAttribute('open'), null);
-    const consolidated = page.locator('.fiscal-contract-balances');
-    if (width === 1440) assert.ok(await consolidated.evaluate(node => node.getBoundingClientRect().height < 250));
+    assert.deepEqual(await expiry.locator('.fiscal-contract-expiry time').allTextContents(), current.data.contracts.filter(row => row.expiryDate !== null).map(row => row.expiryDate.split('-').reverse().join('/')));
+
     for (const row of current.data.contractAlerts ?? []) {
       const alert = page.locator(`[data-contract-alert-id="${row.alertId}"]`);
       const expectedDate = row.expiryDate === null ? 'Indisponível' : new Date(`${row.expiryDate}T00:00:00Z`).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
@@ -108,7 +112,7 @@ try {
     await page.screenshot({ path: `${output}/fiscal-${width}-initial.png`, fullPage: true });
     await page.screenshot({ path: `${output}/fiscal-${width}-viewport.png` });
     await cycle.screenshot({ path: `${output}/react-${width}-cycle.png` });
-    await page.locator('.fiscal-panel').filter({ has: page.getByRole('heading', { name: 'Relevância Econômica das Partes do Contrato / ABC', exact: true }) }).screenshot({ path: `${output}/react-${width}-abc.png` });
+    await page.locator('.fiscal-panel').filter({ has: page.getByRole('heading', { name: 'Relevância Econômica das Partes do Contrato', exact: true }) }).screenshot({ path: `${output}/react-${width}-abc.png` });
     await cycle.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${output}/react-${width}-lower.png` });
     const reference = await browser.newPage({ viewport: { width, height: 1000 } });
@@ -128,7 +132,7 @@ try {
     await reference.close();
     const kpis = await page.locator('.fiscal-kpis').innerText();
     const queue = await page.locator('.fiscal-action-queue').innerText();
-    const items = await page.locator('.fiscal-saldos').innerText(); const before = requests;
+    const before = requests;
     const first = current.data.contracts[0];
     await filters.getByRole('combobox', { name: 'Contrato', exact: true }).selectOption(String(first.contractId));
     assert.equal(await expiry.locator('.fiscal-contract-expiry').count(), 1);
@@ -143,7 +147,6 @@ try {
     assert.ok((await expiry.innerText()).includes('Nenhum contrato no recorte operacional'));
     assert.equal(await page.locator('.fiscal-kpis').innerText(), kpis);
     assert.equal(await page.locator('.fiscal-action-queue').innerText(), queue);
-    assert.equal(await page.locator('.fiscal-saldos').innerText(), items);
     assert.equal(requests, before); await noOverflow();
     await page.locator('.fiscal-operational-grid').screenshot({ path: `${output}/fiscal-${width}-filtered-empty.png` });
     for (const scenario of ['available', 'partial', 'long-content', 'empty-queue', 'empty', 'unavailable']) {
@@ -161,6 +164,11 @@ try {
       const values = await page.locator('.fiscal-kpis strong').allTextContents();
       assert.equal(values[1], scenario === 'available' ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(current.data.contractBalances.reduce((sum, row) => sum + row.balanceValue, 0)) : scenario === 'empty' ? 'R$\u00a00,00' : 'Indisponível');
       assert.equal(values[2], ['available', 'long-content', 'empty-queue', 'empty'].includes(scenario) ? '0' : 'Indisponível');
+      if (scenario === 'partial') assert.ok((await expiry.locator('.fiscal-contract-expiry').first().innerText()).includes('Data de vigência indisponível'));
+      if (scenario === 'empty') {
+        assert.equal(await expiry.locator('.fiscal-contract-expiry').count(), 0);
+        assert.ok((await expiry.innerText()).includes('Nenhum contrato no recorte operacional'));
+      }
       if (scenario === 'unavailable') {
         assert.equal(await expiry.locator('.fiscal-contract-expiry').count(), 0);
         assert.equal(await filters.getByRole('combobox', { name: 'Contrato', exact: true }).isDisabled(), true);
@@ -186,7 +194,69 @@ try {
       await page.locator('.fiscal-executive-grid').screenshot({ path: `${output}/fiscal-${width}-${scenario}-executive.png` });
       await noOverflow(); await page.locator('.fiscal-operational-grid').screenshot({ path: `${output}/fiscal-${width}-${scenario}.png` });
     }
-    assert.deepEqual(errors, []); report.push({ width, scenarios: ['initial', 'filters', 'available', 'partial', 'long-content', 'empty-queue', 'empty', 'unavailable'], overflow: false, errors });
+    // Recovered from the retired Fiscal branch of dashboard-layout.visual.mjs.
+    // Only synthetic, authorized response records are changed; production layout stays intact.
+    for (const scenario of ['balance-extremes', 'balance-twenty', 'balance-unavailable']) {
+      current = structuredClone(fiscal);
+      const percentages = scenario === 'balance-twenty' ? Array.from({ length: 20 }, (_, index) => index) :
+        scenario === 'balance-unavailable' ? [null, null] : [0, -20, 150, null];
+      const sample = current.data.contracts[0];
+      current.data.contracts = percentages.map((value, index) => ({ ...sample, contractId: 9001 + index,
+        contractNumber: scenario === 'balance-twenty' ? `Contrato ${index + 1}` : `Saldo ${index + 1}` }));
+      current.data.contractBalances = percentages.map((value, index) => ({
+        contractId: current.data.contracts[index].contractId, contractNumber: current.data.contracts[index].contractNumber,
+        contractedValue: value === null ? 0 : 1000, consumedValue: value === null ? 0 : 1000 - value * 10,
+        balanceValue: value === null ? 0 : value * 10, balancePct: value,
+      }));
+      current.data.contractAlerts = []; current.data.priorityQueue = [];
+      current.data.cards.activeContracts = percentages.length; current.data.cards.pendingServiceOrders = 0;
+      await page.reload({ waitUntil: 'networkidle' });
+      const graph = page.locator('.fiscal-contract-chart');
+      const known = percentages.filter(value => value !== null);
+      assert.equal(await graph.locator('.fiscal-model-bar').count(), known.length);
+      if (known.length) {
+        const plot = graph.getByRole('img');
+        const description = await plot.getAttribute('aria-label');
+        for (const [index, value] of percentages.entries()) {
+          const number = current.data.contracts[index].contractNumber;
+          if (value === null) assert.ok(!description.includes(`${number}: 0%`));
+          else assert.ok(description.includes(`${number}: ${value}%`));
+        }
+        assert.deepEqual(await plot.locator('.fiscal-model-bar b').allTextContents(), known.map(value => `${value}%`));
+        assert.equal(await plot.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
+        const fills = await plot.locator('.fiscal-model-fill').evaluateAll(nodes => nodes.map(node => ({ left: parseFloat(node.style.left), width: parseFloat(node.style.width) })));
+        assert.ok(fills.every(fill => fill.left >= 0 && fill.width >= 0 && fill.left + fill.width <= 100.000001));
+        assert.equal(fills[0].width, 0); // Zero has no artificial filled area.
+        if (scenario === 'balance-extremes') {
+          assert.equal(await plot.getAttribute('data-domain'), '[-20,150]');
+          assert.ok((await graph.innerText()).includes('1 contrato(s) sem percentual disponível'));
+        } else {
+          assert.equal(await plot.locator('.fiscal-model-bar').count(), 20);
+          assert.equal(fills.filter(fill => fill.width > 0).length, 19);
+          assert.ok(await plot.evaluate(node => node.scrollHeight > node.clientHeight && node.clientHeight > 0 && node.clientHeight <= parseFloat(getComputedStyle(node).maxHeight)));
+          assert.ok(await plot.evaluate(node => { node.scrollTop = node.scrollHeight; return node.scrollTop > 0; }));
+          assert.ok(await plot.locator('.fiscal-model-bar').last().evaluate(node => {
+            const row = node.getBoundingClientRect(), frame = node.parentElement.getBoundingClientRect();
+            return row.top >= frame.top - 1 && row.bottom <= frame.bottom + 1;
+          }));
+        }
+      } else {
+        assert.equal(await graph.count(), 0);
+        assert.ok((await page.locator('.fiscal-operational-balances').innerText()).includes('Percentuais de saldo indisponíveis'));
+      }
+      assert.equal(await page.locator('.fiscal-saldos, .fiscal-band-distribution, .fiscal-contract-balances, .fiscal-operational-indicators').count(), 0);
+      assert.equal(await page.locator('.fiscal-page > :last-child h2').innerText(), 'Relevância Econômica das Partes do Contrato');
+      await noOverflow();
+      await page.locator('.fiscal-operational-balances').screenshot({ path: `${output}/fiscal-${width}-${scenario}.png` });
+    }
+    // Invalid ISO calendar dates never enter the dashboard: the existing HTTP validator rejects them.
+    invalidDateResponse = true;
+    await page.reload({ waitUntil: 'networkidle' });
+    assert.ok((await page.getByRole('alert').innerText()).includes('Erro ao carregar o resumo'));
+    assert.equal(await page.locator('.fiscal-operational-expiry').count(), 0);
+    await noOverflow();
+    await page.screenshot({ path: `${output}/fiscal-${width}-invalid-http-date.png` });
+    assert.deepEqual(errors, []); report.push({ width, scenarios: ['initial', 'filters', 'available', 'partial', 'long-content', 'empty-queue', 'empty', 'unavailable', 'balance-extremes', 'balance-twenty', 'balance-unavailable', 'invalid-http-date'], overflow: false, errors });
     await page.close();
   }
   await writeFile(`${output}/report.json`, JSON.stringify({ result: 'PASS', cases: report }, null, 2));

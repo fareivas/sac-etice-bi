@@ -30,7 +30,3 @@ export function FiscalContractExpiry({ expiryDate, reference, timezone }: {
     <small>{contractExpiryLabel(expiryDate, reference)}</small>
   </div>;
 }
-
-export function FiscalExpiryReferenceNote({ reference }: { reference: string }) {
-  return <p className="source-note">Contagem em dias de calendário em relação à referência {displayDate(reference)}. Refere-se à vigência contratual, não ao prazo de decisão fiscal.</p>;
-}

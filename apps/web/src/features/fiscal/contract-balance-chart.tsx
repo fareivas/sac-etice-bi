@@ -9,12 +9,13 @@ export function FiscalContractBalanceChart({ balances }: { balances: Balances })
   const data = balances.flatMap(row => row.balancePct === null ? [] : [{
     contractId: row.contractId, contract: row.contractNumber ?? `Contrato ID ${row.contractId}`, value: row.balancePct,
   }]);
-  if (!data.length) return <p role="status" className="source-note">Percentuais de saldo indisponíveis; valores contratuais preservados na tabela.</p>;
+
+  if (!data.length) return <p role="status" className="source-note">Percentuais de saldo indisponíveis.</p>;
   const min = Math.min(0, ...data.map(row => row.value));
   const max = Math.max(100, ...data.map(row => row.value));
   const missing = balances.length - data.length;
   return <figure className="fiscal-contract-chart">
-    <figcaption className="source-note">Percentual disponível da API, sem classificação de risco. Valores completos na tabela.</figcaption>
+    <figcaption className="source-note">Percentual disponível da API, sem classificação de risco.</figcaption>
     {missing > 0 && <p role="status" className="source-note">{missing} contrato(s) sem percentual disponível; não representados como zero.</p>}
     <div className="fiscal-contract-chart-scroll" role="img" data-domain={JSON.stringify([min, max])}
       aria-label={`Percentual de saldo por contrato: ${data.map(row => `${row.contract}: ${percent(row.value)}`).join('; ')}.`}>

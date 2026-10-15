@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { FiscalContractBalanceChart } from './contract-balance-chart';
@@ -42,4 +43,28 @@ it('retains every known row for compact local scrolling', () => {
   expect(html.match(/class="fiscal-model-bar"/g)).toHaveLength(20);
   expect(html).toContain('Contrato ID 20: 19%');
   expect(html).not.toContain('<svg');
+});
+
+it('exposes exact contract names and percentages accessibly without treating unavailable values as zero', () => {
+  const host = document.createElement('div');
+  host.innerHTML = renderToStaticMarkup(<FiscalContractBalanceChart balances={[
+    { ...balance(1, 0), contractNumber: 'CT-001' }, balance(2, -20), balance(3, 150), balance(4, null),
+  ]} />);
+  const chart = host.querySelector('[role="img"]')!;
+  expect(chart.getAttribute('aria-label')).toBe('Percentual de saldo por contrato: CT-001: 0%; Contrato ID 2: -20%; Contrato ID 3: 150%.');
+  expect([...chart.querySelectorAll('.fiscal-model-bar b')].map(node => node.textContent)).toEqual(['0%', '-20%', '150%']);
+  const fills = chart.querySelectorAll<HTMLElement>('.fiscal-model-fill');
+  expect(fills[0].style.width).toBe('0%');
+  expect(parseFloat(fills[1].style.width)).toBeCloseTo(20 / 170 * 100);
+  expect(parseFloat(fills[2].style.width)).toBeCloseTo(150 / 170 * 100);
+  expect(parseFloat(fills[1].style.left)).toBe(0);
+  expect(parseFloat(fills[2].style.left)).toBeCloseTo(20 / 170 * 100);
+  expect(host.textContent).toContain('1 contrato(s) sem percentual disponível');
+});
+it('keeps all-unavailable percentages distinct from a real zero and from an empty portfolio', () => {
+  const host = document.createElement('div');
+  host.innerHTML = renderToStaticMarkup(<FiscalContractBalanceChart balances={[balance(1, null), balance(2, null)]} />);
+  expect(host.querySelector('[role="status"]')?.textContent).toBe('Percentuais de saldo indisponíveis.');
+  expect(host.querySelector('[role="img"], .fiscal-model-fill')).toBeNull();
+  expect(host.textContent).not.toContain('0%');
 });

@@ -10,8 +10,7 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE, args: ['--no-sandbox'] });
 const expected = {
   fiscal: ['Minha fila de ação', 'Saúde da carteira', 'Saldos por contrato', 'Vigências e renovações', 'Pagamento e medição',
-    'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato / ABC',
-    'Saldo consolidado por contrato', 'Distribuição dos itens por faixa', 'Gestão dos Saldos dos Itens Contratuais'],
+    'Ciclo financeiro do contrato', 'Relevância Econômica das Partes do Contrato'],
   manager: ['Carga, criticidade e desempenho por fiscal', 'Qualidade preventiva da gestão',
     'Matriz Contrato × Dimensão de Risco', 'Fornecedores estratégicos: valor × risco',
     'Intervenções gerenciais priorizadas', 'Curva ABC dos principais fornecedores',
@@ -87,8 +86,8 @@ try {
       await page.locator('.aggregate-filters select').first().focus();
       assert.equal(await page.locator('.aggregate-filters select').first().evaluate(el => el === document.activeElement), true);
     } else {
-      assert.deepEqual(await page.locator('.fiscal-saldos thead th').allTextContents(),
-        ['Status', 'Contrato / fornecedor', 'Item contratual', 'Total', 'Executado', 'Saldo', '% saldo', 'Ação do fiscal']);
+      assert.equal(await page.locator('.fiscal-saldos, .fiscal-band-distribution, .fiscal-contract-balances, .fiscal-operational-indicators').count(), 0);
+      assert.equal(await page.locator('.fiscal-page > :last-child h2').innerText(), 'Relevância Econômica das Partes do Contrato');
       await page.locator('.fiscal-queue-tools > summary').click();
       await page.locator('.fiscal-action-queue select').first().focus();
       assert.equal(await page.locator('.fiscal-action-queue select').first().evaluate(el => el === document.activeElement), true);

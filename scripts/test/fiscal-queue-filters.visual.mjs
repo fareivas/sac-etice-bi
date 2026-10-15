@@ -33,7 +33,6 @@ try {
     const clear = panel.getByRole('button', { name: 'Limpar filtros da fila' });
     const count = panel.locator('.fiscal-queue-filter-meta [role="status"]');
     const waitCount = expected => page.waitForFunction(expected => document.querySelector('.fiscal-queue-filter-meta [role="status"]')?.textContent === expected, expected);
-    const pendingCard = page.locator('.fiscal-legacy-kpis article').filter({ has: page.getByText('OS pendentes', { exact: true }) }).locator('strong');
     await waitCount('4 de 4 OS');
     const controls = await panel.locator('.fiscal-queue-filters > div').evaluateAll(elements => elements.map(el => {
       const box = el.getBoundingClientRect(); return { top: box.top, left: box.left, right: box.right, bottom: box.bottom };
@@ -53,7 +52,6 @@ try {
       await details.locator('summary').click();
       for (const note of await details.locator('p.source-note').all()) assert.ok(await note.isVisible());
     }
-    await page.locator('.fiscal-operational-indicators > summary').click();
     for (const note of await panel.locator('p.source-note').all()) assert.ok(await note.isVisible());
     const exportNote = await exportCsv.getAttribute('aria-describedby');
     assert.ok((await page.locator(`[id="${exportNote}"]`).innerText()).includes('Cada linha representa uma pendência'));
@@ -61,7 +59,6 @@ try {
     const initialRequests = apiRequests;
     const otherPanels = await page.locator('.fiscal-panel:not(.fiscal-action-queue)').allTextContents();
     const initialCards = await page.locator('.fiscal-kpis').textContent();
-    assert.equal(await pendingCard.innerText(), '4');
     // Select filters and clear them entirely with native keyboard behavior.
     await contract.focus(); await page.keyboard.press('ArrowDown');
     await waitCount('2 de 4 OS');
@@ -103,7 +100,6 @@ try {
     assert.ok((await panel.innerText()).includes('1 pendência oculta pelos filtros'));
     await panel.locator('tbody tr td').nth(2).scrollIntoViewIfNeeded();
     await panel.screenshot({ path: `${output}/${screen}-description-status.png` });
-    assert.equal(await pendingCard.innerText(), '4');
     await exportCsv.focus();
     assert.equal(await exportCsv.evaluate(el => el === document.activeElement), true);
     assert.notEqual(await exportCsv.evaluate(el => getComputedStyle(el).outlineStyle), 'none');
@@ -120,7 +116,6 @@ try {
     assert.ok(!csv.includes('Documento ausente'));
     assert.equal(await count.textContent(), '1 de 4 OS');
     assert.equal(await search.inputValue(), 'DÓCUMENTO');
-    assert.equal(await pendingCard.innerText(), '4');
     assert.equal(apiRequests, initialRequests);
     const refresh = async () => {
       await page.getByLabel('Consultar fonte externa').click();
@@ -152,7 +147,6 @@ try {
     await panel.screenshot({ path: `${output}/${screen}-no-results.png` });
     await clear.click(); await waitCount('2 de 2 OS');
     assert.ok(!(await panel.innerText()).includes('OS ID 12'));
-    assert.equal(await pendingCard.innerText(), '2');
     // Empty and unavailable are independent states, including the global pending OS card.
     current.data.priorityQueue = []; current.data.cards.pendingServiceOrders = 0;
     await refresh(); await waitCount('0 de 0 OS');
@@ -166,7 +160,6 @@ try {
     assert.equal(await panel.locator('.fiscal-queue-filters').count(), 0);
     assert.equal(await count.count(), 0);
     assert.equal(await exportCsv.isDisabled(), true);
-    assert.equal(await pendingCard.innerText(), '2');
     await panel.screenshot({ path: `${output}/${screen}-unavailable.png` });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(errors, []);

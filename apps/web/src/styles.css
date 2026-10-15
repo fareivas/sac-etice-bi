@@ -95,15 +95,7 @@ button, input, select { font: inherit; }
 .manager-fiscal-chart-wrap svg { color: var(--text-primary); font-size: 12px; }
 .manager-fiscal-chart-wrap .manager-fiscal-name { font-weight: 600; }
 
-/* Item expansion belongs only to the Fiscal dashboard. */
-.fiscal-dashboard .fiscal-item-details { margin-top: 10px; }
-.fiscal-dashboard .fiscal-item-details > button { border: 1px solid var(--border-default); border-radius: 8px; background: var(--color-accent-soft); color: var(--color-accent); padding: 8px 12px; cursor: pointer; }
-.fiscal-dashboard .fiscal-item-details > button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.fiscal-dashboard .fiscal-item-details > [role="region"] { min-width: 260px; padding: 12px; margin-top: 10px; background: var(--surface-subtle); border: 1px solid var(--border-soft); border-radius: 8px; overflow-wrap: anywhere; }
-.fiscal-dashboard .fiscal-item-details h3 { font-size: .8rem; margin: 12px 0 8px; }
-.fiscal-dashboard .fiscal-item-details dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; }
-.fiscal-dashboard .fiscal-item-details dt { color: var(--text-secondary); }
-.fiscal-dashboard .fiscal-item-details dd { margin: 0; font-weight: 600; }
+
 
 .fiscal-dashboard .fiscal-contract-expiry > small { display: block; margin-top: 4px; font-size: inherit; color: var(--text-secondary); line-height: 1.4; }
 
@@ -129,35 +121,9 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-refresh button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .fiscal-dashboard .fiscal-refresh span { min-width: 0; overflow-wrap: anywhere; }
 
-.fiscal-dashboard .fiscal-items-export button { padding: 8px 12px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--color-accent-soft); color: var(--color-accent); cursor: pointer; }
-.fiscal-dashboard .fiscal-items-export button:disabled { opacity: .5; cursor: default; }
-.fiscal-dashboard .fiscal-items-export button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-.fiscal-dashboard .fiscal-item-sort { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
-.fiscal-dashboard .fiscal-item-sort > div { display: grid; gap: 6px; min-width: 0; flex: 1 1 220px; }
-.fiscal-dashboard .fiscal-item-sort label { color: var(--text-secondary); font-size: .8rem; font-weight: 600; }
-.fiscal-dashboard .fiscal-item-sort select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-card); color: var(--text-primary); }
-.fiscal-dashboard .fiscal-item-sort select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.fiscal-dashboard .fiscal-item-sort select:disabled { opacity: .5; }
-.fiscal-dashboard .fiscal-item-sort-note { font-size: .8rem; color: var(--text-secondary); }
 
-.fiscal-dashboard .fiscal-item-pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
-.fiscal-dashboard .fiscal-item-pagination > div:first-child { display: grid; gap: 6px; }
-.fiscal-dashboard .fiscal-item-pagination label { color: var(--text-secondary); font-size: .8rem; font-weight: 600; }
-.fiscal-dashboard .fiscal-item-pagination select, .fiscal-dashboard .fiscal-item-pagination button { padding: 10px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-card); color: var(--text-primary); }
-.fiscal-dashboard .fiscal-item-pagination span { flex: 1 1 220px; font-size: .8rem; }
-.fiscal-dashboard .fiscal-item-page-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
-.fiscal-dashboard .fiscal-item-pagination button { background: var(--color-accent-soft); color: var(--color-accent); cursor: pointer; }
-.fiscal-dashboard .fiscal-item-pagination button:disabled { opacity: .5; cursor: default; }
-.fiscal-dashboard .fiscal-item-pagination button:focus-visible, .fiscal-dashboard .fiscal-item-pagination select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-.fiscal-dashboard .fiscal-band-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.fiscal-dashboard .fiscal-band-buttons button { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 12px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-card); color: var(--text-primary); cursor: pointer; text-align: left; }
-.fiscal-dashboard .fiscal-band-buttons button[aria-pressed="true"] { border: 2px solid var(--color-accent); font-weight: 700; background: var(--color-accent-soft); }
-.fiscal-dashboard .fiscal-band-buttons button strong { font-size: .8rem; }
-.fiscal-dashboard .fiscal-band-buttons button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.fiscal-dashboard .fiscal-band-buttons button:disabled { opacity: .5; cursor: default; }
-@media (max-width: 600px) { .fiscal-dashboard .fiscal-band-buttons { grid-template-columns: 1fr; } }
 .manager-dashboard { --color-accent: #0f766e; --color-accent-soft: #e9f5f3; --text-primary: #162033; --text-secondary: #475569; --text-muted: #526479; --border-default: #dbe3ef; --border-soft: #e7edf4; --surface-page: #f4f7fb; --surface-subtle: #f8fafc; --surface-table-head: #f8fafc; --shadow-card: 0 8px 24px #0f172a14; background: var(--surface-page); }
 .manager-header { padding: 12px 20px; }
 .manager-header h1 { margin: 0; }
@@ -268,9 +234,6 @@ button, input, select { font: inherit; }
 .fiscal-action-queue .source-note { font-size: .75rem; line-height: 1.45; margin: 6px 0; }
 
 .fiscal-action-queue .fiscal-queue-filters :is(input,select) { padding: 7px 9px; }
-.fiscal-dashboard .fiscal-band-buttons [data-band="adequado"] { border-left: 4px solid #15803d; }
-.fiscal-dashboard .fiscal-band-buttons [data-band="atencao"] { border-left: 4px solid #b45309; }
-.fiscal-dashboard .fiscal-band-buttons [data-band="critico"] { border-left: 4px solid #b91c1c; }
 
 /* VIS-002: composição React/Recharts, com legendas fora da rosca para telas estreitas. */
 .item-band-chart { margin: 0; min-width: 0; }
@@ -319,8 +282,6 @@ button, input, select { font: inherit; }
 .fiscal-table-wrap th { background: var(--surface-table-head); color: var(--text-secondary); white-space: nowrap; }
 .fiscal-saldos > .fiscal-table-wrap { max-height: 620px; overflow: auto; }
 .fiscal-saldos > .fiscal-table-wrap th { position: sticky; top: 0; z-index: 1; }
-.fiscal-balances-grid > .fiscal-panel .fiscal-table-wrap { max-height: 420px; overflow: auto; }
-.fiscal-balances-grid th { position: sticky; top: 0; }
 .relevance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .manager-insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
 .manager-overview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
@@ -527,10 +488,6 @@ button, input, select { font: inherit; }
 .manager-fiscal-name span { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* VIS-005: compact only the approved balance and distribution panels. */
-.fiscal-contract-balances .panel-heading, .fiscal-band-distribution .panel-heading { margin-bottom: 8px; }
-.fiscal-contract-balances .source-note, .fiscal-band-distribution .source-note { margin: 0 0 6px; line-height: 1.35; }
-.fiscal-contract-balances .fiscal-contract-chart { margin-bottom: 8px; }
-.fiscal-band-distribution .item-band-chart-legend { margin: 4px 0 8px; }
 .manager-risk-panel .panel-heading { margin-bottom: 8px; }
 
 /* GC-037: factual expiry horizon in the existing aggregate grid. */
@@ -588,7 +545,6 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-operational-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; align-items: stretch; }
 .fiscal-dashboard .fiscal-operational-grid .fiscal-panel { margin: 0; }
 .fiscal-dashboard .fiscal-operational-grid h3 { font-size: 14px; margin: 12px 0 10px; }
-.fiscal-dashboard .fiscal-operational-grid a { font-size: 11px; color: #164e63; }
 .fiscal-dashboard .fiscal-contract-chart { margin: 0 0 8px; }
 .fiscal-dashboard .fiscal-contract-chart-scroll { max-height: 230px; overflow: auto; }
 .fiscal-dashboard .fiscal-model-bar { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 12px; }
@@ -622,11 +578,6 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-model-metrics b { display: block; font-size: 16px; margin-top: 4px; overflow-wrap: anywhere; }
 .fiscal-dashboard .relevance { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
 .fiscal-dashboard .relevance > div { display: block; padding: 12px 14px; }
-.fiscal-dashboard .fiscal-operational-indicators { margin-bottom: 14px; padding: 12px 16px; background: #fff; border: 1px solid #dbe3ef; border-radius: 14px; font-size: 12px; }
-.fiscal-dashboard .fiscal-operational-indicators summary { cursor: pointer; color: #475569; }
-.fiscal-dashboard .fiscal-legacy-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
-.fiscal-dashboard .fiscal-legacy-kpis article { display: grid; gap: 5px; padding: 10px; border-radius: 8px; background: #f8fafc; }
-.fiscal-dashboard .fiscal-legacy-kpis small { color: #64748b; }
 .fiscal-dashboard button { background: #0f766e; color: #fff; border: 0; border-radius: 8px; padding: 7px 10px; font-size: 11px; }
 .fiscal-dashboard .fiscal-status-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; padding: 8px 10px; margin-bottom: 12px; border: 1px solid #dbe3ef; border-radius: 9px; background: #f8fafc; font-size: 11px; color: #64748b; }
 .fiscal-dashboard .fiscal-status-strip .fiscal-refresh { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 0; }
@@ -635,13 +586,11 @@ button, input, select { font: inherit; }
 .fiscal-dashboard .fiscal-status-strip .coverage-note { margin: 0; padding: 4px 7px; font-size: 11px; }
 .fiscal-dashboard .panel-unavailable { min-height: 0; padding: 12px; text-align: left; place-items: start; }
 .fiscal-dashboard .fiscal-table-wrap .table-empty { padding: 14px 10px !important; }
-.fiscal-dashboard .fiscal-balances-grid { align-items: start; }
 .fiscal-dashboard :is(input, select, button, a, summary, [tabindex]):focus-visible { outline: 2px solid #164e63; outline-offset: 3px; }
 @media (max-width: 1100px) {
   .fiscal-dashboard .fiscal-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fiscal-dashboard .fiscal-executive-grid, .fiscal-dashboard .fiscal-operational-grid { grid-template-columns: 1fr; }
   .fiscal-dashboard .fiscal-overview-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fiscal-dashboard .fiscal-legacy-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) { .fiscal-dashboard .relevance { grid-template-columns: 1fr; } }
 @media (max-width: 800px) { .fiscal-dashboard .fiscal-model-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -653,7 +602,6 @@ button, input, select { font: inherit; }
   .fiscal-dashboard .fiscal-kpi strong { font-size: 20px; }
   .fiscal-dashboard .fiscal-kpi strong.unavailable-value { font-size: 17px; }
   .fiscal-dashboard .fiscal-health-row { grid-template-columns: 80px minmax(20px, 1fr) 90px; }
-  .fiscal-dashboard .fiscal-legacy-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Final Fiscal polish: compact executive reading with equal-height grid cards. */

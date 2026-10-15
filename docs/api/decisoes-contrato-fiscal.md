@@ -4,6 +4,17 @@
 
 **Objetivo:** registrar as decisões de contrato aprovadas para que o planejamento e a implementação não dependam do histórico da conversa. Lacunas de origem física permanecem explícitas; nenhuma delas autoriza uma regra por heurística. As DEC-024 a DEC-031 complementam as decisões anteriores; DEC-032 e DEC-033 estendem o schema HTTP consolidado na DEC-023.
 
+> **Estado atual da interface fiscal:** a página termina em “Relevância Econômica
+> das Partes do Contrato”, conforme o protótipo Autocontido v4 ABC. Gestão
+> detalhada de itens, distribuição por faixas, filtros de itens, ordenação,
+> paginação e CSV de itens foram descontinuados exclusivamente nessa interface.
+> Os registros abaixo sobre essas telas são históricos; não descrevem recursos
+> atuais. Dados, schemas HTTP e regras do backend continuam vigentes e intactos.
+> Também foram retirados o painel inferior “Saldo consolidado por contrato” e
+> os “Indicadores operacionais complementares” após o ABC. O painel executivo
+> “Saldos por contrato”, vigências, fila e CSV da fila permanecem.
+> Estado visual e testes atuais: [FISCAL-reformulacao.md](../visual/FISCAL-reformulacao.md).
+
 **Documentos-base:**
 
 - `docs/reference/specs/Especificacao_Endpoints_Dashboards_SAC_ETICE.docx`
@@ -481,6 +492,10 @@ atraso, SLA ou obrigação de ação.
 
 ## Extensão local — saldos por item da carteira atual
 
+> **Contrato de dados vigente; apresentação fiscal descontinuada.**
+> `data.itemBalances` permanece na resposta HTTP. A gestão detalhada desses itens
+> deixou de ser apresentada pelo Fiscal; não houve remoção de campos ou consultas.
+
 O resumo Fiscal inclui `data.itemBalances`. `coverage: "UNAVAILABLE"` indica data histórica ou fonte não disponibilizada. `coverage: "AVAILABLE"` inclui `criterio`, `resumo`, `agregados` e `itens`; carteira sem itens tem `itens: []` e contagens zero. A consulta usa `bi.saldos_por_item` e somente IDs da carteira autorizada atual. `cards.criticalItems` mantém a regra distinta da DEC-007/029.
 
 `criterio` informa `base` (`comprometido|medido`), `dimensao` (`valor|quantidade`) e limiares em escala 0–1. Padrões: `comprometido`, `valor`, `0.60` e `0.10`, configuráveis por `SALDO_FAIXA_BASE`, `SALDO_FAIXA_DIMENSAO`, `SALDO_LIMIAR_ATENCAO` e `SALDO_LIMIAR_CRITICO`. A faixa usa razão decimal não arredondada; `pctSaldo` e `pctSaldoMedido` são razões arredondadas a quatro casas. `resumo` conta todos os itens retornados.
@@ -589,6 +604,12 @@ chamadas a APIs oficiais de decisão.
 
 ## Apresentação dos saldos dos itens — ausência, filtros e zero real
 
+> **Histórico — interface descontinuada.** Esta seção documenta a apresentação
+> anterior. A funcionalidade foi retirada do Fiscal para adequação ao protótipo
+> homologado; seus controles e roteiros exclusivos não são executáveis atuais.
+> O contrato de resposta e as regras de dados descritas neste documento permanecem
+> intactos; funcionalidades compartilhadas com o Gerente não foram removidas.
+
 A apresentação Fiscal distingue quatro estados sem alterar o contrato HTTP,
 os cálculos da API ou o hook compartilhado `useItemBalanceFilters`:
 
@@ -617,6 +638,12 @@ A mudança é exclusiva da apresentação Fiscal; não altera o dashboard do ger
 o hook compartilhado, consultas, serviços, dados do banco ou regras de faixas.
 
 ## Detalhes expansíveis dos itens no Fiscal
+
+> **Histórico — interface descontinuada.** Esta seção documenta a apresentação
+> anterior. A funcionalidade foi retirada do Fiscal para adequação ao protótipo
+> homologado; seus controles e roteiros exclusivos não são executáveis atuais.
+> O contrato de resposta e as regras de dados descritas neste documento permanecem
+> intactos; funcionalidades compartilhadas com o Gerente não foram removidas.
 
 Cada item do recorte local pode expandir seus dados já retornados pela API:
 `valueContracted`, `valueConsumed`, `valueMeasured`, `valueBalance` e
@@ -656,6 +683,13 @@ compartilhado, contrato HTTP, backend ou banco. Não acrescenta recomendações.
 
 ## Apresentação relativa da vigência contratual no Fiscal
 
+> **Regra de datas preservada; composição visual histórica.** As antigas tabelas
+> descritas abaixo não integram a tela atual. A vigência factual permanece nos
+> cards executivos de “Vigências e renovações”, e alertas mantêm seus campos
+> estruturados e descrição original. O roteiro `fiscal-contract-expiry.visual.mjs`
+> foi excluído; a cobertura vigente está em `contract-expiry.test.tsx`,
+> `summary.test.tsx` e `fiscal-visual-reform.visual.mjs`.
+
 As células de vencimento em **Alertas contratuais** e **Contratos fiscalizados**
 preservam `expiryDate` em formato `DD/MM/YYYY` e acrescentam a situação em
 relação a `summary.meta.dataReference`:
@@ -691,7 +725,7 @@ saldo ou dashboard do gerente. Estilos adicionais são restritos ao Fiscal.
 
 Validação: testes de ontem/hoje/amanhã, virada de mês e ano, bissextos (inclusive
 séculos), valores ausentes/inválidos e referência diferente do relógio atual.
-O roteiro `scripts/test/fiscal-contract-expiry.visual.mjs` usa o Vite existente,
+O roteiro `scripts/test/fiscal-contract-expiry.visual.mjs` **(histórico, excluído; não executar)** usa o Vite existente,
 com respostas interceptadas apenas no navegador, em desktop e 390 px, com
 fusos opostos e relógio fixado em 2040. Não acessa nem modifica o banco.
 
@@ -770,6 +804,11 @@ normal da aplicação; nenhuma alteração no banco ou API oficial.
 
 ## Atualização manual do dashboard fiscal
 
+> **Funcionalidade vigente.** Menções abaixo à preservação de seleções de itens
+> registram o comportamento histórico anterior à retirada dessas telas. A
+> atualização, os filtros executivos e os filtros da fila permanecem; filtros,
+> ordenação, paginação e CSV de itens não voltaram à interface fiscal.
+
 **Atualizar dados** reutiliza `loadFiscalSummary` e o mesmo GET existente, com
 `includeExternal` vigente. Não seleciona usuário, não adiciona parâmetros,
 consulta de banco, regra de negócio ou integração com o SAC oficial. Autorização
@@ -810,6 +849,12 @@ chamadas ao banco ou API oficial.
 
 ## Exportação CSV dos saldos dos itens do Fiscal
 
+> **Histórico — interface descontinuada.** Esta seção documenta a apresentação
+> anterior. A funcionalidade foi retirada do Fiscal para adequação ao protótipo
+> homologado; seus controles e roteiros exclusivos não são executáveis atuais.
+> O contrato de resposta e as regras de dados descritas neste documento permanecem
+> intactos; funcionalidades compartilhadas com o Gerente não foram removidas.
+
 **Exportar itens CSV** usa somente o recorte local de `data.itemBalances.itens`,
 na ordem exibida (ordem da resposta por padrão) e uma linha por item, sem consultas
 adicionais ou cálculo de saldo/classificação. Não representa o saldo consolidado
@@ -841,11 +886,17 @@ recebem apóstrofo de proteção. Campos ausentes não ganham textos de fallback
 
 Testes cobrem recorte combinado, campos ausentes/zero/negativos, caracteres
 especiais, critérios medido/quantidade alternativos e manutenção da exportação
-da fila. O roteiro `scripts/test/fiscal-items-csv.visual.mjs` valida downloads,
+da fila. O roteiro `scripts/test/fiscal-items-csv.visual.mjs` **(histórico, excluído; não executar)** valida downloads,
 teclado, desktop e 390 px com fixtures isoladas e sem acesso ao banco.
 
 
 ## Ordenação local dos itens do Fiscal
+
+> **Histórico — interface descontinuada.** Esta seção documenta a apresentação
+> anterior. A funcionalidade foi retirada do Fiscal para adequação ao protótipo
+> homologado; seus controles e roteiros exclusivos não são executáveis atuais.
+> O contrato de resposta e as regras de dados descritas neste documento permanecem
+> intactos; funcionalidades compartilhadas com o Gerente não foram removidas.
 
 Os controles **Ordenar itens por** e **Direção da ordenação** afetam somente a
 tabela de itens e a ordem do CSV de itens. O padrão **Ordem da resposta** preserva
@@ -884,10 +935,16 @@ não definem novo contexto. Limpar filtros não limpa a ordenação.
 Testes cobrem números negativos/zero/ausentes, valores próximos que seriam
 iguais no texto arredondado, empates, todas as combinações de base/dimensão,
 filtros combinados, detalhes, preservação/reset e ordem do CSV. O roteiro
-`scripts/test/fiscal-item-sort.visual.mjs` valida teclado e desktop/390 px com
+`scripts/test/fiscal-item-sort.visual.mjs` **(histórico, excluído; não executar)** valida teclado e desktop/390 px com
 fixtures isoladas, sem consultas ao banco ou SAC oficial.
 
 ## Paginação local da tabela de itens do Fiscal
+
+> **Histórico — interface descontinuada.** Esta seção documenta a apresentação
+> anterior. A funcionalidade foi retirada do Fiscal para adequação ao protótipo
+> homologado; seus controles e roteiros exclusivos não são executáveis atuais.
+> O contrato de resposta e as regras de dados descritas neste documento permanecem
+> intactos; funcionalidades compartilhadas com o Gerente não foram removidas.
 
 A sequência de apresentação é **filtros locais → ordenação local → página**.
 **Itens por página** oferece 10, 25 ou 50, com padrão 25. Os controles nativos
@@ -921,12 +978,18 @@ ou contagens fabricadas. O dashboard do Gerente não usa essa paginação.
 
 Testes cobrem limites de 10/25/50, resultados reduzidos, filtros/ordenação,
 atualização manual, mudança de contexto, detalhes e CSV completo/ordenado. O
-roteiro `scripts/test/fiscal-item-pagination.visual.mjs` usa 51 itens de fixture
+roteiro `scripts/test/fiscal-item-pagination.visual.mjs` **(histórico, excluído; não executar)** usa 51 itens de fixture
 isolada em desktop e 390 px, com Tab/setas/Enter e respostas interceptadas, sem
 consultas ao banco ou SAC oficial.
 
 
 ## Faixas clicáveis e contagens anteriores ao filtro de faixa
+
+> **Histórico — interface descontinuada.** Esta seção documenta a apresentação
+> anterior. A funcionalidade foi retirada do Fiscal para adequação ao protótipo
+> homologado; seus controles e roteiros exclusivos não são executáveis atuais.
+> O contrato de resposta e as regras de dados descritas neste documento permanecem
+> intactos; funcionalidades compartilhadas com o Gerente não foram removidas.
 
 Na seção **Distribuição dos itens por faixa**, os quatro botões reutilizam o
 mesmo `band`/`setFilter` usado pelo seletor local de faixa da tabela. Selecionar
@@ -958,6 +1021,36 @@ de usuário/escopo mantém os resets já documentados.
 
 Testes cobrem seleção, remoção, troca, sincronização, filtros combinados,
 contagens antes da faixa, paginação, totais/CSV e estados sem dados. O roteiro
-`scripts/test/fiscal-band-distribution.visual.mjs` usa fixture isolada com 96
+`scripts/test/fiscal-band-distribution.visual.mjs` **(histórico, excluído; não executar)** usa fixture isolada com 96
 itens de dois contratos da carteira autorizada, Tab/Espaço/Enter e desktop/390 px, sem
 acessar o banco ou SAC oficial.
+
+
+## Roteiros vigentes após a exclusão visual definitiva
+
+Os roteiros de itens, faixas, CSV de itens, ordenação e paginação mencionados nas
+seções históricas foram excluídos junto com as respectivas telas. Não devem ser
+usados como comandos atuais. O antigo roteiro de vigência também dependia de
+uma composição visual retirada; a função de datas e seus testes continuam.
+
+Roteiros atuais: `scripts/test/fiscal-visual-reform.visual.mjs` (estrutura,
+vigências, extremos de saldo, 20 contratos e cobertura),
+`scripts/test/fiscal-queue-filters.visual.mjs` (fila/CSV) e
+`scripts/test/fiscal-refresh.visual.mjs` (atualização), além de
+`scripts/test/gc035-prototype.visual.mjs` para as três rotas. A documentação
+visual e o README de testes indicam os comandos e fixtures atuais.
+
+O gráfico executivo de saldos conserva percentuais aprovados, incluindo zero,
+negativos, valores acima de 100% e ausência de percentual sem convertê-la em
+zero. Os cenários fiscais do antigo `dashboard-layout.visual.mjs` foram
+recuperados no roteiro atual, sem reintroduzir os painéis inferiores.
+
+
+| Roteiro excluído | Situação |
+| --- | --- |
+| `fiscal-item-details.visual.mjs` | Histórico: detalhes de itens retirados da interface fiscal. |
+| `fiscal-band-distribution.visual.mjs` | Histórico: distribuição/faixas retiradas. |
+| `fiscal-items-csv.visual.mjs` | Histórico: CSV de itens retirado; CSV da fila preservado. |
+| `fiscal-item-sort.visual.mjs` | Histórico: ordenação de itens retirada. |
+| `fiscal-item-pagination.visual.mjs` | Histórico: paginação de itens retirada. |
+| `fiscal-contract-expiry.visual.mjs` | Histórico: antigas tabelas retiradas; datas cobertas pelo roteiro executivo vigente. |

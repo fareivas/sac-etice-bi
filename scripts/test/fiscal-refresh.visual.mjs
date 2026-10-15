@@ -31,10 +31,9 @@ try {
     const refresh = page.getByRole('button', { name: 'Atualizar dados', exact: true });
     const queue = page.locator('.fiscal-action-queue');
     const contract = queue.getByLabel('Contrato da fila', { exact: true });
-    const itemContract = page.locator('.saldo-filters label').filter({ hasText: /^Contrato/ }).locator('select');
     const timestamp = page.locator('.fiscal-refresh span');
     const waitCount = value => page.waitForFunction(value => document.querySelector('.fiscal-queue-filter-meta [role="status"]')?.textContent === value, value);
-    await contract.selectOption('205'); await itemContract.selectOption('2'); await waitCount('1 de 4 OS');
+    await contract.selectOption('205'); await waitCount('1 de 4 OS');
     const initialTimestamp = await timestamp.innerText();
     hold = true; const previousRequests = requests;
     // Reach refresh from the preceding external checkbox using Tab, activate with Enter.
@@ -46,13 +45,13 @@ try {
     await refresh.evaluate(el => { el.click(); el.click(); });
     assert.equal(requests, previousRequests + 1);
     assert.ok((await page.locator('body').innerText()).includes('Atualizando dados'));
-    assert.equal(await contract.inputValue(), '205'); assert.equal(await itemContract.inputValue(), '2');
+    assert.equal(await contract.inputValue(), '205');
     assert.equal(await timestamp.innerText(), initialTimestamp);
     await page.screenshot({ path: `${output}/${screen}-loading.png`, fullPage: false });
     const newer = structuredClone(fixture); newer.meta.generatedAt = '2026-10-09T01:35:42Z';
     await respond(pending.shift(), newer); await page.waitForFunction(() => !document.querySelector('.fiscal-refresh button').disabled);
     assert.ok((await timestamp.innerText()).includes('08/10/2026, 22:35:42'));
-    assert.equal(await contract.inputValue(), '205'); assert.equal(await itemContract.inputValue(), '2');
+    assert.equal(await contract.inputValue(), '205');
     // Fail a refresh and verify prior response remains available.
     await refresh.click(); await waitPending(1); await respond(pending.shift(), newer, 500);
     await page.getByRole('alert').waitFor();

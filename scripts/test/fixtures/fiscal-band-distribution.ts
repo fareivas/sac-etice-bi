@@ -2,7 +2,6 @@
 import { fiscalDashboardSummaryResponseSchema } from '../../../packages/contracts/src';
 import { composeItemBalances, type RawBalanceItem } from '../../../services/api/src/shared/item-balances';
 import { fixture as queueFixture } from './fiscal-queue-filters';
-import { fiscalItemsCsv } from '../../../apps/web/src/features/fiscal/item-balances-csv';
 const rows: RawBalanceItem[] = Array.from({ length: 96 }, (_, index) => {
   const group = index < 48 ? 'A' : 'B';
   const balance = [800, 400, 0, null][index % 4];
@@ -20,8 +19,3 @@ const summary = structuredClone(queueFixture);
 summary.data.itemBalances = composeItemBalances(rows, { base: 'comprometido', dimensao: 'valor', limiar_atencao: .6, limiar_critico: .1 });
 export const fixture = fiscalDashboardSummaryResponseSchema.parse(summary);
 export { responseForRequest } from './fiscal-queue-filters';
-export function expectedCsv(summary: typeof fixture, ids: number[]) {
-  const balances = summary.data.itemBalances;
-  if (balances?.coverage !== 'AVAILABLE') throw new Error('Missing test source');
-  return fiscalItemsCsv(ids.map(id => balances.itens.find(item => item.itemId === id)!), summary.meta.dataReference, balances.criterio);
-}

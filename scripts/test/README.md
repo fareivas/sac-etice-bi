@@ -1,71 +1,23 @@
-# Validação visual dos detalhes de itens do Fiscal
+# Validação visual dos dashboards
 
-Usa o preview Vite existente e Chromium/Playwright. Não cria rota de fixture,
-modo demonstrativo ou dependência no fluxo normal da aplicação. Todas as
-chamadas `/api/**` são interceptadas no navegador de teste; nenhuma chega ao
-backend ou ao banco. Não execute os scripts de fixture de banco para este teste.
+O Fiscal termina após Relevância Econômica das Partes do Contrato. Os roteiros
+vigentes são `fiscal-visual-reform.visual.mjs`, `fiscal-queue-filters.visual.mjs`,
+`fiscal-refresh.visual.mjs` e `gc035-prototype.visual.mjs` (três rotas).
+Consultas de itens, CSV de itens, ordenação, paginação e distribuição de faixas
+foram excluídos definitivamente do Fiscal, junto dos roteiros exclusivos.
+Fixtures de itens ainda referenciadas por regressões gerenciais são preservadas.
+Os roteiros VIS abaixo são históricos e gerenciais; para o Fiscal use os atuais.
 
-`fixtures/fiscal-item-details.ts` gera respostas pelo `composeItemBalances` real
-e valida o schema HTTP. Inclui adequado, atenção, crítico com saldo zero e não
-verificável com campos ausentes. A variante medida/quantidade usa limiares
-75%/20% e inclui medição ausente com contratado válido, conforme a convenção do
-serviço. A variante comprometida/valor usa os limiares padrão 60%/10%.
-
-Para executar sem modificar as dependências do projeto, com Node 22:
-
-```bash
-npm install --prefix /tmp/sac-fiscal-visual --no-audit --no-fund playwright
-PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
-  node /tmp/sac-fiscal-visual/node_modules/playwright/cli.js install chromium
-npm run dev --workspace @sac-etice-bi/web -- --host 127.0.0.1 --port 5181 --strictPort
-```
-
-Em outro terminal, a partir da raiz do projeto:
-
-```bash
-node_modules/.bin/esbuild scripts/test/fixtures/fiscal-item-details.ts \
-  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/fixtures.cjs
-PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
-PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
-  node scripts/test/fiscal-item-details.visual.mjs \
-  /tmp/sac-fiscal-visual/fixtures.cjs /tmp/sac-fiscal-visual/captures
-```
-
-O teste navega em desktop (1440×1000) e tela estreita (390×844), expande/recolhe
-por Enter/Espaço, verifica Tab, foco visível e retido, associação ARIA, valores,
-explicações e limiares da API, preservação de totais/filtros, ausência de erros
-JavaScript e transbordamento da página. A tabela mantém sua rolagem horizontal
-local. Gera capturas de cada faixa aberta, foco por teclado e viewport, além de
-`report.json`. Revise também as capturas para legibilidade visual.
-
-Para outra porta, configure `FISCAL_PREVIEW_URL`. Os PNGs e respostas compiladas
-ficam apenas no diretório de saída temporário; não contêm dados reais nem
-credenciais. Encerre o Vite de teste ao concluir a revisão.
+Runtime: Node 22, Playwright e Chromium temporários, Vite local e respostas
+HTTP interceptadas. Não inicia backend nem consulta banco/SAC oficial. Comandos
+atuais e evidências: `docs/visual/FISCAL-reformulacao.md`.
 
 ## Vigência contratual relativa à referência
 
-Com o mesmo Vite, Playwright e Chromium acima, execute:
-
-```bash
-node_modules/.bin/esbuild scripts/test/fixtures/fiscal-contract-expiry.ts \
-  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/expiry-fixtures.cjs
-PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
-PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
-  node scripts/test/fiscal-contract-expiry.visual.mjs \
-  /tmp/sac-fiscal-visual/expiry-fixtures.cjs /tmp/sac-fiscal-visual/expiry-captures
-```
-
-As fixtures validam ontem/hoje/amanhã, virada de ano, ano bissexto e data ausente
-nos dois painéis, além de listas históricas indisponíveis. São respostas
-sintéticas válidas no contrato HTTP, nunca enviadas ao backend. Datas inválidas
-são testadas diretamente no componente/helper porque o schema HTTP já as rejeita.
-
-O navegador roda em desktop e 390 px, com fusos America/Los_Angeles e
-Pacific/Kiritimati, e relógio fixado em 2040. Compara datas e textos esperados
-em relação à referência da fixture (2026 ou 2024), conferindo a independência
-do relógio/fuso e a nota de que vigência não é prazo de decisão. Preserva a
-rolagem horizontal local das tabelas em telas estreitas e gera capturas dos
-dois painéis e `report.json` no diretório temporário de saída.
+A transformação de datas continua coberta por `contract-expiry.test.tsx` e pelo
+roteiro atual `fiscal-visual-reform.visual.mjs`, nas vigências e alertas executivos.
+O roteiro histórico de tabelas de vigência foi retirado por depender de painéis
+que já não existem. Os campos de data e contratos HTTP permanecem intactos.
 
 ## Filtros locais da fila fiscal
 
@@ -123,90 +75,6 @@ de opção desaparecida sem ampliar o recorte, descarte de resposta antiga após
 escopo novo e horário `generatedAt` no fuso recebido. PNGs/relatório ficam no
 diretório temporário informado. Não usa o banco nem a API oficial.
 
-## CSV dos itens fiscalizados
-
-Com o mesmo preview Vite e Playwright acima:
-
-```bash
-node_modules/.bin/esbuild scripts/test/fixtures/fiscal-items-csv.ts \
-  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/items-csv-fixtures.cjs
-PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
-PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
-  node scripts/test/fiscal-items-csv.visual.mjs \
-  /tmp/sac-fiscal-visual/items-csv-fixtures.cjs /tmp/sac-fiscal-visual/items-csv-captures
-```
-
-As fixtures reutilizam os critérios/gerador existentes do serviço para saldo
-comprometido/valor e medido/quantidade, com zero, ausentes, saldo negativo e
-texto com acento, fórmula, aspas, separador e quebra de linha. Não fazem parte
-do fluxo da aplicação. O roteiro intercepta todas as chamadas de API e valida
-Tab/Enter, foco, arquivo completo e recorte por fornecedor/contrato/faixa/busca,
-nome/BOM/conteúdo, filtros e card/fila preservados, botão desabilitado sem
-resultados/itens/fonte e layout em desktop/390 px. Capturas/relatório e downloads
-ficam temporários; não alteram o banco. Reexecute também o roteiro da fila para
-validar o codificador CSV compartilhado.
-
-## Ordenação dos saldos dos itens
-
-Com o bundle `items-csv-fixtures.cjs` e preview descritos acima:
-
-```bash
-PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
-PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
-  node scripts/test/fiscal-item-sort.visual.mjs \
-  /tmp/sac-fiscal-visual/items-csv-fixtures.cjs /tmp/sac-fiscal-visual/item-sort-captures
-```
-
-Valida ordem original, IDs/saldo/percentual em ambas as direções, zero, negativo,
-nulos no final, filtros combinados, detalhes expandidos no mesmo item, totais e
-distribuição preservados, CSV na ordem visual, atualização preservando escolha
-e reset após escopo/usuário novo. Usa Tab/setas/Enter e foco em desktop/390 px,
-com duas bases/dimensões da API. Todas as respostas são interceptadas; nenhuma
-chamada chega ao backend ou banco. Capturas/relatório ficam temporários.
-
-## Paginação local dos itens
-
-Com o mesmo preview Vite e Playwright:
-
-```bash
-node_modules/.bin/esbuild scripts/test/fixtures/fiscal-item-pagination.ts \
-  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/item-pagination-fixture.cjs
-PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
-PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
-  node scripts/test/fiscal-item-pagination.visual.mjs \
-  /tmp/sac-fiscal-visual/item-pagination-fixture.cjs /tmp/sac-fiscal-visual/item-pagination-captures
-```
-
-A fixture tem 51 itens de dois contratos autorizados, gerados pelo serviço real
-com fontes sintéticas. Todas as consultas são interceptadas no navegador. O
-roteiro verifica teclado/foco em desktop/390 px, tamanhos 10/25/50, limites e
-intervalos, atualização e redução de resultados, reset por filtros/ordenação e
-escopo, totais/distribuição preservados, detalhes no item correto, estados vazios
-e exportação completa na ordem escolhida a partir de página intermediária.
-Capturas/relatório/downloads ficam temporários; não altera o banco.
-
-## Distribuição de faixas clicável
-
-Com o mesmo preview Vite e Playwright:
-
-```bash
-node_modules/.bin/esbuild scripts/test/fixtures/fiscal-band-distribution.ts \
-  --bundle --platform=node --format=cjs --outfile=/tmp/sac-fiscal-visual/band-distribution-fixture.cjs
-PLAYWRIGHT_MODULE=/tmp/sac-fiscal-visual/node_modules/playwright/index.mjs \
-PLAYWRIGHT_BROWSERS_PATH=/tmp/sac-fiscal-visual/browsers \
-  node scripts/test/fiscal-band-distribution.visual.mjs \
-  /tmp/sac-fiscal-visual/band-distribution-fixture.cjs /tmp/sac-fiscal-visual/band-distribution-captures
-```
-
-A fixture tem 96 itens em dois contratos autorizados, com as quatro faixas
-calculadas pelo serviço a partir de fontes sintéticas. O roteiro intercepta
-as APIs e valida Tab/Espaço/Enter, foco/aria-pressed/destaque textual, seleção,
-remoção e troca sincronizadas com o seletor, contagens por fornecedor/contrato/
-busca antes da faixa, preservação da ordenação, reset de página, CSV completo
-após o filtro e indicadores globais intactos, em desktop/390 px. Confere também
-contagens zero para filtros sem resultados, carteira sem itens e fonte
-indisponível. PNGs/relatório/downloads ficam temporários; não usa o banco.
-
 ## VIS-002 — Fidelidade React/Recharts
 
 A referência principal de organização, componentes e apresentação passa a ser
@@ -231,8 +99,7 @@ sem itens, indisponibilidade, falha de carregamento, sequência dos painéis,
 anéis preventivos e ausência de transbordamento. Capturas de página inteira,
 roscas e recortes ficam no diretório temporário com `report.json`. As fixtures
 são sintéticas e isoladas; nenhuma chamada chega ao backend ou banco.
-Reexecute também `fiscal-band-distribution.visual.mjs` para teclado, CSV,
-ordenação, paginação e preservação dos demais painéis. Para testes jsdom use
+A cobertura de itens permanece no gerente. Para testes jsdom use
 Node compatível com as dependências instaladas (runtime de validação: Node 22).
 
 ## VIS-003 — Organização, proporções e saldo consolidado
@@ -258,7 +125,7 @@ Confere ausência de overflow na página e gera capturas da implementação e do
 protótipos locais. Requisições das telas são interceptadas; consultas dos
 protótipos são abortadas. Nenhum backend, SAC oficial ou banco é acessado.
 
-Reexecute também os roteiros de faixas, atualização manual e detalhes acima,
+Reexecute também os roteiros atuais de fila e atualização manual,
 com `FISCAL_PREVIEW_URL` apontando para a mesma porta. Use Node 22 para a suíte
 jsdom. Capturas/relatórios ficam somente em `/tmp`, sem assets demonstrativos
 ou fixtures no fluxo de produção.
@@ -298,8 +165,7 @@ VIS-003. Além da sequência, filtros e estados já verificados, confere altura 
 saldo com um contrato, 20 contratos com rolagem local (incluindo zero), nomes
 extensos completos na matriz e no detalhamento, fonte legível e ordem de Tab
 nos filtros. Em 390 px, busca ocupa a primeira linha e os dois seletores a segunda.
-`fiscal-band-distribution.visual.mjs` passa a validar também 900 px e a associação
-ARIA com a legenda única de escopo/instruções.
+A distribuição por faixa permanece somente no gerente; o Fiscal termina no ABC.
 
 Com o Vite na porta 5183 e Playwright/Chromium acima:
 
@@ -314,7 +180,7 @@ FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
 ```
 
 As capturas incluem os dois protótipos locais nos três tamanhos. Reexecutar os
-roteiros VIS-004 de densidade e fila e o roteiro de faixas com as respectivas
+roteiros VIS-004 de densidade e fila com as respectivas
 fixtures descritas acima, usando a mesma URL e diretórios de saída separados.
 Nenhuma fixture ou dado demonstrativo é incluído no frontend de produção.
 
@@ -376,5 +242,24 @@ geradas em `/tmp/gc036-captures/`, sempre com fixtures HTTP sintéticas.
 sem percentuais inventados, barra de filtros operacionais, três painéis, recortes
 combinados, fonte parcial/vazia/indisponível e overflow em 1440, 900 e 390 px.
 O roteiro GC-035 foi atualizado para os três painéis novos; o roteiro de fila
-foi ajustado para os indicadores complementares e ressalvas expansíveis.
+foi ajustado para a fila e ressalvas expansíveis; não há indicadores complementares no Fiscal.
 Documentação, comandos e evidências: `docs/visual/FISCAL-reformulacao.md`.
+
+
+## Cobertura recuperada dos recursos fiscais preservados
+
+O roteiro `fiscal-visual-reform.visual.mjs` inclui os cenários fiscais de saldo
+antes presentes em `dashboard-layout.visual.mjs`: 0%, -20%, 150%, percentual
+nulo e 20 contratos (0% a 19%), agora no painel executivo. Verifica nomes e
+percentuais acessíveis, escala real, rolagem vertical interna e ausência de
+overflow horizontal em 1440, 900 e 390 px. Datas inválidas recebidas por HTTP
+são rejeitadas pelo validador existente; datas válidas/nulas, filtros e recortes
+vazios continuam cobertos. A página deve sempre terminar no ABC após resposta válida.
+
+Os quatro roteiros gerenciais históricos foram apenas limpos de parênteses e
+blocos artificiais, mantendo todas as asserções gerenciais. Eles documentam
+composições anteriores (inclusive abas removidas); a regressão atual de Supervisão
+e Visão agregada usa `gc035-prototype.visual.mjs`. Não executar os roteiros
+fiscais excluídos de itens, faixas, paginação, ordenação, CSV de itens ou tabelas
+antigas de vigência. O histórico foi identificado em
+`docs/api/decisoes-contrato-fiscal.md`, sem alterar contratos HTTP.
