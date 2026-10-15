@@ -419,8 +419,10 @@ button, input, select { font: inherit; }
 .aggregate-bar > b { width: 80px; flex: none; text-align: right; overflow-wrap: anywhere; }
 .aggregate-track { flex: 1; min-width: 0; height: 12px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
 .aggregate-track i { display: block; height: 100%; background: #0f766e; }
-.aggregate-alert { display: grid; gap: 3px; margin: 8px 0; padding: 12px 14px; border-left: 5px solid #b91c1c; border-radius: 10px; background: #fff7f7; font-size: 13px; }
-.aggregate-warn { border-left-color: #b45309; background: #fffaf0; }
+.aggregate-forecast { overflow: hidden; }
+.aggregate-forecast .aggregate-alert { margin: 8px 0; padding: 12px 14px; border-left: 5px solid #b91c1c; border-radius: 10px; background: #fff7f7; font-size: 13px; overflow-wrap: anywhere; }
+.aggregate-forecast .aggregate-alert strong { display: block; }
+.aggregate-forecast .aggregate-warn { border-left-color: #b45309; background: #fffaf0; }
 .aggregate-payflow { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 8px; overflow: auto; padding-bottom: 4px; }
 .aggregate-phase, .aggregate-metric-row > div { display: grid; gap: 6px; padding: 10px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8fafc; }
 .aggregate-phase b { font-size: 12px; }.aggregate-phase strong { font-size: 13px; }.aggregate-phase span { color: #64748b; font-size: 11px; }
@@ -490,17 +492,6 @@ button, input, select { font: inherit; }
 /* VIS-005: compact only the approved balance and distribution panels. */
 .manager-risk-panel .panel-heading { margin-bottom: 8px; }
 
-/* GC-037: factual expiry horizon in the existing aggregate grid. */
-.aggregate-expiry { min-width: 0; }
-.aggregate-expiry-summary { display: grid; gap: 8px; font-size: 12px; color: #475569; }
-.aggregate-expiry-summary strong { display: block; font-size: 22px; color: #0f172a; }
-.aggregate-expiry-bands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
-.aggregate-expiry-bands > div { padding: 8px; background: #f1f5f9; border-radius: 8px; font-size: 12px; }
-.aggregate-expiry-bands dt { color: #475569; }
-.aggregate-expiry-bands dd { margin: 4px 0 0; font-weight: 700; }
-.aggregate-expiry-table { max-height: 300px; }
-.aggregate-expiry-table table { min-width: 560px; }
-.aggregate-expiry-table:focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
 
 
 /* Fiscal: faithful Autocontido_v4_ABC geometry, isolated from manager styles. */

@@ -17,7 +17,7 @@ const expected = {
     'Distribuição dos itens por faixa de saldo', 'Gestão dos Saldos dos Itens Contratuais',
     'Eficiência do Ciclo Financeiro — carteira gerenciada'],
   aggregate: ['Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal',
-    'Intervenções gerenciais priorizadas', 'Horizonte de vencimentos · 180 dias', 'Exposição financeira',
+    'Intervenções gerenciais priorizadas', 'Forecast 180 dias', 'Exposição financeira',
     'Qualidade da gestão', 'Eficiência do Ciclo Financeiro — carteira gerenciada',
     'Curva ABC de Fornecedores', 'Curva ABC de Clientes'],
 };
@@ -95,65 +95,43 @@ try {
     assert.deepEqual(errors, []);
     await page.screenshot({ path: `${output}/${role}-${width}-atual.png`, fullPage: true });
     if (role === 'aggregate') {
-      const horizon = page.locator('.aggregate-expiry');
-      assert.equal(await horizon.locator('dt').count(), 5);
-      assert.deepEqual(await horizon.locator('.aggregate-alert strong').allTextContents(), ['Indisponível', 'Indisponível']);
-      await page.getByRole('combobox', { name: 'Janela de vencimento', exact: true }).selectOption('90');
-      assert.ok((await horizon.innerText()).includes('Janela efetiva: D0–90'));
-      assert.equal(await horizon.getByText('Fora do recorte', { exact: true }).count(), 2);
-      await page.getByRole('combobox', { name: 'Janela de vencimento', exact: true }).selectOption('365');
-      assert.ok((await horizon.innerText()).includes('Janela efetiva: D0–180'));
+      const forecast = page.locator('.aggregate-forecast');
+      const assertForecast = async () => {
+        assert.deepEqual(await forecast.locator('.aggregate-alert strong').allTextContents(), ['Indisponível', 'Indisponível']);
+        assert.equal(await forecast.locator('table, dl, [data-expiry-contract-id], .aggregate-expiry-summary').count(), 0);
+        const text = await forecast.innerText();
+        assert.ok(text.includes('de contratos com risco de saldo ou vigência'));
+        assert.ok(text.includes('exigem renovação/aditivo/licitação'));
+        assert.ok(text.includes('Fonte e regra de previsão indisponíveis'));
+        assert.ok(text.includes('Fonte e regra de decisão indisponíveis'));
+      };
+      await assertForecast();
+      for (const days of ['90', '365']) {
+        await page.getByRole('combobox', { name: 'Janela de vencimento', exact: true }).selectOption(days);
+        await assertForecast();
+      }
       await page.getByRole('searchbox').fill('sem correspondência GC037');
-      assert.equal(await horizon.locator('[data-expiry-contract-id]').count(), 0);
-      assert.ok((await horizon.innerText()).includes('Nenhum contrato no recorte selecionado'));
+      await assertForecast();
       await page.getByRole('searchbox').fill('');
-      const originalIds = await horizon.locator('[data-expiry-contract-id]').evaluateAll(rows => rows.map(row => row.dataset.expiryContractId));
-      const fiscalSelect = page.getByRole('combobox', { name: 'Fiscal', exact: true });
-      const fiscalOption = await fiscalSelect.locator('option').nth(1).getAttribute('value');
-      if (fiscalOption) {
-        await fiscalSelect.selectOption(fiscalOption);
-        const allowed = load.data.inspectors.find(row => String(row.userId) === fiscalOption).contractIds;
-        for (const id of await horizon.locator('[data-expiry-contract-id]').evaluateAll(rows => rows.map(row => Number(row.dataset.expiryContractId)))) assert.ok(allowed.includes(id));
-        await fiscalSelect.selectOption('');
-      }
-      await page.getByRole('combobox', { name: 'Risco: Saldo ou Vigência', exact: true }).selectOption('CRITICAL');
-      for (const id of await horizon.locator('[data-expiry-contract-id]').evaluateAll(rows => rows.map(row => Number(row.dataset.expiryContractId)))) {
-        const row = manager.data.contractRiskMatrix.find(row => row.contractId === id);
-        assert.ok(row.saldo.status === 'CRITICAL' || row.vigencia === 'CRITICAL');
-      }
-      await page.getByRole('combobox', { name: 'Risco: Saldo ou Vigência', exact: true }).selectOption('');
-      assert.deepEqual(await horizon.locator('[data-expiry-contract-id]').evaluateAll(rows => rows.map(row => row.dataset.expiryContractId)), originalIds);
-      for (const scenario of ['boundaries', 'partial', 'empty', 'unavailable', 'null-contracts', 'scope-unavailable']) {
+      for (const scenario of ['partial', 'empty', 'unavailable']) {
         const data = structuredClone(manager);
-        const sample = data.data.contracts[0];
-        const offsets = [-1, 0, 30, 31, 60, 61, 90, 91, 120, 121, 180, 181];
-        data.data.contracts = offsets.map((days, index) => ({ ...sample, contractId: 100 + index, contractNumber: `GC037-${index}`, supplierName: index === 1 ? null : 'Fornecedor verificável',
-          expiryDate: new Date(Date.parse(`${data.meta.dataReference}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10) }));
-        if (scenario === 'partial') data.data.contracts.push({ ...sample, contractId: 999, expiryDate: null });
-        if (scenario === 'empty') data.data.contracts = [];
-        if (scenario === 'unavailable' || scenario === 'null-contracts') {
+        if (scenario === 'partial') {
+          data.data.contracts.push({ ...data.data.contracts[0], contractId: 999, expiryDate: null });
+          data.data.contractRiskMatrix.push({ ...data.data.contractRiskMatrix[0], contractId: 999 });
+        }
+        if (scenario === 'empty') { data.data.contracts = []; data.data.contractRiskMatrix = []; }
+        if (scenario === 'unavailable') {
           data.meta.dataCoverage.portfolio = 'UNAVAILABLE'; data.data.contracts = null;
           data.meta.dataCoverage.contractRiskMatrix = 'UNAVAILABLE'; data.data.contractRiskMatrix = null;
-        } else {
-          const matrixSample = manager.data.contractRiskMatrix[0];
-          data.data.contractRiskMatrix = data.data.contracts.map(contract => ({ ...matrixSample,
-            contractId: contract.contractId, contractNumber: contract.contractNumber, supplierName: contract.supplierName }));
         }
         await page.route('**/api/**', route => {
           const url = route.request().url();
-          const body = url.includes('/fiscais/carga') ? load : data;
-          return route.fulfill({ status: scenario === 'scope-unavailable' && url.includes('/fiscais/carga') ? 500 : 200,
-            contentType: 'application/json', body: JSON.stringify(body) });
+          return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(url.includes('/fiscais/carga') ? load : data) });
         });
         await page.reload({ waitUntil: 'networkidle' });
-        if (scenario === 'scope-unavailable') await page.getByRole('searchbox').fill('GC037');
-        const unavailable = ['unavailable', 'null-contracts', 'scope-unavailable'].includes(scenario);
-        assert.equal(await horizon.locator('[data-expiry-contract-id]').count(), unavailable || scenario === 'empty' ? 0 : 10);
-        assert.equal(await horizon.locator('.aggregate-expiry-summary strong').innerText(), unavailable || scenario === 'partial' ? 'Indisponível' : scenario === 'empty' ? '0' : '10');
-        if (scenario === 'partial') assert.ok((await horizon.innerText()).includes('Cobertura parcial'));
-        if (!unavailable && scenario !== 'empty') assert.deepEqual(await horizon.locator('dd').allTextContents(), ['2', '2', '2', '2', '2']);
+        await assertForecast();
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-        await horizon.screenshot({ path: `${output}/aggregate-${width}-${scenario}.png` });
+        await forecast.screenshot({ path: `${output}/aggregate-${width}-${scenario}.png` });
       }
       assert.deepEqual(errors, []);
     }

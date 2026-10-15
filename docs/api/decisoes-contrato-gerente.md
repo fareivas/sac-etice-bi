@@ -438,3 +438,17 @@ Previsão financeira e necessidade de renovação/aditivo/licitação permanecem
 **Indisponíveis**: vencimento factual não comprova processo ou decisão.
 Não altera o endpoint de renovações 7.4, contratos HTTP, backend, autorização,
 banco, regras de vencimento em 120 dias, Supervisão ou Fiscal.
+
+### GC-037 — restauração visual do Forecast executivo (15/10/2026)
+
+Na rota `/gerente-contratos/visao-agregada`, o card volta a seguir o protótipo
+homologado: **Forecast 180 dias** com dois alertas executivos. O valor de
+contratos com risco de saldo/vigência e a quantidade que exige
+renovação/aditivo/licitação são **Indisponível**, com indicação de ausência de
+fonte e regra aprovadas. Nenhum valor de saldo ou contagem de vencimentos é
+usado como substituto. A tabela, as cinco faixas e o total consolidado
+factual descritos acima deixam a interface principal. `expiryHorizon()` e seus
+testes puros permanecem disponíveis no frontend, mas não integram o Forecast
+executivo. A descrição anterior registra a implementação factual da GC-037;
+este adendo define a apresentação vigente. Os filtros globais continuam
+atuando sobre os demais painéis conforme GC-034.
