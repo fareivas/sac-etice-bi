@@ -126,6 +126,18 @@ it('restores the compact Forecast with two unavailable executive alerts', () => 
   } finally { view.unmount(); }
 });
 
+it('keeps labelled global filters and five unavailable cycle metrics in the refined layout', () => {
+  const view = mount();
+  try {
+    expect([...view.host.querySelectorAll('.aggregate-filters label > span')].map(node => node.textContent)).toEqual([
+      'Fiscal', 'Gerência', 'Risco: Saldo ou Vigência', 'Janela de vencimento', 'Buscar fiscal, contrato ou fornecedor',
+    ]);
+    expect(view.host.querySelector('.aggregate-filters small')?.textContent).toBe('Fonte não aprovada');
+    expect(view.host.querySelector<HTMLSelectElement>('.aggregate-filters select:disabled')?.value).toBe('');
+    expect([...view.host.querySelectorAll('.aggregate-metric-row b')].map(node => node.textContent)).toEqual(Array(5).fill('Indisponível'));
+  } finally { view.unmount(); }
+});
+
 it('keeps Forecast unavailable across portfolio coverage states', () => {
   for (const scenario of ['available', 'empty', 'partial', 'unavailable'] as const) {
     const summary = structuredClone(manager);

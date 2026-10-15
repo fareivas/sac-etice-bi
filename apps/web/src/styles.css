@@ -376,17 +376,17 @@ button, input, select { font: inherit; }
 /* GC-035B: the Autocontido view has its own proportions and visual language. */
 .aggregate-dashboard { min-height: 100vh; background: #f4f7fb; color: #162033; font-family: Arial, Helvetica, sans-serif; }
 .aggregate-dashboard * { box-sizing: border-box; }
-.aggregate-header { background: linear-gradient(120deg, #0f172a, #164e63); color: #fff; padding: 22px 24px; box-shadow: 0 4px 14px #0002; }
+.aggregate-header { position: sticky; top: 0; z-index: 20; background: linear-gradient(120deg, #0f172a, #164e63); color: #fff; padding: 22px 24px; box-shadow: 0 4px 14px #0002; }
 .aggregate-header-inner { max-width: 1500px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .aggregate-header h1 { margin: 0; font-size: 22px; }
 .aggregate-header p { margin: 5px 0 0; color: #d7eef3; font-size: 13px; }
 .aggregate-header-chip { border: 1px solid #ffffff33; border-radius: 999px; background: #ffffff1f; padding: 8px 12px; font-size: 12px; }
 .aggregate-page { max-width: 1500px; margin: auto; padding: 20px; }
-.aggregate-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 14px; margin-bottom: 16px; border-radius: 14px; background: #fff; box-shadow: 0 8px 24px #0f172a14; }
+.aggregate-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 10px 14px; margin-bottom: 16px; border-radius: 14px; background: #fff; box-shadow: 0 8px 24px #0f172a14; }
 .aggregate-filters label { min-width: 0; font-size: 11px; color: #475569; }
-.aggregate-filters label > span { display: block; margin-bottom: 3px; }
-.aggregate-filters select, .aggregate-filters input { width: 100%; min-width: 0; min-height: 38px; padding: 9px 10px; border: 1px solid #dbe3ef; border-radius: 9px; background: #fff; color: #162033; }
-.aggregate-filters small { display: block; margin-top: 3px; }
+.aggregate-filters label > span { display: block; margin-bottom: 2px; }
+.aggregate-filters select, .aggregate-filters input { width: 100%; min-width: 0; min-height: 36px; padding: 8px 10px; border: 1px solid #dbe3ef; border-radius: 9px; background: #fff; color: #162033; }
+.aggregate-filters small { display: block; margin-top: 2px; }
 .aggregate-recut { color: #64748b; font-size: 12px; margin: -7px 0 14px; }
 .aggregate-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
 .aggregate-kpi, .aggregate-card { min-width: 0; background: #fff; border-radius: 14px; box-shadow: 0 8px 24px #0f172a14; }
@@ -424,17 +424,19 @@ button, input, select { font: inherit; }
 .aggregate-forecast .aggregate-alert strong { display: block; }
 .aggregate-forecast .aggregate-warn { border-left-color: #b45309; background: #fffaf0; }
 .aggregate-payflow { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 8px; overflow: auto; padding-bottom: 4px; }
-.aggregate-phase, .aggregate-metric-row > div { display: grid; gap: 6px; padding: 10px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8fafc; }
-.aggregate-phase b { font-size: 12px; }.aggregate-phase strong { font-size: 13px; }.aggregate-phase span { color: #64748b; font-size: 11px; }
+.aggregate-phase, .aggregate-metric-row > div { padding: 10px; border: 1px solid #dbe3ef; border-radius: 10px; background: #f8fafc; }
+.aggregate-phase { display: flex; flex-direction: column; gap: 4px; }
+.aggregate-phase b { font-size: 12px; }.aggregate-phase strong { margin-top: 2px; font-size: 13px; color: #162033; }.aggregate-phase span { color: #64748b; font-size: 11px; }
 .aggregate-metric-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 10px 0 12px; text-align: center; }
-.aggregate-metric-row small { color: #64748b; font-size: 10px; }.aggregate-metric-row b { font-size: 14px; }
+.aggregate-metric-row > div { display: grid; gap: 2px; align-content: center; }
+.aggregate-metric-row small { color: #64748b; font-size: 10px; }.aggregate-metric-row b { font-size: 16px; line-height: 1.2; }
 .aggregate-abc-unavailable { border-radius: 9px; background: #eef4f8; color: #164e63; padding: 10px; font-size: 12px; }
 .aggregate-abc-track { height: 18px; margin: 8px 0 12px; border-radius: 999px; background: #e5e7eb; }
 .aggregate-notice, .route-not-found { max-width: 720px; margin: 24px auto; padding: 20px; background: #fff; border-radius: 12px; }
 .aggregate-dashboard :is(input, select, button, a):focus-visible, .route-not-found a:focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
 @media (max-width: 1100px) { .aggregate-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .aggregate-grid-two, .aggregate-grid-three { grid-template-columns: 1fr; } .aggregate-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .aggregate-abc-grid { grid-template-columns: 1fr; } }
-@media (max-width: 650px) { .aggregate-header-inner { display: block; } .aggregate-header-chip { display: inline-block; margin-top: 12px; } .aggregate-page { padding: 12px; } .aggregate-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .aggregate-kpi strong { font-size: 20px; } .aggregate-filters { grid-template-columns: 1fr; } .aggregate-matrix-grid { grid-template-columns: 130px repeat(6, 85px); } .aggregate-bar > span { width: 105px; } .aggregate-bar > b { width: 78px; } .aggregate-metric-row { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 650px) { .aggregate-header { position: static; } .aggregate-header-inner { display: block; } .aggregate-header-chip { display: inline-block; margin-top: 12px; } .aggregate-page { padding: 12px; } .aggregate-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .aggregate-kpi strong { font-size: 20px; } .aggregate-filters { grid-template-columns: 1fr; } .aggregate-matrix-grid { grid-template-columns: 130px repeat(6, 85px); } .aggregate-bar > span { width: 105px; } .aggregate-bar > b { width: 78px; } .aggregate-metric-row { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 1150px) {
   .fiscal-kpis, .saldo-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fiscal-grid-two, .manager-primary-grid, .manager-abc-grid { grid-template-columns: 1fr; }
