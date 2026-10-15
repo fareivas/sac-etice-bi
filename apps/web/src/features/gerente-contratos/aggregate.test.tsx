@@ -29,10 +29,10 @@ const load: ManagerFiscalLoadResponse = {
 };
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-function mount() {
+function mount(summary = manager, fiscalLoad: ManagerFiscalLoadResponse | null = load) {
   const host = document.createElement('div');
   const root = createRoot(host);
-  act(() => root.render(<AggregateView state={{ status: 'success', summary: manager, load, loadError: null }} />));
+  act(() => root.render(<AggregateView state={{ status: 'success', summary, load: fiscalLoad, loadError: null }} />));
   return { host, unmount: () => act(() => root.unmount()) };
 }
 
@@ -41,7 +41,7 @@ it('keeps the nine Autocontido panels in their original groups and seven interve
   try {
     expect([...view.host.querySelectorAll('.aggregate-card h2')].map(node => node.textContent)).toEqual([
       'Matriz Contrato × Dimensão de Risco', 'Carga e risco por fiscal', 'Intervenções gerenciais priorizadas',
-      'Forecast 180 dias', 'Exposição financeira', 'Qualidade da gestão',
+      'Horizonte de vencimentos · 180 dias', 'Exposição financeira', 'Qualidade da gestão',
       'Eficiência do Ciclo Financeiro — carteira gerenciada', 'Curva ABC de Fornecedores', 'Curva ABC de Clientes',
     ]);
     const headers = (panel: Element) => [...panel.querySelectorAll('thead th')].map(node => node.textContent);
@@ -110,4 +110,77 @@ it('distinguishes load failure, unavailable scope and summary error', () => {
     act(() => root.render(<AggregateView state={{ status: 'error', message: 'Erro sintético' }} />));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('Erro sintético');
   } finally { act(() => root.unmount()); }
+});
+
+const panel = (host: HTMLElement) => host.querySelector('.aggregate-expiry')!;
+function changeSelect(host: HTMLElement, index: number, value: string) {
+  const select = host.querySelectorAll('select')[index];
+  act(() => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); });
+}
+it('shows factual rows, effective windows, fallbacks and unavailable forecasts', () => {
+  const summary = structuredClone(manager);
+  summary.data.contracts![0].contractNumber = null;
+  summary.data.contracts![0].supplierName = null;
+  const view = mount(summary);
+  try {
+    expect(panel(view.host).querySelectorAll('[data-expiry-contract-id]')).toHaveLength(1);
+    expect([...panel(view.host).querySelectorAll('tbody td')].map(node => node.textContent)).toEqual(['7', 'Indisponível', '25/10/2026', '30', 'D0–30']);
+    expect(panel(view.host).querySelectorAll('.aggregate-alert strong')).toHaveLength(2);
+    expect([...panel(view.host).querySelectorAll('.aggregate-alert strong')].map(node => node.textContent)).toEqual(['Indisponível', 'Indisponível']);
+    changeSelect(view.host, 3, '90');
+    expect(panel(view.host).textContent).toContain('Janela efetiva: D0–90');
+    expect([...panel(view.host).querySelectorAll('dd')].map(node => node.textContent)).toEqual(['1', '0', '0', 'Fora do recorte', 'Fora do recorte']);
+    changeSelect(view.host, 3, '365');
+    expect(panel(view.host).textContent).toContain('Janela efetiva: D0–180');
+  } finally { view.unmount(); }
+});
+it('applies fiscal, risk and search filters to horizon rows', () => {
+  const view = mount();
+  try {
+    changeSelect(view.host, 0, '3');
+    expect(panel(view.host).querySelectorAll('[data-expiry-contract-id]')).toHaveLength(1);
+    changeSelect(view.host, 2, 'ATTENTION');
+    expect(panel(view.host).querySelectorAll('[data-expiry-contract-id]')).toHaveLength(0);
+    expect(panel(view.host).textContent).toContain('Nenhum contrato no recorte selecionado');
+    changeSelect(view.host, 2, 'CRITICAL');
+    expect(panel(view.host).querySelectorAll('[data-expiry-contract-id]')).toHaveLength(1);
+    const search = view.host.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'ausente'); search.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(panel(view.host).querySelectorAll('[data-expiry-contract-id]')).toHaveLength(0);
+  } finally { view.unmount(); }
+});
+it('preserves known counts with conservative partial coverage', () => {
+  const summary = structuredClone(manager);
+  summary.data.contracts!.push({ ...summary.data.contracts![0], contractId: 8, expiryDate: null });
+  const view = mount(summary);
+  try {
+    expect(panel(view.host).textContent).toContain('Cobertura parcial');
+    expect(panel(view.host).querySelector('.aggregate-expiry-summary strong')?.textContent).toBe('Indisponível');
+    expect(panel(view.host).querySelector('dd')?.textContent).toBe('1');
+    expect(panel(view.host).querySelectorAll('[data-expiry-contract-id]')).toHaveLength(1);
+  } finally { view.unmount(); }
+});
+it('shows zero for an available empty portfolio and no rows for unavailable scope or portfolio', () => {
+  const empty = structuredClone(manager); empty.data.contracts = [];
+  const view = mount(empty);
+  try {
+    expect(panel(view.host).querySelector('.aggregate-expiry-summary strong')?.textContent).toBe('0');
+    expect(panel(view.host).textContent).toContain('Carteira autorizada sem contratos');
+  } finally { view.unmount(); }
+  for (const nullContracts of [false, true]) {
+    const summary = structuredClone(manager);
+    if (nullContracts) summary.data.contracts = null;
+    else summary.meta.dataCoverage.portfolio = 'UNAVAILABLE';
+    const unavailableView = mount(summary);
+    try { expect(panel(unavailableView.host).querySelectorAll('[data-expiry-contract-id]')).toHaveLength(0);
+      expect(panel(unavailableView.host).textContent).toContain('Horizonte indisponível');
+    } finally { unavailableView.unmount(); }
+  }
+  const missingLoad = mount(manager, null);
+  try {
+    const search = missingLoad.host.querySelector<HTMLInputElement>('input[type="search"]')!;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'CT-7'); search.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(panel(missingLoad.host).querySelectorAll('[data-expiry-contract-id]')).toHaveLength(0);
+    expect(panel(missingLoad.host).textContent).toContain('Horizonte indisponível');
+  } finally { missingLoad.unmount(); }
 });

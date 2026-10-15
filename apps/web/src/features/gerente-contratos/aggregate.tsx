@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse } from '@sac-etice-bi/contracts';
 import { loadManagerFiscalLoad, loadManagerSummary } from '../../lib/api';
+import { expiryHorizon } from './expiry-horizon';
 import { displayDate } from '../../lib/display-date';
 import { initialGlobalFilters, projectManagerSummary, selectGlobalContracts } from './global-filters';
 import { contractOccurrences, genericEvaluation, genericEvaluationNote, occurrenceCoverage, occurrenceEmptyMessage } from './occurrences';
@@ -23,6 +24,7 @@ function AggregateView({ state }: { state: State }) {
   const source = state.status === 'success' ? state.summary : null;
   const load = state.status === 'success' ? state.load : null;
   const selectedIds = source ? selectGlobalContracts(source, load, filters) : null;
+  const horizon = source ? expiryHorizon(source, selectedIds, filters.days) : null;
   const projected = source && selectedIds ? projectManagerSummary(source, selectedIds) : null;
   const summary = projected?.summary ?? source;
   const scopeUnavailable = source !== null && selectedIds === null;
@@ -112,7 +114,23 @@ function AggregateView({ state }: { state: State }) {
                 <td>{genericEvaluation}<small className="manager-occurrence-note">{genericEvaluationNote}</small></td><td>Indisponível</td>
               </tr>) : <tr><td colSpan={7} className="table-empty">{occurrenceEmptyMessage(occurrences)}</td></tr>}</tbody></table></div></section>
           <div className="aggregate-grid-three">
-            <section className="aggregate-card"><h2>Forecast 180 dias</h2><div className="aggregate-alert"><strong>{unavailable}</strong><span>Valor de contratos com risco de saldo ou vigência sem regra aprovada.</span></div>
+            <section className="aggregate-card aggregate-expiry"><h2>Horizonte de vencimentos · 180 dias</h2>
+              <p className="aggregate-sub">Vencimentos contratuais factuais, não previsão de renovação.</p>
+              <div className="aggregate-expiry-summary"><span>Total consolidado <strong>{horizon?.total ?? unavailable}</strong></span>
+                <span>Janela efetiva: D0–{horizon?.effectiveDays} · Referência: {displayDate(source.meta.dataReference, source.meta.timezone)}</span></div>
+              <p className="aggregate-note">Contagens verificáveis por faixa de vencimento:</p>
+              <dl className="aggregate-expiry-bands">{horizon?.bands.map(band => <div key={band.label}><dt>{band.label}</dt>
+                <dd>{band.outside ? 'Fora do recorte' : band.count ?? unavailable}</dd></div>)}</dl>
+              {!horizon?.available && <p role="status" className="aggregate-note">Horizonte indisponível: carteira ou recorte global indisponível.</p>}
+              {horizon?.partial && <p role="status" className="aggregate-note">Cobertura parcial: existem contratos sem data de vencimento verificável na carteira autorizada. O total pode estar incompleto; as contagens representam somente vencimentos conhecidos.</p>}
+              <div className="aggregate-table-wrap aggregate-expiry-table" tabIndex={0} role="region" aria-label="Contratos com vencimento no horizonte">
+                <table><thead><tr>{['Contrato', 'Fornecedor', 'Vencimento', 'Dias restantes', 'Faixa'].map(label => <th key={label}>{label}</th>)}</tr></thead>
+                  <tbody>{horizon?.rows.length ? horizon.rows.map(row => <tr key={row.contractId} data-expiry-contract-id={row.contractId}>
+                    <td>{row.contractNumber ?? row.contractId}</td><td>{row.supplierName ?? unavailable}</td>
+                    <td>{displayDate(row.expiryDate, source.meta.timezone)}</td><td>{row.days}</td><td>{row.band}</td>
+                  </tr>) : <tr><td colSpan={5} className="table-empty">{horizon?.available ? horizon.emptyMessage : 'Dados indisponíveis.'}</td></tr>}</tbody></table>
+              </div>
+              <div className="aggregate-alert"><strong>{unavailable}</strong><span>Previsão financeira: valor de contratos com risco de saldo ou vigência sem regra aprovada.</span></div>
               <div className="aggregate-alert aggregate-warn"><strong>{unavailable}</strong><span>Necessidade de renovação, aditivo ou licitação sem regra aprovada.</span></div></section>
             <section className="aggregate-card"><h2>Exposição financeira</h2>{['SLA / glosas', 'Medições', 'Pagamento'].map(label => <div className="aggregate-bar" key={label}><span>{label}</span><div className="aggregate-track"/><b>{unavailable}</b></div>)}
               <p className="aggregate-note">Fonte financeira e Projeto de KPIs indisponíveis.</p></section>

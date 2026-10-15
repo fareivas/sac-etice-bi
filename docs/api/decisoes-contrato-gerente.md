@@ -406,3 +406,35 @@ A barra da visão gerencial combina fiscal, risco, janela de vencimento e busca 
 O filtro de risco testa exclusivamente `contractRiskMatrix[].saldo.status` e `vigencia`, aceitando correspondência em qualquer uma das duas dimensões. As seis dimensões continuam visíveis na matriz. Busca sem caixa/acentos cobre número/ID, fornecedor e nomes dos fiscais com designação ativa. A resposta parcial de carga acrescenta `inspectors[].contractIds`, gerados somente de `contratos.designacao` ativa com papel `fiscal` e de IDs previamente autorizados por `repository.scope()`; não consulta o SAC oficial nem amplia a carteira. O campo é opcional no validador compartilhado para compatibilidade de consumidores anteriores; a consulta atual sempre o preenche.
 
 O frontend restringe matriz, contratos, pendências, saldos contratuais e itens aos IDs selecionados. Recalcula contagem de contratos vigentes, valor ativo com cobertura completa e precisão segura, contagem de críticos da matriz e vencimentos em 120 dias, mantendo nulos quando incompletos. Indicadores preventivos D-90/preenchimento, OS pendentes por fiscal e valor por fornecedor ficam **Indisponível** no subconjunto: as respostas atuais não fornecem as relações necessárias à sua repartição exata. A carga por fiscal mostra somente a contagem de contratos vigentes no recorte; não reaproveita a contagem de OS da carteira inteira. Sem fonte suficiente para determinar o recorte, inclusive nomes de fiscal para a busca quando a carga falha, a tela mostra indisponibilidade em vez de apresentar totais da carteira inteira como filtrados. Filtros locais persistem ao alternar abas e ao mudar o recorte global.
+
+## GC-037 — Horizonte factual de vencimentos em 180 dias
+
+A Visão agregada substitui o título Forecast por **Horizonte de vencimentos ·
+180 dias**. A transformação pura usa exclusivamente `summary.data.contracts`
+da carteira vigente autorizada e `meta.dataReference`, sem relógio do navegador.
+Deduplica por `contractId`, exclui datas anteriores a D0 e posteriores a D+180
+(inclusive D0 e D180) e ordena por dias restantes, número/ID exibido e ID.
+As faixas inclusivas são D0–30, D31–60, D61–90, D91–120 e D121–180.
+
+Fiscal, risco e busca conservam a seleção GC-034, incluindo a exigência de
+fontes suficientes. Somente IDs de `selectGlobalContracts()` podem aparecer.
+A janela efetiva é a interseção com 180 dias: D+90 produz D0–90; D+180 e
+D+365 produzem D0–180. As cinco faixas permanecem visíveis; as totalmente
+fora da janela mostram **Fora do recorte**.
+
+A cobertura é específica deste painel e consultada na carteira original,
+antes da projeção. Qualquer vencimento ausente/não verificável mantém o total
+consolidado **Indisponível**, inclusive se outro filtro possivelmente excluiria
+esse contrato. Linhas conhecidas selecionadas e contagens verificáveis ficam
+visíveis com aviso de cobertura parcial; não se distribuem datas desconhecidas.
+Não se reutiliza a cobertura de `renewalsWithin120Days`. Carteira disponível
+vazia e recorte válido vazio mostram zero quando a cobertura é completa, com
+mensagens distintas. `portfolio: UNAVAILABLE`, `contracts: null` ou IDs
+selecionados indisponíveis impedem todas as linhas e contagens consolidadas.
+
+Número ausente usa `contractId`; fornecedor ausente mostra **Indisponível**.
+A data usa `displayDate()` e dias/faixas usam `daysFromReference()` existente.
+Previsão financeira e necessidade de renovação/aditivo/licitação permanecem
+**Indisponíveis**: vencimento factual não comprova processo ou decisão.
+Não altera o endpoint de renovações 7.4, contratos HTTP, backend, autorização,
+banco, regras de vencimento em 120 dias, Supervisão ou Fiscal.

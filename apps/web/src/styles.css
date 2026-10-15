@@ -532,3 +532,15 @@ button, input, select { font: inherit; }
 .fiscal-contract-balances .fiscal-contract-chart { margin-bottom: 8px; }
 .fiscal-band-distribution .item-band-chart-legend { margin: 4px 0 8px; }
 .manager-risk-panel .panel-heading { margin-bottom: 8px; }
+
+/* GC-037: factual expiry horizon in the existing aggregate grid. */
+.aggregate-expiry { min-width: 0; }
+.aggregate-expiry-summary { display: grid; gap: 8px; font-size: 12px; color: #475569; }
+.aggregate-expiry-summary strong { display: block; font-size: 22px; color: #0f172a; }
+.aggregate-expiry-bands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+.aggregate-expiry-bands > div { padding: 8px; background: #f1f5f9; border-radius: 8px; font-size: 12px; }
+.aggregate-expiry-bands dt { color: #475569; }
+.aggregate-expiry-bands dd { margin: 4px 0 0; font-weight: 700; }
+.aggregate-expiry-table { max-height: 300px; }
+.aggregate-expiry-table table { min-width: 560px; }
+.aggregate-expiry-table:focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
