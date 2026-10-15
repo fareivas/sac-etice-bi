@@ -1259,7 +1259,8 @@ it('VIS-004 groups queue counts and actions without changing keyboard order or v
   const exportButton = actions.querySelector('.fiscal-queue-export button')!;
   const note = host.querySelector(`[id="${exportButton.getAttribute('aria-describedby')}"]`)!;
   expect(note.textContent).toContain('Cada linha representa uma pendência');
-  expect(note.parentElement).toBe(panel);
+  expect(note.closest('details')).toBe(panel.querySelector('.fiscal-queue-tools'));
+  expect(panel.querySelector('.fiscal-queue-tools')?.hasAttribute('open')).toBe(false);
   expect(panel.querySelectorAll('thead th')).toHaveLength(7);
   expect(panel.querySelectorAll('.fiscal-queue-filters :is(select,input)')).toHaveLength(3);
   for (const text of ['não comprova tarefa atribuída', 'não representa prioridade',
@@ -1402,4 +1403,52 @@ it('keeps missing alert dates unavailable and an empty original description dist
   data.data.contractAlerts![0].description = null;
   host.innerHTML = render({ status: 'success', summary: data });
   expect(host.querySelector('[data-contract-alert-id="3"] details p')?.textContent).toBe('Descrição indisponível');
+});
+
+it('preserves the model geometry with seven unavailable phases, five metrics and two ABC blocks', () => {
+  const host = document.createElement('div'); host.innerHTML = render({ status: 'success', summary: operationalFixture() });
+  expect(host.querySelectorAll('.fiscal-model-phase')).toHaveLength(7);
+  expect(host.querySelectorAll('.fiscal-model-metrics > div')).toHaveLength(5);
+  expect([...host.querySelectorAll('.fiscal-model-phase strong, .fiscal-model-metrics b')].map(node => node.textContent)).toEqual(Array(12).fill('Indisponível'));
+  expect(host.querySelector('.fiscal-financial-cycle .fiscal-model-alert')?.textContent).toContain('Ação: Indisponível');
+  expect(host.querySelectorAll('.relevance .fiscal-model-info')).toHaveLength(2);
+  expect(host.querySelector('.fiscal-health-index')?.textContent).toContain('Índice de Saúde da Carteira: Indisponível');
+  expect(host.querySelectorAll('.fiscal-health-track [style]')).toHaveLength(0);
+  expect(host.querySelector('.fiscal-operational-balances svg')).toBeNull();
+});
+
+it('keeps each OS compact with all original pendencies and statuses in native details', () => {
+  const data = structuredClone(queueFixture);
+  const original = '  Documento da fonte\ncom espaços preservados  ';
+  data.data.priorityQueue![0].pendencies[0].description = original;
+  const view = mount(data);
+  try {
+    const row = view.host.querySelector('[data-queue-order-id]')!;
+    const details = row.querySelector<HTMLDetailsElement>('.fiscal-order-details')!;
+    expect(details.hasAttribute('open')).toBe(false);
+    expect(details.querySelector('summary')?.textContent).toContain('pendências de decisão fiscal');
+    expect(details.querySelectorAll('li')).toHaveLength(data.data.priorityQueue![0].pendencies.length);
+    expect(details.querySelector('li')?.firstChild?.textContent).toBe(original);
+    expect(details.querySelectorAll('.fiscal-queue-pendency-status')).toHaveLength(data.data.priorityQueue![0].pendencies.length);
+    act(() => details.querySelector('summary')!.click()); expect(details.hasAttribute('open')).toBe(true);
+    expect(details.querySelector('li')?.firstChild?.textContent).toBe(original);
+    act(() => details.querySelector('summary')!.click()); expect(details.hasAttribute('open')).toBe(false);
+    expect(view.host.querySelectorAll('[data-queue-order-id]')).toHaveLength(data.data.priorityQueue!.length);
+  } finally { view.unmount(); }
+});
+it('preserves explicit empty and unavailable queues without manufacturing executive rows', () => {
+  for (const [queue, message] of [[[], 'Fila apurada sem ocorrências'], [null, 'Fila indisponível']] as const) {
+    const host = document.createElement('div'); host.innerHTML = render({ status: 'success', summary: summary(0, queue === null ? null : []) });
+    expect(host.querySelector('.fiscal-action-queue .table-empty')?.textContent).toBe(message);
+    expect(host.querySelectorAll('[data-queue-order-id], .fiscal-order-details')).toHaveLength(0);
+    expect(host.querySelector('.fiscal-health-index')?.textContent).toContain('Indisponível');
+  }
+});
+it('keeps secondary metadata and executive interpretation available in collapsed native details', () => {
+  const host = document.createElement('div'); host.innerHTML = render({ status: 'success', summary: operationalFixture() });
+  const metadata = host.querySelector('.fiscal-metadata-details')!;
+  expect(metadata.hasAttribute('open')).toBe(false);
+  expect(metadata.textContent).toContain('não de atualização do banco');
+  expect(host.querySelector('.coverage-note[role="status"]')?.textContent).toContain('Cobertura parcial');
+  expect(host.querySelector('.fiscal-health .fiscal-executive-note')?.textContent).toContain('não equivalem a um índice de saúde');
 });

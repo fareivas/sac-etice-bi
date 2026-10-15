@@ -1,6 +1,6 @@
 # Reformulação visual do Dashboard do Fiscal
 
-Referência: `docs/reference/prototypes/ETICE_Dashboard_Fiscal_React_Recharts.html`,
+Referência principal vigente: `docs/reference/ETICE_Dashboard_Fiscal_Autocontido_v4_ABC.html`,
 consultada junto à especificação de endpoints (6.1/6.2) e às decisões do resumo
 fiscal. Cabeçalho compacto em azul-escuro, filtros horizontais, seis KPIs,
 fila e saúde lado a lado, três painéis operacionais e detalhamento inferior.
@@ -173,3 +173,154 @@ Capturas/relatórios: `/tmp/fiscal-refinement-captures/` e
 Permanecem os avisos anteriores de build (anotações PURE em Zod e tamanho do
 bundle). Sem alteração de backend, APIs, SQL, autorização, autenticação, banco,
 migrations ou dados do SAC; sem métricas novas, commit ou push.
+
+## Reprodução fiel do Autocontido v4 ABC
+
+A referência visual principal é agora o arquivo fornecido
+`docs/reference/ETICE_Dashboard_Fiscal_Autocontido_v4_ABC.html`, preservado sem
+alterações. A apresentação usa suas medidas e cores: Arial/Helvetica, cabeçalho
+com gradiente `#0f172a → #164e63` e padding 22/24 px, conteúdo até 1500 px com
+padding 20 px, cinco filtros equivalentes, cartões com raio 14 px, sombra
+`0 8px 24px rgba(15,23,42,.08)`, KPIs com borda superior 4 px, tabela de 12 px
+com padding 10/9 px, barras de 12 px, cards de vigência de 150 px mínimos e
+blocos destacados com borda esquerda 5 px. A fila/saúde adota a proporção
+`1.4fr / 1fr` do HTML (aproximadamente 58/42, compatível com a linha homologada).
+Breakpoints do núcleo passam a 1100/650 px; os cinco filtros empilham em 390 px.
+Todos os estilos consolidados são específicos de `.fiscal-dashboard`.
+
+Os controles adicionais da fila (filtros, CSV, contagem e ressalvas) ficam em
+**Filtros, CSV e escopo da fila**, detalhe nativo recolhido por padrão. Tabela,
+registros e colunas reais permanecem disponíveis. A barra superior mantém
+identificação dos controles para leitores de tela, com escopo e fontes no
+bloco expansível e consulta externa acessível. A faixa compacta de atualização
+continua separada para preservar geração, referência e cobertura reais.
+
+Saúde reproduz cinco trilhos horizontais e reserva o bloco âmbar para o índice
+consolidado **Indisponível**, sem preencher percentuais. Saldos por contrato
+usa barras HTML compactas sem eixos, preservando percentuais da API e a tabela
+completa inferior. Valores negativos/acima de 100% ampliam a escala comum,
+com origem marcada e rótulos originais; não são truncados, classificados ou
+convertidos em zero. Percentuais ausentes conservam a explicação de cobertura.
+
+Vigências usam cards compactos com datas/dias reais. Alertas preservam campos
+estruturados e descrição original integral em detalhe expansível. Pagamento
+(vermelho) e medição (âmbar) reproduzem os blocos do HTML, com indisponibilidade.
+Ciclo financeiro reproduz sete fases, cinco indicadores e faixa de ação,
+todos indisponíveis, sem status, gargalos ou recomendações inferidos. ABC
+reproduz os dois blocos azuis, sem classes, participações ou prioridade fictícias.
+A sequência homologada e todos os detalhamentos complementares permanecem.
+
+### Evidências e diferenças restantes
+
+Validação: **249 testes frontend**, **169 API**, **28 contratos** aprovados.
+Typecheck, build e `git diff --check` aprovados. Duas integrações PostgreSQL
+foram ignoradas pela configuração existente. Roteiros de fila (3 casos) e
+refresh (2) passaram, incluindo abertura dos controles, teclado, filtros,
+CSV, retenção de dados, falha/recuperação e proteção contra respostas antigas.
+
+Comparações Chromium em **1440, 900 e 390 px**, com dados disponíveis,
+parciais, vazios e indisponíveis. Sem overflow horizontal da página React
+nem erros de execução. Verificados fonte/filtros contra o HTML, ordem no DOM,
+KPIs em linha no desktop, proporção de fila/saúde, três larguras equivalentes,
+sete fases, cinco indicadores, ABC, ausência de eixos e descrições expansíveis.
+As requisições foram interceptadas; nenhum backend ou banco foi acessado.
+
+Capturas em `/tmp/fiscal-faithful-captures/`, por largura `W`:
+
+- HTML: `original-W-upper.png`, `original-W-lower.png`, `original-W-full.png`,
+  `original-W-cycle.png`, `original-W-abc.png`.
+- React: `fiscal-W-viewport.png` (superior), `react-W-lower.png`,
+  `fiscal-W-initial.png` (completa), `react-W-cycle.png`, `react-W-abc.png`.
+- Estados: `fiscal-W-available.png`, `fiscal-W-partial.png`,
+  `fiscal-W-empty.png`, `fiscal-W-unavailable.png` e alerta expandido.
+- Relatório: `report.json`. Fila/refresh: `/tmp/fiscal-faithful-queue/` e
+  `/tmp/fiscal-faithful-refresh/`.
+
+Diferenças necessárias: nomes/datas vêm da API; não aparece a identificação
+“Protótipo Power BI” como informação real. Valores e textos dos KPIs são os
+aprovados, mantendo **D0–120**, sem trocar silenciosamente pela janela ilustrativa
+D+90. A fila mostra OS, severidade, pendências e ressalvas reais, conservando
+suas sete colunas; não copia P1/P2, impactos ou recomendações do modelo.
+Quantidade/comprimento dos registros e ausência de fontes alteram alturas e
+conteúdo. Controles de autorização, consulta externa, atualização e cobertura
+e detalhamentos adicionais permanecem, mesmo sem equivalente no HTML.
+Percentuais de saúde, índice, processos de renovação, finanças e classes ABC
+ficam **Indisponíveis**. Essas diferenças impedem igualdade pixel a pixel.
+
+Build mantém os avisos preexistentes de anotações PURE em Zod e bundle acima
+de 500 kB. Sem alteração de backend, SQL, banco, migrations, autenticação,
+autorização ou contratos HTTP; sem dados do protótipo na aplicação, dependências
+novas, commit ou push.
+
+O roteiro das três rotas também passou nas 9 combinações de Fiscal, Supervisão
+e Visão agregada com 1440/900/390 px, sem regressão estrutural ou overflow.
+Evidências: `/tmp/fiscal-faithful-routes/`. As capturas superiores e do ciclo
+foram inspecionadas comparativamente, incluindo 390 px.
+
+## Acabamento visual final: compactação e alinhamento executivo
+
+A estrutura homologada permanece. A faixa entre filtros e KPIs conserva botão,
+geração da resposta, referência, cobertura, escopo e consulta externa. A cobertura
+parcial continua visível e anunciada; a explicação completa e a distinção entre
+geração e atualização do banco ficam em **Sobre atualização e cobertura**,
+expansível nativo acessível. Nenhuma informação foi removida.
+
+Cada OS ocupa uma linha executiva compacta. A célula de motivo apresenta a
+quantidade factual de pendências do recorte e permite abrir seus detalhes. O
+detalhe preserva todas as pendências correspondentes aos filtros, seus status,
+título da OS quando recebido e descrições originais, inclusive espaços/quebras
+de linha. Texto vazio conserva a indicação anterior de decisão pendente e o
+conteúdo original vazio; texto nulo mantém o fallback existente. A contagem de
+pendências ocultas pelos filtros permanece, sem mostrar registros fora do recorte.
+A seleção e o CSV continuam usando `queueFilters.visible`, independentemente de
+a linha estar aberta ou fechada. Não houve alteração dos filtros ou do CSV.
+
+Fila/saúde e os três painéis operacionais agora usam o alinhamento `stretch` da
+grade, igualando as alturas dentro de cada linha no desktop sem alturas fixas
+nem linhas fictícias. Fila disponível vazia e fila indisponível têm mensagens
+próprias e nenhuma OS artificial. Ao expandir conteúdo extenso, a grade acompanha
+a altura necessária e as áreas com rolagem interna preservam o conteúdo integral.
+Em tablet/390 px os cards empilhados mantêm altura natural e ordem no DOM.
+Explicações de saúde, vigências/alertas e fonte financeira ficam acessíveis por
+expansão; as indisponibilidades permanecem visíveis. Ciclo, ABC, barras de saldo
+e detalhamentos inferiores conservaram os estilos e comportamentos aprovados.
+
+### Validação do acabamento
+
+- Frontend: **252 testes aprovados** (18 arquivos, 72 testes de apresentação
+  fiscal), incluindo detalhes por OS, descrições originais, status, fila vazia
+  e indisponível e metadados expansíveis.
+- API: **169 aprovados**; contratos: **28 aprovados**. Duas integrações
+  PostgreSQL ignoradas pela configuração existente, sem contá-las como aprovação.
+- Typecheck, build e `git diff --check`: aprovados. Permanecem os avisos de
+  anotações PURE em Zod e tamanho do bundle já registrados.
+- Chromium em **1440, 900 e 390 px**: cenários disponíveis, parciais,
+  indisponíveis, fila vazia, múltiplas pendências e descrições extensas. Verificou
+  igualdade de alturas nas linhas desktop, larguras/proporções, ordem dos cards,
+  expansão por teclado, texto integral e ausência de overflow da página.
+- Roteiro de fila: 3 casos aprovados, incluindo filtros por teclado, expansão
+  de pendências, download CSV e conteúdo exato/BOM. Refresh: 2 casos aprovados,
+  preservando timestamp, filtros, falha/recuperação e respostas antigas.
+
+Capturas comparativas com o HTML obrigatório e relatório:
+`/tmp/fiscal-polish-captures/`. Para cada largura W: `original-W-upper.png`
+versus `fiscal-W-viewport.png`; `original-W-lower.png` versus
+`react-W-lower.png`; capturas completas e específicas de ciclo/ABC permanecem.
+`fiscal-W-empty-queue-executive.png` registra a fila vazia alinhada à saúde;
+`fiscal-W-os-ID-expanded.png` mostra pendências abertas;
+`fiscal-W-long-content.png` e `fiscal-W-long-content-executive.png` registram
+conteúdo extenso. Relatórios adicionais em `/tmp/fiscal-polish-queue/` e
+`/tmp/fiscal-polish-refresh/`. Capturas desktop/vazia e expansão em 390 px foram
+inspecionadas. Tabelas estreitas mantêm rolagem horizontal interna, como o HTML.
+
+Diferenças restantes: fonte real e metadados adicionais, campos factuais da OS,
+quantidade de registros, explicações de cobertura e indisponibilidade. A altura
+da linha acompanha seu card mais alto; não se cria conteúdo para ocupar o espaço
+remanescente. Saúde, finanças e ABC continuam indisponíveis quando não aprovados.
+Não se copiaram valores, prioridades ou recomendações ilustrativos.
+
+Sem alteração de regras, backend, SQL, banco, migrations, contratos HTTP,
+autenticação ou autorização. Sem commit ou push.
+
+Regressão visual das três rotas: 9 combinações aprovadas em
+`/tmp/fiscal-polish-routes/`, sem regressões gerenciais ou overflow.

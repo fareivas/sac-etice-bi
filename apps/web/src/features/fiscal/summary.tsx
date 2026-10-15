@@ -174,10 +174,7 @@ export function FiscalDashboardView({
       <header className="fiscal-header">
         <div className="fiscal-header-inner">
           <div>
-            <span className="fiscal-brand">
-              ETICE <span>•</span> SAC BI
-            </span>
-            <h1>Dashboard do Fiscal do Contrato</h1>
+            <h1>ETICE • Dashboard do Fiscal do Contrato</h1>
             <p>Visão operacional da carteira individual de contratos</p>
           </div>
           <div className="header-meta">
@@ -209,13 +206,15 @@ export function FiscalDashboardView({
             </select></label>
             <label>Busca nos painéis operacionais<input type="search" placeholder="Contrato ou fornecedor" value={operationalFilters.search} disabled={!overview?.contracts} onChange={event => setOperationalFilters(current => ({ ...current, search: event.target.value }))} /></label>
           </div>
-          <p className="source-note">Recorte local dos painéis operacionais; fila e itens usam filtros próprios.</p>
-          <details className="fiscal-filter-guidance"><summary>Escopo dos filtros e fontes disponíveis</summary>
-            <p className="source-note">Filtros acima: somente Saldos por contrato e Vigências e renovações. KPIs e saúde representam a carteira completa; fila e itens têm filtros próprios. Datas ausentes não entram em janelas de vencimento.</p>
-            <p className="source-note" id={`${queueFilterId}-risk-note`}>Risco indisponível: sem classificação contratual aprovada na resposta fiscal.{!overview?.contracts && ' Fonte de contratos indisponível para os filtros operacionais.'}</p>
-          </details>
-          <div className="fiscal-overview-scope"><span>Recorte autorizado do fiscal · Unidade: {summary?.meta.filtersApplied.unidadeId ?? 'Todas'} · Contratos: {summary?.meta.filtersApplied.contratoId.join(', ') || 'Todos'}</span>
-            <label className="external-switch"><input type="checkbox" checked={includeExternal} onChange={event => onIncludeExternalChange(event.target.checked)} /> Consultar fonte externa</label></div>
+          <div className="fiscal-filter-extras">
+            <details className="fiscal-filter-guidance"><summary>Recorte local dos painéis operacionais · escopo e fontes</summary>
+              <p className="source-note">Recorte local dos painéis operacionais; fila e itens usam filtros próprios.</p>
+              <p className="source-note">Recorte autorizado do fiscal · Unidade: {summary?.meta.filtersApplied.unidadeId ?? 'Todas'} · Contratos: {summary?.meta.filtersApplied.contratoId.join(', ') || 'Todos'}</p>
+              <p className="source-note">Filtros acima: somente Saldos por contrato e Vigências e renovações. KPIs e saúde representam a carteira completa; fila e itens têm filtros próprios. Datas ausentes não entram em janelas de vencimento.</p>
+              <p className="source-note" id={`${queueFilterId}-risk-note`}>Risco indisponível: sem classificação contratual aprovada na resposta fiscal.{!overview?.contracts && ' Fonte de contratos indisponível para os filtros operacionais.'}</p>
+            </details>
+            <label className="external-switch"><input type="checkbox" checked={includeExternal} onChange={event => onIncludeExternalChange(event.target.checked)} /> Consultar fonte externa</label>
+          </div>
         </section>
         <section className="fiscal-status-strip" aria-label="Atualização, referência e cobertura">
           <div className="fiscal-refresh">
@@ -234,12 +233,12 @@ export function FiscalDashboardView({
             )}
           </div>
           {summary && <div className="fiscal-status-reference">Referência: {displayDate(summary.meta.dataReference, summary.meta.timezone)}</div>}
-          {partial && <p className="coverage-note" role="status">Cobertura parcial: indicadores marcados como indisponíveis não foram calculados.</p>}
+          {partial && <p className="coverage-note" role="status">Cobertura parcial <span className="visually-hidden">: indicadores marcados como indisponíveis não foram calculados.</span></p>}
           {summary && (
-            <p className="source-note">
-              Horário de geração da resposta, não de atualização do banco. A data de referência é apresentada
-              separadamente.
-            </p>
+            <details className="fiscal-metadata-details"><summary>Sobre atualização e cobertura</summary>
+              <p className="source-note">Horário de geração da resposta, não de atualização do banco. A data de referência é apresentada separadamente.</p>
+              {partial && <p className="source-note">Indicadores marcados como indisponíveis não foram calculados.</p>}
+            </details>
           )}
         </section>
         {state.status === 'success' && state.refreshing && (
@@ -286,6 +285,7 @@ export function FiscalDashboardView({
                 title="Minha fila de ação"
                 subtitle="OS com decisão fiscal pendente na carteira."
               >
+                <details className="fiscal-queue-tools"><summary>Filtros, CSV e escopo da fila</summary>
                 <details className="fiscal-queue-guidance"><summary>Escopo da fila e limites de interpretação</summary>
                 <p className="source-note">OS cliente dos contratos autorizados, com pendência de decisão fiscal no Processo 1 aberta ou em tratamento.</p>
                 <p className="source-note">
@@ -387,6 +387,7 @@ export function FiscalDashboardView({
                   Exporta somente o recorte visível. Cada linha representa uma pendência; uma OS pode ocupar
                   várias linhas.
                 </p>
+                </details>
                 <div className="fiscal-table-wrap">
                   <table>
                     <caption className="visually-hidden">OS da carteira com decisão fiscal pendente</caption>
@@ -404,7 +405,7 @@ export function FiscalDashboardView({
                     <tbody>
                       {queueFilters.visible.length ? (
                         queueFilters.visible.map(({ item, pendencies, hiddenCount }) => (
-                          <tr key={item.serviceOrderId}>
+                          <tr key={item.serviceOrderId} data-queue-order-id={item.serviceOrderId}>
                             <th scope="row">OS ID {item.serviceOrderId}</th>
                             <td>{item.severity ?? 'Severidade não definida'}</td>
                             <td>
@@ -418,16 +419,20 @@ export function FiscalDashboardView({
                               {item.supplierName ?? 'Fornecedor não identificado na fila'}
                             </td>
                             <td>
+                              <details className="fiscal-order-details"><summary>{pendencies.length} {pendencies.length === 1 ? 'pendência de decisão fiscal' : 'pendências de decisão fiscal'}</summary>
+                              {item.title !== null && <p className="fiscal-order-title">{item.title}</p>}
                               <ul>
                                 {pendencies.map((pendency) => (
                                   <li key={pendency.pendencyId}>
-                                    {pendency.description?.trim() || 'Decisão fiscal pendente no Processo 1'}
+                                    {pendency.description?.trim() ? pendency.description : 'Decisão fiscal pendente no Processo 1'}
+                                    {pendency.description !== null && !pendency.description.trim() && <span className="fiscal-original-empty" aria-label="Descrição original sem conteúdo textual">{pendency.description}</span>}
                                     <small className="fiscal-queue-pendency-status">
                                       Status: {pendency.status === 'aberta' ? 'Aberta' : 'Em tratamento'}
                                     </small>
                                   </li>
                                 ))}
                               </ul>
+                              </details>
                               {hiddenCount > 0 && (
                                 <small className="fiscal-queue-hidden">
                                   {hiddenCount}{' '}
@@ -472,7 +477,8 @@ export function FiscalDashboardView({
               <Panel className="fiscal-health" title="Saúde da carteira" subtitle="Dimensões da carteira autorizada completa; sem índice consolidado.">
                 {['Saldo', 'Vigência', 'SLA', 'Medições', 'Pagamento'].map(label => <div className="fiscal-health-row" key={label}>
                   <span>{label}</span><div className="fiscal-health-track" aria-hidden="true" /><strong>Indisponível</strong></div>)}
-                <p className="source-note">Não há percentuais de saúde aprovados para estas dimensões. Saldo por contrato e vencimentos factuais estão nos painéis abaixo; não equivalem a um índice de saúde.</p>
+                <div className="fiscal-model-alert fiscal-model-warn fiscal-health-index"><b>Índice de Saúde da Carteira: Indisponível</b><br /><span className="source-note">Sem índice consolidado aprovado.</span></div>
+                <details className="fiscal-executive-note"><summary>Como interpretar saúde e cobertura</summary><p className="source-note">Não há percentuais de saúde aprovados para estas dimensões. Saldo por contrato e vencimentos factuais estão nos painéis abaixo; não equivalem a um índice de saúde.</p></details>
               </Panel>
             </div>
             <div className="fiscal-operational-grid">
@@ -497,27 +503,30 @@ export function FiscalDashboardView({
                       <p>{row.description ?? 'Descrição indisponível'}</p>
                     </details>
                   </li>)}</ul>}
-                <p className="source-note">Renovações efetivamente identificadas: Indisponível. Alertas e vencimentos não comprovam processo ou decisão de renovação. Dias em relação à data de referência.</p>
+                <p className="source-note">Renovações efetivamente identificadas: Indisponível.</p>
+                <details className="fiscal-executive-note"><summary>Como interpretar vigências e alertas</summary><p className="source-note">Alertas e vencimentos não comprovam processo ou decisão de renovação. Dias em relação à data de referência.</p></details>
               </Panel>
               <Panel title="Pagamento e medição" subtitle="Etapas financeiras da carteira." className="fiscal-operational-payment">
-                {['Medições', 'Pagamento em processamento', 'Pagamento realizado'].map(label => <div className="fiscal-payment-stage" key={label}><span>{label}</span><strong>Indisponível</strong></div>)}
-                <p className="source-note">Sem fonte aprovada de documentos, etapas, valores ou prazos financeiros na resposta atual.</p>
+                {['Pagamento', 'Medições'].map((label, index) => <div className={`fiscal-model-alert ${index === 1 ? 'fiscal-model-warn' : ''}`} key={label}><b>{label}: Indisponível</b><br /><span className="source-note">Sem valores ou pendências financeiras aprovados.</span></div>)}
+                <details className="fiscal-executive-note"><summary>Fonte financeira e cobertura</summary><p className="source-note">Sem fonte aprovada de documentos, etapas, valores ou prazos financeiros na resposta atual.</p></details>
               </Panel>
             </div>
-            <Panel title="Ciclo financeiro do contrato" subtitle="Cliente → ETICE → fornecedor.">
-              <Unavailable label="Indisponível: a resposta atual não fornece etapas, valores ou tempos do ciclo financeiro." />
+            <Panel className="fiscal-financial-cycle" title="Ciclo financeiro do contrato" subtitle="Cliente → ETICE → fornecedor. Valores, status e tempos dependem de fonte aprovada.">
+              <div className="fiscal-model-payflow" tabIndex={0} role="region" aria-label="Sete etapas do ciclo financeiro">
+                {['Medição cliente', 'Faturamento', 'Recebimento cliente', 'Medição fornecedor', 'Processo de pagamento', 'Programação', 'Pago fornecedor'].map((label, index) => <div className="fiscal-model-phase" key={label}>
+                  <b>{index + 1}. {label}</b><span>Status: Indisponível</span><strong>Indisponível</strong><span>Tempo: Indisponível</span>
+                </div>)}
+              </div>
+              <div className="fiscal-model-metrics">{['Recebido de clientes', 'Pago a fornecedores', 'Recebido ainda não pago', 'Tempo médio do ciclo', 'Maior gargalo atual'].map(label => <div key={label}><small>{label}</small><b>Indisponível</b></div>)}</div>
+              <div className="fiscal-model-alert fiscal-model-warn"><b>Ação: Indisponível</b><br /><span className="source-note">A resposta atual não fornece etapas, valores ou tempos do ciclo financeiro nem recomendação aprovada.</span></div>
             </Panel>
             <Panel
               title="Relevância Econômica das Partes do Contrato / ABC"
               subtitle="Indisponível: não há classificação corporativa verificável de fornecedores e clientes na resposta atual."
             >
               <div className="fiscal-grid-two relevance">
-                <div>
-                  Fornecedores <strong>Indisponível</strong>
-                </div>
-                <div>
-                  Clientes <strong>Indisponível</strong>
-                </div>
+                <div className="fiscal-model-alert fiscal-model-info"><b>Fornecedores · Indisponível</b><br /><span>Sem classificação corporativa verificável de pagamentos.</span></div>
+                <div className="fiscal-model-alert fiscal-model-info"><b>Clientes · Indisponível</b><br /><span>Sem classificação corporativa verificável de recebimentos.</span></div>
               </div>
             </Panel>
             <details className="fiscal-operational-indicators"><summary>Indicadores operacionais complementares · carteira completa</summary>

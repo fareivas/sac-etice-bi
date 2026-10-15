@@ -24,6 +24,7 @@ try {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(responseForRequest(current, includeExternal)) });
     });
     await page.goto(process.env.FISCAL_PREVIEW_URL ?? 'http://127.0.0.1:5181/', { waitUntil: 'networkidle' });
+    await page.locator('.fiscal-queue-tools > summary').click();
     const panel = page.locator('.fiscal-action-queue');
     const contract = panel.getByLabel('Contrato da fila', { exact: true });
     const status = panel.getByLabel('Status da pendência', { exact: true });
@@ -73,6 +74,8 @@ try {
     await page.keyboard.type('documento');
     await page.waitForFunction(() => document.querySelector('.fiscal-queue-hidden')?.textContent === '2 pendências ocultas pelos filtros');
     assert.equal(await panel.locator('tbody tr').count(), 1);
+    await panel.locator('.fiscal-order-details > summary').first().focus(); await page.keyboard.press('Enter');
+    await search.focus();
     assert.ok((await panel.innerText()).includes('Documento divergente'));
     assert.ok(!(await panel.innerText()).includes('Conferir valor'));
     await page.keyboard.press('Tab');
@@ -93,6 +96,7 @@ try {
     await status.selectOption('em_tratamento'); await search.fill('DÓCUMENTO');
     await waitCount('1 de 4 OS');
     assert.ok((await panel.innerText()).includes('OS ID 12'));
+    await panel.locator('.fiscal-order-details > summary').first().focus(); await page.keyboard.press('Enter');
     assert.ok((await panel.innerText()).includes('Documento em revisão'));
     assert.ok(!(await panel.innerText()).includes('Documento ausente'));
     assert.ok(!(await panel.innerText()).includes('OS ID 11'));

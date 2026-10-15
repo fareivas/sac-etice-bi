@@ -27,6 +27,7 @@ try {
       while (pending.length < number) { assert.ok(Date.now() < deadline, 'Missing pending request'); await new Promise(done => setTimeout(done, 25)); }
     };
     await page.goto(process.env.FISCAL_PREVIEW_URL ?? 'http://127.0.0.1:5181/', { waitUntil: 'networkidle' });
+    await page.locator('.fiscal-queue-tools > summary').click();
     const refresh = page.getByRole('button', { name: 'Atualizar dados', exact: true });
     const queue = page.locator('.fiscal-action-queue');
     const contract = queue.getByLabel('Contrato da fila', { exact: true });

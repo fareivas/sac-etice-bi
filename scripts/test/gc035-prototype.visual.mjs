@@ -89,6 +89,7 @@ try {
     } else {
       assert.deepEqual(await page.locator('.fiscal-saldos thead th').allTextContents(),
         ['Status', 'Contrato / fornecedor', 'Item contratual', 'Total', 'Executado', 'Saldo', '% saldo', 'Ação do fiscal']);
+      await page.locator('.fiscal-queue-tools > summary').click();
       await page.locator('.fiscal-action-queue select').first().focus();
       assert.equal(await page.locator('.fiscal-action-queue select').first().evaluate(el => el === document.activeElement), true);
     }
@@ -163,8 +164,8 @@ try {
     await reference.route(/^https?:\/\//, route => route.abort());
     const filename = role === 'manager' ? 'ETICE_Dashboard_Gerente_Contratos_React_Recharts.html' :
       role === 'aggregate' ? 'ETICE_Dashboard_Gerente_Contratos_Autocontido_v4_ABC.html' :
-        'ETICE_Dashboard_Fiscal_React_Recharts.html';
-    await reference.goto(pathToFileURL(resolve('docs/reference/prototypes', filename)).href, { waitUntil: 'load' });
+        'ETICE_Dashboard_Fiscal_Autocontido_v4_ABC.html';
+    await reference.goto(pathToFileURL(resolve(role === 'fiscal' ? 'docs/reference' : 'docs/reference/prototypes', filename)).href, { waitUntil: 'load' });
     await reference.screenshot({ path: `${output}/${role}-${width}-prototipo.png`, fullPage: true });
     await reference.close();
     report.push({ role, width, errors, overflow: false, panels: expected[role] });
