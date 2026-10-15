@@ -22,6 +22,8 @@ type State =
       loadError?: string | null;
       suppliers?: ManagerSuppliersResponse | null;
       suppliersError?: string | null;
+      suppliersLoading?: boolean;
+      suppliersPage?: number;
     };
 const money = (value: number | null) =>
   value === null
@@ -223,7 +225,9 @@ export function FiscalLoadChart({ inspectors }: { inspectors: readonly Inspector
     </figure>
   );
 }
-export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { state: State; globalFiltersEnabled?: boolean }) {
+export function ManagerDashboardView({ state, globalFiltersEnabled = false, onSuppliersPageChange, onSuppliersRetry }: {
+  state: State; globalFiltersEnabled?: boolean; onSuppliersPageChange?: (page: number) => void; onSuppliersRetry?: () => void;
+}) {
   const [globalFilters, setGlobalFilters] = useState(initialGlobalFilters);
   const baseSummary = state.status === 'success' ? state.summary : null;
   const selectedIds = globalFiltersEnabled && baseSummary
@@ -233,6 +237,12 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
   const summary = projection?.summary ?? baseSummary;
   const occurrences = contractOccurrences(summary, selectionUnavailable, selectedIds?.size === 0);
   const subset = projection?.subset ?? false;
+  const supplierPagination = state.status === 'success' ? state.suppliers?.meta.pagination : undefined;
+  const supplierPage = state.status === 'success' ? state.suppliersPage ?? supplierPagination?.page ?? 1 : 1;
+  const supplierTotal = supplierPagination?.totalItems ?? null;
+  const supplierPageCount = supplierTotal === null ? null : Math.max(1, Math.ceil(supplierTotal / 25));
+  const supplierStart = supplierTotal === null || supplierTotal === 0 ? 0 : (supplierPage - 1) * 25 + 1;
+  const supplierEnd = supplierTotal === null ? 0 : Math.min(supplierPage * 25, supplierTotal);
   const baseInspectors = state.status === 'success' && state.load?.meta.dataCoverage.inspectors === 'AVAILABLE'
     ? state.load.data.inspectors : null;
   const inspectors =
@@ -811,7 +821,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                     <tbody>
                       {subset ? (
                         <tr><td colSpan={8} className="table-empty">Curva ABC indisponível no recorte global: a resposta não vincula pagamentos aos contratos selecionados.</td></tr>
-                      ) : state.status === 'success' && state.suppliers?.data.suppliers?.length ? (
+                      ) : state.status === 'success' && !state.suppliersLoading && !state.suppliersError && state.suppliers?.data.suppliers?.length ? (
                         state.suppliers.data.suppliers.map((supplier) => (
                           <tr key={supplier.supplierId}>
                             <td>Indisponível</td><td>{supplier.name.length > 28 ?
@@ -824,7 +834,9 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                       ) : (
                         <tr>
                           <td colSpan={8} className="table-empty">
-                            {state.status === 'success' && state.suppliersError
+                            {state.status === 'success' && state.suppliersLoading
+                              ? 'Carregando fornecedores…'
+                              : state.status === 'success' && state.suppliersError
                               ? `Erro ao carregar fornecedores: ${state.suppliersError}`
                               : state.status === 'success' && state.suppliers?.data.suppliers?.length === 0
                                 ? 'Nenhum fornecedor na carteira'
@@ -835,10 +847,25 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
                     </tbody>
                   </table>
                 </div>
+                {!subset && <nav className="manager-supplier-pagination" aria-label="Paginação de fornecedores">
+                  <span role="status">{state.status === 'success' && state.suppliersLoading ? 'Carregando fornecedores…' :
+                    state.status === 'success' && state.suppliersError ? 'Total de fornecedores indisponível.' :
+                    supplierTotal === null ? 'Total de fornecedores indisponível.' :
+                    `${supplierStart}–${supplierEnd} de ${supplierTotal} fornecedores`}</span>
+                  <div>
+                    <button type="button" disabled={!onSuppliersPageChange || state.status !== 'success' || supplierPage <= 1}
+                      onClick={() => onSuppliersPageChange?.(supplierPage - 1)}>Anterior</button>
+                    <button type="button" disabled={!onSuppliersPageChange || state.status !== 'success' || !!state.suppliersLoading ||
+                      supplierPageCount === null || supplierPage >= supplierPageCount}
+                      onClick={() => onSuppliersPageChange?.(supplierPage + 1)}>Próxima</button>
+                    {state.status === 'success' && state.suppliersError && onSuppliersRetry &&
+                      <button type="button" onClick={onSuppliersRetry}>Tentar novamente</button>}
+                  </div>
+                </nav>}
                 <details className="manager-supplier-details"><summary>Ver valores vigentes verificáveis</summary>
                   <p>Valor vigente não equivale a pagamentos acumulados em 12 meses nem determina classe ABC.</p>
                   {subset ? <p role="status">Valores vigentes por fornecedor indisponíveis no recorte global.</p>
-                    : state.status === 'success' && state.suppliers?.data.suppliers?.length ?
+                    : state.status === 'success' && !state.suppliersLoading && !state.suppliersError && state.suppliers?.data.suppliers?.length ?
                       <div className="fiscal-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Valor vigente</th></tr></thead>
                         <tbody>{state.suppliers.data.suppliers.map(supplier => <tr key={supplier.supplierId}>
                           <td>{supplier.name}</td><td>{money(supplier.vigentValue)}</td></tr>)}</tbody></table></div> :
@@ -1119,6 +1146,8 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false }: { 
 }
 export function ManagerDashboard() {
   const [state, setState] = useState<State>({ status: 'loading' });
+  const [supplierPage, setSupplierPage] = useState(1);
+  const [supplierRequest, setSupplierRequest] = useState(0);
   useEffect(() => {
     let active = true;
     Promise.all([
@@ -1129,22 +1158,16 @@ export function ManagerDashboard() {
           value: null,
           error: error instanceof Error ? error.message : 'Falha na consulta',
         })),
-      loadManagerSuppliers()
-        .then((value) => ({ value, error: null }))
-        .catch((error: unknown) => ({
-          value: null,
-          error: error instanceof Error ? error.message : 'Falha na consulta',
-        })),
     ])
-      .then(([summary, load, suppliers]) => {
+      .then(([summary, load]) => {
         if (active)
           setState({
             status: 'success',
             summary,
             load: load.value,
             loadError: load.error,
-            suppliers: suppliers.value,
-            suppliersError: suppliers.error,
+            suppliersLoading: true,
+            suppliersPage: 1,
           });
       })
       .catch((error: unknown) => {
@@ -1158,5 +1181,25 @@ export function ManagerDashboard() {
       active = false;
     };
   }, []);
-  return <ManagerDashboardView state={state} globalFiltersEnabled />;
+  const summaryReady = state.status === 'success';
+  useEffect(() => {
+    if (!summaryReady) return;
+    let active = true;
+    setState(current => current.status === 'success' ? { ...current, suppliersPage: supplierPage,
+      suppliers: null, suppliersError: null, suppliersLoading: true } : current);
+    loadManagerSuppliers(supplierPage).then(value => {
+      if (!active) return;
+      const total = value.meta.pagination.totalItems;
+      const lastPage = total === null ? null : Math.max(1, Math.ceil(total / 25));
+      if (lastPage !== null && supplierPage > lastPage) { setSupplierPage(lastPage); return; }
+      setState(current => current.status === 'success' ? { ...current, suppliers: value,
+        suppliersError: null, suppliersLoading: false } : current);
+    }).catch((error: unknown) => {
+      if (active) setState(current => current.status === 'success' ? { ...current, suppliers: null,
+        suppliersError: error instanceof Error ? error.message : 'Falha na consulta', suppliersLoading: false } : current);
+    });
+    return () => { active = false; };
+  }, [summaryReady, supplierPage, supplierRequest]);
+  return <ManagerDashboardView state={state} globalFiltersEnabled onSuppliersPageChange={setSupplierPage}
+    onSuppliersRetry={() => setSupplierRequest(current => current + 1)} />;
 }

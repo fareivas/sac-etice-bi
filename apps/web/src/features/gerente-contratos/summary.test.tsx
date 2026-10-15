@@ -518,6 +518,94 @@ it('GC-035D keeps long supplier names fully accessible in the compact eight-colu
   expect(table.querySelector('tbody tr')?.textContent).not.toContain('R$ 100');
 });
 
+function supplierPage(page: number, totalItems: number | null, names: string[]): ManagerSuppliersResponse {
+  return { meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25', timezone: 'America/Fortaleza',
+    source: 'SAC', merCoverage: 'PROPOSTA', pagination: { page, pageSize: 25, totalItems },
+    dataCoverage: { suppliers: totalItems === null ? 'UNAVAILABLE' : 'AVAILABLE', vigentValue: totalItems === null ? 'UNAVAILABLE' : 'AVAILABLE',
+      abcClass: 'UNAVAILABLE', openFinancialAmount: 'UNAVAILABLE', openCriticalRisks: 'UNAVAILABLE' } },
+  data: { suppliers: totalItems === null ? null : names.map((name, index) => ({ supplierId: page * 100 + index,
+    name, vigentValue: 100 + index, abcClass: null, openFinancialAmount: null, openCriticalRisks: null })) } };
+}
+
+it('shows page range, synchronized ABC and value rows, empty and unavailable states', () => {
+  const html = (suppliers: ManagerSuppliersResponse | null, suppliersError: string | null = null, suppliersLoading = false) => {
+    const host = document.createElement('div');
+    host.innerHTML = renderToStaticMarkup(<ManagerDashboardView state={{ status: 'success', summary: base,
+      suppliers, suppliersError, suppliersLoading, suppliersPage: suppliers?.meta.pagination.page ?? 1 }} />);
+    return host;
+  };
+  const page = html(supplierPage(2, 27, ['Fornecedor 26', 'Fornecedor 27']));
+  expect(page.querySelectorAll('.manager-suppliers > .fiscal-table-wrap thead th')).toHaveLength(8);
+  expect(page.querySelector('.manager-supplier-pagination')?.textContent).toContain('26–27 de 27 fornecedores');
+  expect([...page.querySelectorAll('.manager-suppliers > .fiscal-table-wrap tbody tr')].map(row => row.textContent)).toEqual([
+    expect.stringContaining('Fornecedor 26'), expect.stringContaining('Fornecedor 27'),
+  ]);
+  expect(page.querySelectorAll('.manager-supplier-details tbody tr')).toHaveLength(2);
+  expect(page.querySelector('.manager-supplier-details')?.textContent).toContain('Fornecedor 27');
+  expect(page.querySelector('.manager-suppliers')?.textContent).toContain('Classificação ABC indisponível');
+  const empty = html(supplierPage(1, 0, []));
+  expect(empty.querySelector('.manager-supplier-pagination')?.textContent).toContain('0–0 de 0 fornecedores');
+  expect(empty.querySelector('.manager-suppliers tbody')?.textContent).toContain('Nenhum fornecedor na carteira');
+  expect(html(supplierPage(1, null, [])).querySelector('.manager-supplier-pagination')?.textContent).toContain('Total de fornecedores indisponível');
+  expect(html(null, 'HTTP 503').querySelector('.manager-suppliers tbody')?.textContent).toContain('Erro ao carregar fornecedores: HTTP 503');
+  expect(html(null, null, true).querySelector('.manager-suppliers tbody')?.textContent).toContain('Carregando fornecedores');
+});
+
+it('navigates supplier pages, retries errors, clamps out-of-range pages and ignores stale responses', async () => {
+  const pending = new Map<number, Array<(response: Response) => void>>();
+  const fetchMock = vi.fn((input: string) => {
+    if (!input.includes('/fornecedores/resumo')) return Promise.resolve(new Response(JSON.stringify(
+      input.includes('/fiscais/carga') ? fiscalLoad([]) : base), { status: 200 }));
+    const page = Number(new URL(input, 'http://localhost').searchParams.get('page'));
+    return new Promise<Response>(resolve => { pending.set(page, [...pending.get(page) ?? [], resolve]); });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  const flush = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); }); };
+  const reply = async (page: number, response: Response) => {
+    const resolve = pending.get(page)?.shift(); expect(resolve).toBeDefined();
+    await act(async () => { resolve!(response); await Promise.resolve(); });
+  };
+  const button = (label: string) => [...host.querySelectorAll<HTMLButtonElement>('.manager-supplier-pagination button')]
+    .find(item => item.textContent === label)!;
+  try {
+    await act(async () => { root.render(<ManagerDashboard />); }); await flush();
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('page=1&pageSize=25&sort=name:asc'))).toBe(true);
+    expect(host.querySelector('.manager-suppliers tbody')?.textContent).toContain('Carregando fornecedores');
+    await reply(1, new Response(JSON.stringify(supplierPage(1, 51, ['Primeiro'])), { status: 200 }));
+    expect(host.querySelector('.manager-supplier-pagination')?.textContent).toContain('1–25 de 51');
+    expect(button('Anterior').disabled).toBe(true);
+    expect(button('Próxima').disabled).toBe(false);
+    button('Próxima').focus();
+    expect(document.activeElement).toBe(button('Próxima'));
+    act(() => button('Próxima').click()); await flush();
+    expect(host.querySelector('.manager-suppliers tbody')?.textContent).not.toContain('Primeiro');
+    expect(host.querySelector('.manager-supplier-details')?.textContent).not.toContain('Primeiro');
+    act(() => button('Anterior').click()); await flush();
+    await reply(1, new Response(JSON.stringify(supplierPage(1, 51, ['Primeiro'])), { status: 200 }));
+    await reply(2, new Response(JSON.stringify(supplierPage(2, 51, ['Obsoleto'])), { status: 200 }));
+    expect(host.querySelector('.manager-suppliers tbody')?.textContent).toContain('Primeiro');
+    expect(host.querySelector('.manager-suppliers tbody')?.textContent).not.toContain('Obsoleto');
+    act(() => button('Próxima').click()); await flush();
+    await reply(2, new Response('{}', { status: 503 }));
+    expect(host.querySelector('.manager-suppliers tbody')?.textContent).toContain('Erro ao carregar fornecedores');
+    expect(host.textContent).toContain('Contratos monitorados');
+    expect(host.querySelector('.manager-fiscals-panel')).not.toBeNull();
+    act(() => button('Tentar novamente').click()); await flush();
+    await reply(2, new Response(JSON.stringify(supplierPage(2, 51, ['Segundo'])), { status: 200 }));
+    expect(host.querySelector('.manager-supplier-pagination')?.textContent).toContain('26–50 de 51');
+    expect(host.querySelector('.manager-supplier-details')?.textContent).toContain('Segundo');
+    act(() => button('Próxima').click()); await flush();
+    await reply(3, new Response(JSON.stringify(supplierPage(3, 26, [])), { status: 200 }));
+    await flush();
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('page=2&pageSize=25&sort=name:asc'))).toBe(true);
+    await reply(2, new Response(JSON.stringify(supplierPage(2, 26, ['Último'])), { status: 200 }));
+    expect(host.querySelector('.manager-supplier-pagination')?.textContent).toContain('26–26 de 26');
+    expect(host.querySelector('.manager-supplier-details')?.textContent).toContain('Último');
+  } finally { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});
+
 it('GC-035 preserves global manager filters and local matrix state on the single page', () => {
   const data = structuredClone(base);
   data.data.contracts = [

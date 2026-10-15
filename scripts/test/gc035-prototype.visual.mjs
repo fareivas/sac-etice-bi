@@ -55,6 +55,15 @@ try {
       assert.equal(await page.locator('.manager-saldo-tools > summary').count(), 1);
       assert.deepEqual(await page.locator('.manager-suppliers > .fiscal-table-wrap thead th').allTextContents(),
         ['Classe', 'Fornecedor', 'Valor 12m', '%', '% acum.', 'Contratos', 'Risco', 'Tendência']);
+      assert.equal(await page.getByRole('navigation', { name: 'Paginação de fornecedores' }).count(), 1);
+      assert.ok((await page.getByRole('navigation', { name: 'Paginação de fornecedores' }).innerText()).includes('1–2 de 2 fornecedores'));
+      const supplierNext = page.getByRole('button', { name: 'Próxima', exact: true });
+      assert.equal(await supplierNext.isDisabled(), true);
+      assert.equal(await page.evaluate(() => {
+        const columns = (selector) => getComputedStyle(document.querySelector(selector)).gridTemplateColumns.trim().split(/\s+/).length;
+        return columns('.manager-focus-grid') === (innerWidth > 1150 ? 2 : 1) &&
+          columns('.manager-abc-pair') === (innerWidth > 1150 ? 2 : 1);
+      }), true);
       assert.equal(await page.evaluate(() => {
         const kpis = document.querySelector('.manager-kpis')?.getBoundingClientRect();
         const alerts = document.querySelector('.manager-decision')?.getBoundingClientRect();

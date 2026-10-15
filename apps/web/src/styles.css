@@ -330,6 +330,9 @@ button, input, select { font: inherit; }
 .manager-supplier-name summary::-webkit-details-marker { display: none; }
 .manager-supplier-name[open] { white-space: normal; }
 .manager-suppliers > .fiscal-table-wrap td:has(.manager-supplier-name[open]) { white-space: normal; overflow: visible; }
+.manager-supplier-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin: 10px 0 12px; color: var(--text-secondary); font-size: 12px; }
+.manager-supplier-pagination > div { display: flex; gap: 8px; }
+.manager-supplier-pagination button { min-height: 36px; padding: 7px 11px; }
 .manager-supplier-name[open] summary, .manager-supplier-name[open] span { white-space: normal; overflow-wrap: anywhere; }
 .manager-supplier-name span { display: block; padding: 5px 0; font-size: 11px; }
 .manager-supplier-name summary:focus-visible, .manager-saldo-tools summary:focus-visible, .manager-saldo-row-details summary:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
@@ -441,7 +444,7 @@ button, input, select { font: inherit; }
   .fiscal-kpis, .saldo-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fiscal-grid-two, .manager-primary-grid, .manager-abc-grid { grid-template-columns: 1fr; }
   .manager-overview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .manager-abc-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .manager-insight-grid, .manager-focus-grid, .manager-abc-pair { grid-template-columns: 1fr; }
 }
 @media (max-width: 650px) {
   .fiscal-header { padding: 18px 14px; }

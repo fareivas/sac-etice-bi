@@ -22,8 +22,8 @@ export async function loadManagerFiscalLoad(): Promise<ManagerFiscalLoadResponse
   return managerFiscalLoadResponseSchema.parse(await response.json());
 }
 
-export async function loadManagerSuppliers(): Promise<ManagerSuppliersResponse> {
-  const response = await fetch('/api/v1/gestao-contratual/fornecedores/resumo');
+export async function loadManagerSuppliers(page = 1): Promise<ManagerSuppliersResponse> {
+  const response = await fetch(`/api/v1/gestao-contratual/fornecedores/resumo?page=${page}&pageSize=25&sort=name:asc`);
   if (!response.ok) throw new Error(`Fornecedores indisponíveis (HTTP ${response.status})`);
   return managerSuppliersResponseSchema.parse(await response.json());
 }
