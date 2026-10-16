@@ -54,7 +54,7 @@ function QualityBar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-function ManagerCombinedChart({ inspectors }: { inspectors: readonly Inspector[] | null }) {
+function ManagerCombinedChart({ inspectors, emptyMessage }: { inspectors: readonly Inspector[] | null; emptyMessage: string }) {
   const data = inspectors?.map(inspector => ({ name: inspectorName(inspector), contracts: inspector.activeContracts,
     critical: null, performance: null })) ?? [];
   return <figure className="manager-combined-chart" aria-label="Carga, criticidade e desempenho por fiscal">
@@ -75,7 +75,7 @@ function ManagerCombinedChart({ inspectors }: { inspectors: readonly Inspector[]
       <span><i className="manager-legend-critical" />Críticos: indisponível</span>
       <span><i className="manager-legend-performance" />Ações no prazo: indisponível</span></figcaption>
     {inspectors === null ? <p role="status">Distribuição dos fiscais indisponível.</p> : inspectors.length === 0 ?
-      <p role="status">Nenhum fiscal designado na carteira.</p> : null}
+      <p role="status">{emptyMessage}</p> : null}
   </figure>;
 }
 
@@ -255,6 +255,11 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false, onSu
     ? inspectors.filter(item => item.contractIds?.some(id => selectedIds.has(id)))
       .map(item => ({ ...item, activeContracts: item.contractIds?.filter(id => selectedIds.has(id) &&
         summary?.data.contracts?.some(contract => contract.contractId === id)).length ?? 0 })) : inspectors);
+  const emptyInspectorsMessage = !globalFiltersEnabled || selectedIds === null
+    ? 'Nenhum fiscal designado na carteira.'
+    : selectedIds.size === 0
+      ? 'Nenhum contrato no recorte global atual.'
+      : 'Nenhum fiscal com designação ativa nos contratos do recorte global atual.';
   const fiscalNamesForContract = (contractId: number) => {
     if (inspectors === null || inspectors.some(inspector => inspector.contractIds === undefined)) return 'Indisponível';
     const names = inspectors.filter(inspector => inspector.contractIds?.includes(contractId)).map(inspectorName);
@@ -514,7 +519,8 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false, onSu
                     </p>
                   </details>
                 </div>
-                <ManagerCombinedChart inspectors={state.status === 'success' && state.loadError ? null : sortedInspectors} />
+                <ManagerCombinedChart inspectors={state.status === 'success' && state.loadError ? null : sortedInspectors}
+                  emptyMessage={emptyInspectorsMessage} />
                 {state.status === 'success' && state.loadError && <p role="alert">Erro ao carregar distribuição dos fiscais: {state.loadError}</p>}
                 <details className="manager-operational-details"><summary>Ver contagens operacionais e explicações</summary>
                 {state.status === 'success' && state.loadError ? (
@@ -522,7 +528,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false, onSu
                 ) : sortedInspectors === null ? (
                   <p role="status">Distribuição dos fiscais indisponível para esta referência.</p>
                 ) : sortedInspectors.length === 0 ? (
-                  <p role="status">Nenhum fiscal designado na carteira.</p>
+                  <p role="status">{emptyInspectorsMessage}</p>
                 ) : subset ? (
                   <>
                     <p role="status">OS pendentes por fiscal indisponíveis no recorte: a resposta de carga não associa cada OS a um contrato.</p>

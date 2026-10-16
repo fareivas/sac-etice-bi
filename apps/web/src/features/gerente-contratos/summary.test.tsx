@@ -186,6 +186,66 @@ it('distinguishes empty, unavailable and loading fiscal distribution', () => {
   expect(loading).not.toContain('Distribuição dos fiscais indisponível');
 });
 
+it('uses the same fiscal empty message in chart and operational table for each global scope', () => {
+  const data = structuredClone(base);
+  data.data.contracts = [
+    { contractId: 1, contractNumber: 'CT-1', supplierName: 'Alfa', value: 100, expiryDate: '2026-10-01' },
+    { contractId: 2, contractNumber: 'CT-2', supplierName: 'Beta', value: 200, expiryDate: '2026-10-02' },
+  ];
+  const outside = fiscalLoad([{ ...inspector(8, 'Fiscal Fora', 1, 0), contractIds: [2] }]);
+  const host = document.createElement('div'); const root = createRoot(host);
+  const renderView = (summary: ManagerDashboardSummaryResponse, load: ManagerFiscalLoadResponse) =>
+    act(() => root.render(<ManagerDashboardView state={{ status: 'success', summary, load }} globalFiltersEnabled />));
+  const expectBoth = (message: string) => {
+    expect(host.querySelector('.manager-combined-chart')?.textContent).toContain(message);
+    expect(host.querySelector('.manager-operational-details')?.textContent).toContain(message);
+  };
+  try {
+    renderView(data, outside);
+    const search = host.querySelector<HTMLInputElement>('.manager-global-grid input[type="search"]')!;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'CT-1');
+      search.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(host.querySelector('.manager-global-filters')?.textContent).toContain('1 de 2 contratos');
+    expectBoth('Nenhum fiscal com designação ativa nos contratos do recorte global atual.');
+    expect(host.querySelector('.manager-combined-chart')?.textContent).not.toContain('Fiscal Fora');
+
+    renderView(data, fiscalLoad([]));
+    expectBoth('Nenhum fiscal com designação ativa nos contratos do recorte global atual.');
+
+    const empty = structuredClone(base);
+    renderView(empty, fiscalLoad([]));
+    expectBoth('Nenhum contrato no recorte global atual.');
+  } finally { act(() => root.unmount()); }
+});
+
+it('keeps unavailable fiscal sources distinct from empty global scopes and preserves the unfiltered wording', () => {
+  const host = document.createElement('div'); const root = createRoot(host);
+  const expectNeitherGlobalEmpty = () => {
+    const fiscalPanels = [host.querySelector('.manager-combined-chart'), host.querySelector('.manager-operational-details')];
+    for (const panel of fiscalPanels) {
+      expect(panel?.textContent).not.toContain('Nenhum contrato no recorte global atual.');
+      expect(panel?.textContent).not.toContain('Nenhum fiscal com designação ativa nos contratos do recorte global atual.');
+      expect(panel?.textContent).not.toContain('Nenhum fiscal designado na carteira.');
+    }
+  };
+  try {
+    act(() => root.render(<ManagerDashboardView state={{ status: 'success', summary: base, load: fiscalLoad(null) }} globalFiltersEnabled />));
+    expectNeitherGlobalEmpty();
+    expect(host.querySelector('.manager-combined-chart')?.textContent).toContain('Distribuição dos fiscais indisponível.');
+    act(() => root.render(<ManagerDashboardView state={{ status: 'success', summary: base, load: null,
+      loadError: 'HTTP 503' }} globalFiltersEnabled />));
+    expectNeitherGlobalEmpty();
+    expect(host.querySelector('.manager-operational-details')?.textContent).toContain('HTTP 503');
+    act(() => root.render(<ManagerDashboardView state={{ status: 'success', summary: base, load: null,
+      loadError: 'A carga de fiscais retornou data de referência ou fuso diferente do resumo. Recarregue o dashboard.' }} globalFiltersEnabled />));
+    expectNeitherGlobalEmpty();
+    expect(host.querySelector('.manager-operational-details')?.textContent).toContain('Recarregue o dashboard.');
+    act(() => root.render(<ManagerDashboardView state={{ status: 'success', summary: base, load: fiscalLoad([]) }} />));
+    expect(host.querySelector('.manager-combined-chart')?.textContent).toContain('Nenhum fiscal designado na carteira.');
+    expect(host.querySelector('.manager-operational-details')?.textContent).toContain('Nenhum fiscal designado na carteira.');
+  } finally { act(() => root.unmount()); }
+});
+
 it('isolates a fiscal-load HTTP error without hiding the main summary', async () => {
   const suppliers = { meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25',
     timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA',
