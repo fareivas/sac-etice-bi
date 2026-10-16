@@ -13,6 +13,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspace @sac-etice-bi/api --workspace @sac-etice-bi/contracts",
     "local:api": "bash scripts/local-api.sh",
+    "debug:fiscal": "bash scripts/local-sam-debug.sh FiscalFunction",
+    "debug:gerente": "bash scripts/local-sam-debug.sh GerenteContratosFunction",
     "local:web": "npm run dev --workspace @sac-etice-bi/web -- --host 127.0.0.1"
   }
 }

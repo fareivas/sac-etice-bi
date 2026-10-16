@@ -11,3 +11,6 @@ coverage/
 !.env.local.example
 .env.local
 infra/sam/env.local.json
+
+# Temporary local SAM debug templates
+infra/sam/.local-debug.*.yaml

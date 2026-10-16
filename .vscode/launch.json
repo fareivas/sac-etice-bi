@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "SAM: Fiscal",
+      "type": "node",
+      "request": "attach",
+      "address": "127.0.0.1",
+      "port": 9229,
+      "localRoot": "${workspaceFolder}/.aws-sam/debug-fiscal/FiscalFunction",
+      "remoteRoot": "/var/task",
+      "outFiles": ["${workspaceFolder}/.aws-sam/debug-fiscal/FiscalFunction/**/*.js"],
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "../../../services/api/src/*": "${workspaceFolder}/services/api/src/*"
+      },
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "SAM: Gerente de Contrato",
+      "type": "node",
+      "request": "attach",
+      "address": "127.0.0.1",
+      "port": 9229,
+      "localRoot": "${workspaceFolder}/.aws-sam/debug-gerente/GerenteContratosFunction",
+      "remoteRoot": "/var/task",
+      "outFiles": ["${workspaceFolder}/.aws-sam/debug-gerente/GerenteContratosFunction/**/*.js"],
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "../../../services/api/src/*": "${workspaceFolder}/services/api/src/*"
+      },
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}
