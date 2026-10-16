@@ -1106,6 +1106,13 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false, onSu
                     Limiares provisórios.
                   </p>
                   <p>
+                    Executado representa consumo comprometido na base comprometido e medição na base medido.
+                    Total, Executado e Saldo seguem a dimensão {itemBalances.criterio.dimensao}.
+                    {itemBalances.criterio.base === 'medido' && <>
+                      {' '}Com contratado conhecido, medição ausente é considerada zero apenas no cálculo do saldo medido; a medição original continua indisponível.
+                    </>}
+                  </p>
+                  <p>
                     Distribuição por faixa: Adequado: {distribution.adequado} · Atenção:{' '}
                     {distribution.atencao} · Crítico: {distribution.critico} · Não verificável:{' '}
                     {distribution.nao_verificavel}

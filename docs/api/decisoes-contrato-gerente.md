@@ -409,6 +409,8 @@ O frontend restringe matriz, contratos, pendências, saldos contratuais e itens 
 
 Na Gestão dos Saldos dos Itens Contratuais, lista vazia recebida após o recorte global significa ausência de itens **nesse recorte**, sem afirmar ausência na carteira inteira. Os agregados permanecem zerados, acompanhados da explicação de que isso não comprova saldo contratual zero. Se há itens no recorte global e os filtros locais não encontram nenhum, a mensagem e a explicação atribuem o vazio aos filtros locais. A distribuição por faixa usa a mesma distinção. Itens presentes com valores efetivamente zero e fonte indisponível não recebem essas explicações.
 
+Na tabela de itens, Total, Executado, Saldo e percentual seguem a base e a dimensão recebidas em `itemBalances.criterio`. Na base `comprometido`, Executado é consumo comprometido e Saldo é saldo comprometido; na base `medido`, Executado é medição e Saldo é saldo medido. Valor usa os campos monetários; quantidade usa os campos de quantidade e a unidade do item. Na base `medido`, quando há contratado conhecido e a medição está ausente, o saldo medido pode ser calculado considerando a medição ausente como zero, mas Executado continua indisponível porque o valor original da medição permanece nulo. Contratado ausente não é convertido em zero. A faixa exibida permanece a recebida da API.
+
 ## GC-037 — Horizonte factual de vencimentos em 180 dias
 
 A Visão agregada substitui o título Forecast por **Horizonte de vencimentos ·

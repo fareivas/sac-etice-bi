@@ -227,6 +227,64 @@ function withItems(items: ReturnType<typeof item>[]): ManagerDashboardSummaryRes
   return data;
 }
 
+it.each([
+  ['comprometido', 'valor', 'R$ 1.000,00', 'R$ 200,00', 'R$ 800,00', '80%'],
+  ['medido', 'valor', 'R$ 1.000,00', 'R$ 350,00', 'R$ 650,00', '65%'],
+  ['comprometido', 'quantidade', '10 un', '3 un', '7 un', '70%'],
+  ['medido', 'quantidade', '10 un', '4 un', '6 un', '60%'],
+] as const)('shows item cells for %s/%s from the received criterion', (baseName, dimension, total, executed, balance, percent) => {
+  const summary = withItems([item(1, 1, 'Fornecedor', 'adequado', {
+    valueContracted: 1000, valueConsumed: 200, valueMeasured: 350, valueBalance: 800,
+    valueMeasuredBalance: 650, quantityContracted: 10, quantityConsumed: 3,
+    quantityMeasured: 4, quantityBalance: 7, quantityMeasuredBalance: 6,
+    pctSaldo: dimension === 'valor' ? .8 : .7, pctSaldoMedido: dimension === 'valor' ? .65 : .6,
+  })]);
+  if (summary.data.itemBalances.coverage !== 'AVAILABLE') throw new Error('Fixture de itens indisponível.');
+  summary.data.itemBalances.criterio.base = baseName;
+  summary.data.itemBalances.criterio.dimensao = dimension;
+  const host = document.createElement('div'); host.innerHTML = render(summary);
+  const cells = host.querySelectorAll('.fiscal-saldos tbody tr td');
+  expect([4, 5, 6, 7].map(index => cells[index].textContent)).toEqual([total, executed, balance, percent]);
+  expect(cells[0].textContent).toContain('Adequado');
+  const details = host.querySelector('.manager-saldo-tools')!.textContent!;
+  expect(details).toContain(`Total, Executado e Saldo seguem a dimensão ${dimension}.`);
+  expect(details).toContain('Executado representa consumo comprometido na base comprometido e medição na base medido.');
+  expect(details.includes('medição ausente é considerada zero')).toBe(baseName === 'medido');
+});
+
+it.each(['valor', 'quantidade'] as const)('keeps missing measured execution unavailable with known contracted %s', dimension => {
+  const summary = withItems([item(1, 1, 'Fornecedor', 'adequado', {
+    valueContracted: 1000, valueMeasured: null, valueMeasuredBalance: 1000,
+    quantityContracted: 10, quantityMeasured: null, quantityMeasuredBalance: 10,
+    pctSaldoMedido: 1,
+  })]);
+  if (summary.data.itemBalances.coverage !== 'AVAILABLE') throw new Error('Fixture de itens indisponível.');
+  summary.data.itemBalances.criterio.base = 'medido';
+  summary.data.itemBalances.criterio.dimensao = dimension;
+  const host = document.createElement('div'); host.innerHTML = render(summary);
+  const cells = host.querySelectorAll('.fiscal-saldos tbody tr td');
+  expect([4, 5, 6, 7].map(index => cells[index].textContent)).toEqual(dimension === 'valor'
+    ? ['R$ 1.000,00', 'Indisponível', 'R$ 1.000,00', '100%']
+    : ['10 un', 'Não calculável', '10 un', '100%']);
+});
+
+it.each(['valor', 'quantidade'] as const)('keeps unknown contracted %s and measured balance unavailable', dimension => {
+  const summary = withItems([item(1, 1, 'Fornecedor', 'nao_verificavel', {
+    valueContracted: null, valueMeasured: 350, valueMeasuredBalance: null,
+    quantityContracted: null, quantityMeasured: 4, quantityMeasuredBalance: null,
+    pctSaldoMedido: null,
+  })]);
+  if (summary.data.itemBalances.coverage !== 'AVAILABLE') throw new Error('Fixture de itens indisponível.');
+  summary.data.itemBalances.criterio.base = 'medido';
+  summary.data.itemBalances.criterio.dimensao = dimension;
+  const host = document.createElement('div'); host.innerHTML = render(summary);
+  const cells = host.querySelectorAll('.fiscal-saldos tbody tr td');
+  expect([4, 5, 6, 7].map(index => cells[index].textContent)).toEqual(dimension === 'valor'
+    ? ['Indisponível', 'Indisponível', 'Indisponível', 'Indisponível']
+    : ['Não calculável', 'Não calculável', 'Não calculável', 'Indisponível']);
+  expect(cells[0].textContent).toContain('Não verificável');
+});
+
 it('shows an existing blocked item in Ver detalhes', () => {
   const view = mount(withItems([item(10, 1, 'Fornecedor', 'adequado', {
     blockedAt: '2026-10-16T15:30:00.000Z', blockReason: 'Pendência documental',
