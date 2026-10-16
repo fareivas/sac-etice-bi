@@ -9,6 +9,7 @@ import type {
 import { loadManagerSummary, loadManagerFiscalLoad, loadManagerSuppliers } from '../../lib/api';
 import { displayDate } from '../../lib/display-date';
 import { useItemBalanceFilters } from '../item-balances/use-item-balance-filters';
+import { fiscalLoadReferenceError, sameReference, suppliersReferenceError } from './reference-compatible';
 import { initialGlobalFilters, projectManagerSummary, selectGlobalContracts } from './global-filters';
 import { contractOccurrences, genericEvaluation, genericEvaluationNote, occurrenceCoverage, occurrenceEmptyMessage } from './occurrences';
 
@@ -1177,8 +1178,8 @@ export function ManagerDashboard() {
           setState({
             status: 'success',
             summary,
-            load: load.value,
-            loadError: load.error,
+            load: load.value && sameReference(summary, load.value) ? load.value : null,
+            loadError: load.value && !sameReference(summary, load.value) ? fiscalLoadReferenceError : load.error,
             suppliersLoading: true,
             suppliersPage: 1,
           });
@@ -1194,14 +1195,19 @@ export function ManagerDashboard() {
       active = false;
     };
   }, []);
-  const summaryReady = state.status === 'success';
+  const referenceSummary = state.status === 'success' ? state.summary : null;
   useEffect(() => {
-    if (!summaryReady) return;
+    if (!referenceSummary) return;
     let active = true;
     setState(current => current.status === 'success' ? { ...current, suppliersPage: supplierPage,
       suppliers: null, suppliersError: null, suppliersLoading: true } : current);
     loadManagerSuppliers(supplierPage).then(value => {
       if (!active) return;
+      if (!sameReference(referenceSummary, value)) {
+        setState(current => current.status === 'success' ? { ...current, suppliers: null,
+          suppliersError: suppliersReferenceError, suppliersLoading: false } : current);
+        return;
+      }
       const total = value.meta.pagination.totalItems;
       const lastPage = total === null ? null : Math.max(1, Math.ceil(total / 25));
       if (lastPage !== null && supplierPage > lastPage) { setSupplierPage(lastPage); return; }
@@ -1212,7 +1218,7 @@ export function ManagerDashboard() {
         suppliersError: error instanceof Error ? error.message : 'Falha na consulta', suppliersLoading: false } : current);
     });
     return () => { active = false; };
-  }, [summaryReady, supplierPage, supplierRequest]);
+  }, [referenceSummary, supplierPage, supplierRequest]);
   return <ManagerDashboardView state={state} globalFiltersEnabled onSuppliersPageChange={setSupplierPage}
     onSuppliersRetry={() => setSupplierRequest(current => current + 1)} />;
 }

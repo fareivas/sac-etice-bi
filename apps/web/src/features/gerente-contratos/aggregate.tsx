@@ -4,6 +4,7 @@ import { loadManagerFiscalLoad, loadManagerSummary } from '../../lib/api';
 import { displayDate } from '../../lib/display-date';
 import { initialGlobalFilters, projectManagerSummary, selectGlobalContracts } from './global-filters';
 import { contractOccurrences, genericEvaluation, genericEvaluationNote, occurrenceCoverage, occurrenceEmptyMessage } from './occurrences';
+import { fiscalLoadReferenceError, sameReference } from './reference-compatible';
 
 type State =
   | { status: 'loading' }
@@ -30,7 +31,7 @@ function AggregateView({ state }: { state: State }) {
   const emptyLabel = source?.data.contracts?.length === 0 ? 'Carteira autorizada sem contratos.' : 'Nenhum contrato no recorte selecionado.';
   const rows = scopeUnavailable ? null : summary?.data.contractRiskMatrix;
   const inspectors = load?.meta.dataCoverage.inspectors === 'AVAILABLE' ? load.data.inspectors : null;
-  const selectedInspectors = scopeUnavailable ? null : selectedIds?.size === 0 ? [] : inspectors?.filter(inspector =>
+  const selectedInspectors = state.status === 'success' && state.loadError ? null : scopeUnavailable ? null : selectedIds?.size === 0 ? [] : inspectors?.filter(inspector =>
     !filters.fiscal || String(inspector.userId) === filters.fiscal).map(inspector => ({ ...inspector,
     activeContracts: inspector.contractIds ? inspector.contractIds.filter(id => selectedIds?.has(id)).length : null,
   })) ?? null;
@@ -149,7 +150,11 @@ export function ManagerAggregateDashboard() {
       loadManagerSummary(),
       loadManagerFiscalLoad().then(load => ({ load, loadError: null })).catch((error: unknown) =>
         ({ load: null, loadError: error instanceof Error ? error.message : 'Falha na consulta' })),
-    ]).then(([summary, fiscal]) => { if (active) setState({ status: 'success', summary, ...fiscal }); })
+    ]).then(([summary, fiscal]) => {
+      if (active) setState({ status: 'success', summary,
+        load: fiscal.load && sameReference(summary, fiscal.load) ? fiscal.load : null,
+        loadError: fiscal.load && !sameReference(summary, fiscal.load) ? fiscalLoadReferenceError : fiscal.loadError });
+    })
       .catch((error: unknown) => { if (active) setState({ status: 'error', message: error instanceof Error ? error.message : 'Falha na consulta' }); });
     return () => { active = false; };
   }, []);

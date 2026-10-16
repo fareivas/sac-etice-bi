@@ -636,6 +636,67 @@ function supplierPage(page: number, totalItems: number | null, names: string[]):
     name, vigentValue: 100 + index, abcClass: null, openFinancialAmount: null, openCriticalRisks: null })) } };
 }
 
+it.each([
+  ['same reference', {}, true],
+  ['different date', { dataReference: '2026-09-26' }, false],
+  ['different timezone', { timezone: 'UTC' }, false],
+] as const)('loads supervision fiscal data with %s', async (_label, meta, accepted) => {
+  const response = fiscalLoad([{ ...inspector(7, 'Fiscal Incompatível', 2, 3), contractIds: [1] }]);
+  response.meta = { ...response.meta, ...meta, generatedAt: '2026-09-25T15:01:00Z' };
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => new Response(JSON.stringify(
+    input.includes('/fiscais/carga') ? response : input.includes('/fornecedores/resumo') ? supplierPage(1, 0, []) : base), { status: 200 })));
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => { root.render(<ManagerDashboard />); await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(host.textContent).toContain('Dashboard do Gerente de Contratos');
+    expect(host.querySelector('.manager-fiscals-panel')?.textContent?.includes('Fiscal Incompatível')).toBe(accepted);
+    expect(host.querySelector('.manager-global-filters')?.textContent?.includes('Fiscal Incompatível')).toBe(accepted);
+    expect(host.textContent?.includes('A carga de fiscais retornou data de referência ou fuso diferente do resumo. Recarregue o dashboard.')).toBe(!accepted);
+    if (!accepted) expect(host.textContent).not.toContain('Nenhum fiscal designado na carteira.');
+  } finally { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});
+
+it('rejects incompatible supplier pages and recovers on compatible retry', async () => {
+  let supplierCall = 0;
+  const mismatched = (page: number, name: string) => {
+    const value = supplierPage(page, 51, [name]);
+    value.meta.dataReference = '2026-09-26';
+    return value;
+  };
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+    if (!input.includes('/fornecedores/resumo')) return new Response(JSON.stringify(
+      input.includes('/fiscais/carga') ? fiscalLoad([]) : base), { status: 200 });
+    supplierCall++;
+    const page = Number(new URL(input, 'http://localhost').searchParams.get('page'));
+    const data = supplierCall === 1 ? mismatched(1, 'Ignorado inicial')
+      : supplierCall === 2 ? supplierPage(1, 51, ['Aceito página um'])
+        : supplierCall === 3 ? { ...mismatched(2, 'Ignorado página dois'), meta: { ...mismatched(2, 'Ignorado página dois').meta, timezone: 'UTC', dataReference: base.meta.dataReference } }
+          : supplierPage(page, 51, ['Aceito página dois']);
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  const flush = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); }); };
+  const button = (label: string) => [...host.querySelectorAll<HTMLButtonElement>('.manager-supplier-pagination button')]
+    .find(item => item.textContent === label)!;
+  try {
+    await act(async () => { root.render(<ManagerDashboard />); }); await flush();
+    expect(host.textContent).toContain('A consulta de fornecedores retornou data de referência ou fuso diferente do resumo. Recarregue o dashboard.');
+    expect(host.textContent).not.toContain('Ignorado inicial');
+    expect(host.querySelector('.manager-supplier-pagination')?.textContent).toContain('Total de fornecedores indisponível');
+    act(() => button('Tentar novamente').click()); await flush();
+    expect(host.textContent).toContain('Aceito página um');
+    expect(host.querySelector('.manager-supplier-pagination')?.textContent).toContain('1–25 de 51');
+    act(() => button('Próxima').click()); await flush();
+    expect(host.textContent).not.toContain('Ignorado página dois');
+    expect(host.querySelector('.manager-supplier-pagination')?.textContent).toContain('Total de fornecedores indisponível');
+    act(() => button('Tentar novamente').click()); await flush();
+    expect(host.textContent).toContain('Aceito página dois');
+    expect(host.querySelector('.manager-supplier-pagination')?.textContent).toContain('26–50 de 51');
+  } finally { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});
+
 it('shows page range, synchronized ABC and value rows, empty and unavailable states', () => {
   const html = (suppliers: ManagerSuppliersResponse | null, suppliersError: string | null = null, suppliersLoading = false) => {
     const host = document.createElement('div');

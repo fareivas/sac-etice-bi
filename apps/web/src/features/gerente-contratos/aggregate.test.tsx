@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import type { ManagerDashboardSummaryResponse, ManagerFiscalLoadResponse } from '@sac-etice-bi/contracts';
-import { AggregateView } from './aggregate';
+import { AggregateView, ManagerAggregateDashboard } from './aggregate';
 
 const manager: ManagerDashboardSummaryResponse = {
   meta: { generatedAt: '2026-09-25T15:00:00Z', dataReference: '2026-09-25', timezone: 'America/Fortaleza', source: 'SAC', merCoverage: 'PROPOSTA',
@@ -29,6 +29,29 @@ const load: ManagerFiscalLoadResponse = {
 };
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+it.each([
+  ['same reference', {}, true],
+  ['different date', { dataReference: '2026-09-26' }, false],
+  ['different timezone', { timezone: 'UTC' }, false],
+] as const)('loads aggregate summary and fiscal load with %s', async (_label, meta, accepted) => {
+  const differentGeneration = structuredClone(load);
+  differentGeneration.meta = { ...differentGeneration.meta, ...meta, generatedAt: '2026-09-25T15:01:00Z' };
+  const responseSummary = structuredClone(manager);
+  responseSummary.data.contractRiskMatrix![0].saldo = {
+    status: 'UNAVAILABLE', partialCoverage: false, reason: 'ITEM_SOURCE_UNAVAILABLE',
+  };
+  vi.stubGlobal('fetch', vi.fn(async (input: string) => new Response(JSON.stringify(
+    input.includes('/fiscais/carga') ? differentGeneration : responseSummary), { status: 200 })));
+  const host = document.createElement('div'); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => { root.render(<ManagerAggregateDashboard />); await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(host.textContent).toContain('CT-7');
+    expect(host.textContent?.includes('A carga de fiscais retornou data de referência ou fuso diferente do resumo. Recarregue o dashboard.')).toBe(!accepted);
+    expect(host.textContent?.includes('Fiscal A')).toBe(accepted);
+    if (!accepted) expect(host.textContent).toContain('Fonte de distribuição indisponível');
+  } finally { act(() => root.unmount()); host.remove(); vi.unstubAllGlobals(); }
+});
 function mount(summary = manager, fiscalLoad: ManagerFiscalLoadResponse | null = load) {
   const host = document.createElement('div');
   const root = createRoot(host);

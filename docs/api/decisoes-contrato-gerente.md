@@ -411,6 +411,8 @@ Na Gestão dos Saldos dos Itens Contratuais, lista vazia recebida após o recort
 
 Na tabela de itens, Total, Executado, Saldo e percentual seguem a base e a dimensão recebidas em `itemBalances.criterio`. Na base `comprometido`, Executado é consumo comprometido e Saldo é saldo comprometido; na base `medido`, Executado é medição e Saldo é saldo medido. Valor usa os campos monetários; quantidade usa os campos de quantidade e a unidade do item. Na base `medido`, quando há contratado conhecido e a medição está ausente, o saldo medido pode ser calculado considerando a medição ausente como zero, mas Executado continua indisponível porque o valor original da medição permanece nulo. Contratado ausente não é convertido em zero. A faixa exibida permanece a recebida da API.
 
+Supervisão e Visão agregada aceitam a carga de fiscais somente quando `meta.dataReference` e `meta.timezone` são iguais aos do resumo; a Supervisão aplica a mesma regra a cada resposta paginada de fornecedores e a cada nova tentativa. Respostas auxiliares incompatíveis ficam indisponíveis sem invalidar o resumo ou usar linhas, nomes, contagens e totais de paginação. `generatedAt` pode diferir. Igualdade de referência e fuso **não garante fotografia transacional única**: as consultas permanecem independentes.
+
 ## GC-037 — Horizonte factual de vencimentos em 180 dias
 
 A Visão agregada substitui o título Forecast por **Horizonte de vencimentos ·
