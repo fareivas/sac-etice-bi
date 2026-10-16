@@ -106,17 +106,27 @@ R$ 300.000, nenhum item, um alerta, zero OS elegíveis e fila `[]`. No resumo
 Gerente do usuário 4, a carteira tinha contratos 8 e 29, saldo consolidado de
 R$ 612.156, um item e quatro alertas. A carga de fiscais retornou `[]` porque
 não havia fiscais designados na carteira gerenciada. O endpoint de fornecedores
-respondeu HTTP 200 com dois registros; não houve reconciliação individual
-desses registros por SQL.
+respondeu HTTP 200 com dois registros. A reconciliação dos fornecedores registrou
+ID 7 = R$ 594.216 e ID 29 = R$ 17.940, total R$ 612.156. A paginação observada
+foi página 1, limite 25 e total 2.
 
 SQL independente confirmou os resultados de Fiscal, Gerente e carga dentro de
 `BEGIN READ ONLY`/`ROLLBACK`, sem escrita. O contrato 29 tinha status `vigente`
 e fim em 16/08/2023: entrou na carteira pela regra de status, mas não na janela
 de vencimentos futuros.
 
-Não houve confirmação de reinício do SAM após o commit `6d5974c`; portanto,
-as respostas observadas não podem ser atribuídas com certeza a esse build.
-O banco real não exercitou item bloqueado nem OS `aguardando_fiscal` com
-contrato direto; ambos têm cobertura automatizada. Essas constatações locais
-não comprovam o estado de produção. Os valores são fotografia de validação,
-não expectativas fixas para execuções futuras.
+Nas primeiras consultas, não houve confirmação de reinício do SAM após o
+commit `6d5974c`; portanto, aquelas respostas não podem ser atribuídas com
+certeza a esse build. Posteriormente, em 16/10/2026, `npm run local:api`
+executou `sam build` com “Build Succeeded” e gerou artefatos em
+`.aws-sam/build`. O SAM iniciou às 10:48:48 em `127.0.0.1:3000`; novos
+contêineres montaram os artefatos de `FiscalFunction` e
+`GerenteContratosFunction`. Após esse rebuild, os quatro endpoints — resumo
+Fiscal, resumo Gerente, carga de fiscais e fornecedores — responderam HTTP 200.
+Isso confirma o build e o atendimento HTTP, mas não significa que todos os
+valores tenham sido novamente reconciliados por SQL após o rebuild.
+
+Item bloqueado e OS `aguardando_fiscal` com contrato direto não ocorreram na
+carteira local examinada e continuam cobertos apenas por testes automatizados.
+Essas constatações locais não comprovam o estado de produção. Os valores são
+fotografia de validação, não expectativas fixas para execuções futuras.
