@@ -316,7 +316,47 @@ it('distinguishes unavailable, available empty and incomplete item recuts', () =
     expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Fonte de saldos por item indisponível');
     const empty = withItems([]);
     view.update(empty);
-    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Nenhum item contratual cadastrado na carteira.');
+    const balances = view.section('Gestão dos Saldos dos Itens Contratuais');
+    expect(balances).toContain('Nenhum item contratual disponível no recorte global atual.');
+    expect(balances).toContain('Os totais zerados representam um recorte sem itens; não comprovam saldo contratual zero.');
+    expect(balances).toContain('Total contratadoR$ 0,00');
+    expect(view.section('Distribuição dos itens por faixa de saldo')).toContain('Nenhum item contratual disponível no recorte global atual.');
+  } finally { view.unmount(); }
+});
+
+it('explains empty local item filters while retaining zero aggregates and filter selection', () => {
+  const view = mount(withItems([item(1, 1, 'Fornecedor', 'critico')]));
+  try {
+    view.select('Faixa', 'adequado');
+    const balances = view.section('Gestão dos Saldos dos Itens Contratuais');
+    expect(view.selected('Faixa')).toBe('adequado');
+    expect(balances).toContain('Nenhum item encontrado com os filtros atuais.');
+    expect(balances).toContain('Os totais zerados representam filtros locais sem resultados.');
+    expect(balances).toContain('Total contratadoR$ 0,00');
+    expect(view.section('Distribuição dos itens por faixa de saldo')).toContain('Nenhum item encontrado com os filtros atuais.');
+  } finally { view.unmount(); }
+});
+
+it('does not explain real zero values or unavailable item source as empty filters', () => {
+  const zero = withItems([item(1, 1, 'Fornecedor', 'critico', {
+    valueContracted: 0, valueConsumed: 0, valueBalance: 0, valueMeasured: 0, valueMeasuredBalance: 0,
+  })]);
+  if (zero.data.itemBalances.coverage !== 'AVAILABLE') throw new Error('Fixture de itens indisponível.');
+  zero.data.itemBalances.agregados = { totalContratado: 0, saldoComprometido: 0, saldoMedido: 0,
+    itemCount: 1, completeValueRows: 1, contractedValueRows: 1, committedBalanceRows: 1, measuredBalanceRows: 1 };
+  const view = mount(zero);
+  try {
+    const balances = view.section('Gestão dos Saldos dos Itens Contratuais');
+    expect(balances).toContain('Total contratadoR$ 0,00');
+    expect(balances).not.toContain('Os totais zerados representam');
+    expect(balances).not.toContain('Nenhum item contratual disponível');
+    const unavailable = structuredClone(zero);
+    unavailable.meta.dataCoverage.itemBalances = 'UNAVAILABLE';
+    unavailable.data.itemBalances = { coverage: 'UNAVAILABLE' };
+    view.update(unavailable);
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).toContain('Fonte de saldos por item indisponível');
+    expect(view.section('Gestão dos Saldos dos Itens Contratuais')).not.toContain('Os totais zerados representam');
+    expect(view.section('Distribuição dos itens por faixa de saldo')).toContain('Distribuição indisponível');
   } finally { view.unmount(); }
 });
 

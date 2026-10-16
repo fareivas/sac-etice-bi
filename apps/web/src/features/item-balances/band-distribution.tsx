@@ -17,6 +17,7 @@ export function BandDistribution({
   scope,
   captionId,
   instructions,
+  emptyWithoutItemsMessage = 'Sem itens cadastrados na carteira.',
   outerRadius = 94,
 }: {
   distribution: Distribution;
@@ -26,6 +27,7 @@ export function BandDistribution({
   scope: string;
   captionId?: string;
   instructions?: string;
+  emptyWithoutItemsMessage?: string;
   outerRadius?: number;
 }) {
   if (!available)
@@ -71,7 +73,7 @@ export function BandDistribution({
         </div>
       ) : (
         <p className="table-empty" role="status">
-          {hasItems ? 'Nenhum item encontrado com os filtros atuais.' : 'Sem itens cadastrados na carteira.'}
+          {hasItems ? 'Nenhum item encontrado com os filtros atuais.' : emptyWithoutItemsMessage}
         </p>
       )}
       <ul className="item-band-chart-legend" aria-label="Contagens por faixa">

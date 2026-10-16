@@ -407,6 +407,8 @@ O filtro de risco testa exclusivamente `contractRiskMatrix[].saldo.status` e `vi
 
 O frontend restringe matriz, contratos, pendências, saldos contratuais e itens aos IDs selecionados. Recalcula contagem de contratos vigentes, valor ativo com cobertura completa e precisão segura, contagem de críticos da matriz e vencimentos em 120 dias, mantendo nulos quando incompletos. Indicadores preventivos D-90/preenchimento, OS pendentes por fiscal e valor por fornecedor ficam **Indisponível** no subconjunto: as respostas atuais não fornecem as relações necessárias à sua repartição exata. A carga por fiscal mostra somente a contagem de contratos vigentes no recorte; não reaproveita a contagem de OS da carteira inteira. Sem fonte suficiente para determinar o recorte, inclusive nomes de fiscal para a busca quando a carga falha, a tela mostra indisponibilidade em vez de apresentar totais da carteira inteira como filtrados. Filtros locais persistem ao alternar abas e ao mudar o recorte global.
 
+Na Gestão dos Saldos dos Itens Contratuais, lista vazia recebida após o recorte global significa ausência de itens **nesse recorte**, sem afirmar ausência na carteira inteira. Os agregados permanecem zerados, acompanhados da explicação de que isso não comprova saldo contratual zero. Se há itens no recorte global e os filtros locais não encontram nenhum, a mensagem e a explicação atribuem o vazio aos filtros locais. A distribuição por faixa usa a mesma distinção. Itens presentes com valores efetivamente zero e fonte indisponível não recebem essas explicações.
+
 ## GC-037 — Horizonte factual de vencimentos em 180 dias
 
 A Visão agregada substitui o título Forecast por **Horizonte de vencimentos ·

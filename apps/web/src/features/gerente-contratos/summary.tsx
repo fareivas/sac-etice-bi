@@ -881,6 +881,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false, onSu
                   distribution={distribution}
                   available={itemBalances?.coverage === 'AVAILABLE'}
                   hasItems={items.length > 0}
+                  emptyWithoutItemsMessage="Nenhum item contratual disponível no recorte global atual."
                   title="Distribuição dos itens por faixa de saldo"
                   scope="Fornecedor, contrato, faixa e busca aplicados."
                   outerRadius={96}
@@ -906,6 +907,11 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false, onSu
                     <div><span>Itens críticos</span><strong>{distribution.critico}</strong><small>Faixa crítica verificável no recorte</small></div>
                   </div>
                   <p className="manager-saldo-coverage" role="status">Cobertura do recorte: {filteredItems.length} de {items.length} itens; total contratado {aggregates.contractedValueRows}/{filteredItems.length}, saldo comprometido {aggregates.committedBalanceRows}/{filteredItems.length}, saldo medido {aggregates.measuredBalanceRows}/{filteredItems.length}.</p>
+                  {items.length === 0 ? (
+                    <p className="manager-saldo-coverage" role="status">Os totais zerados representam um recorte sem itens; não comprovam saldo contratual zero.</p>
+                  ) : filteredItems.length === 0 ? (
+                    <p className="manager-saldo-coverage" role="status">Os totais zerados representam filtros locais sem resultados.</p>
+                  ) : null}
                   <div className="fiscal-table-wrap">
                     <table>
                       <thead>
@@ -992,7 +998,7 @@ export function ManagerDashboardView({ state, globalFiltersEnabled = false, onSu
                             <td colSpan={9} className="table-empty">
                               {items.length
                                 ? 'Nenhum item encontrado com os filtros atuais.'
-                                : 'Nenhum item contratual cadastrado na carteira.'}
+                                : 'Nenhum item contratual disponível no recorte global atual.'}
                             </td>
                           </tr>
                         )}
