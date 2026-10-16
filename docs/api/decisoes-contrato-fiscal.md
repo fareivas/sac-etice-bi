@@ -506,7 +506,7 @@ Cada item contém identificação do contrato, fornecedor e item; sequência, es
 
 A afirmação anterior sobre ausência das colunas registra o estado da investigação original. No banco local atualizado até Alembic 0057, `contratos.contrato_item` possui `bloqueado_em` (`timestamptz`, anulável) e `bloqueio_motivo` (`text`, anulável). A leitura compartilhada dos saldos por item expõe esses valores como `blockedAt` (datetime ISO 8601 quando preenchido) e `blockReason`, preservando `null`. Esta constatação local não estabelece equivalência com produção.
 
-Pendências registradas, sem mudança de regra: divergência entre DEC-026 e a elegibilidade oficial (`aguardando_fiscal` ou `recebida`/`em_validacao` com `decisao_fiscal_p1` aberta ou em tratamento); todas as OS cliente locais sem contrato direto, sem inferência de carteira por subordem, fornecedor, perfil ou destinatário; pendência fiscal residual em OS cancelada; quatro itens de contratos vigentes sem valor contratado; views financeiras existentes sem equivalência automática com indicadores ainda indisponíveis dos dashboards. Aceite e recusa não desativam designações, portanto o escopo continua filtrado por `ativo=true`. O saldo consolidado continua baseado no cabeçalho via `contratos.vw_saldo_contrato` (DEC-033 e DEC-GC-026).
+Pendências registradas à época: divergência entre DEC-026 e a elegibilidade oficial (`aguardando_fiscal` ou `recebida`/`em_validacao` com `decisao_fiscal_p1` aberta ou em tratamento), resolvida pela DEC-036 abaixo; todas as OS cliente locais sem contrato direto, sem inferência de carteira por subordem, fornecedor, perfil ou destinatário; pendência fiscal residual em OS cancelada; quatro itens de contratos vigentes sem valor contratado; views financeiras existentes sem equivalência automática com indicadores ainda indisponíveis dos dashboards. Aceite e recusa não desativam designações, portanto o escopo continua filtrado por `ativo=true`. O saldo consolidado continua baseado no cabeçalho via `contratos.vw_saldo_contrato` (DEC-033 e DEC-GC-026).
 
 ## Apresentação da fila de OS — análise de fontes e limitações
 
@@ -607,6 +607,16 @@ A proposta de orientação geral permanece pendente. Nenhuma prioridade, prazo,
 impacto ou recomendação foi acrescentada. Alterações apenas no protótipo BI,
 seus contratos de resposta, testes e documentação; sem escrita no banco nem
 chamadas a APIs oficiais de decisão.
+
+## DEC-036 — Elegibilidade atual das OS pendentes na carteira contratual
+
+**Status:** APROVADA para a fotografia atual do SAC local. Substitui a regra de elegibilidade de DEC-026 e sua exclusão de `aguardando_fiscal`; amplia o vínculo da fila em DEC-027 e o requisito de array não vazio, JOIN obrigatório e motivo baseado em pendência de DEC-035. Os demais campos HTTP, critérios de cobertura e regras de apresentação dessas decisões continuam vigentes.
+
+Uma OS é elegível se `lado = 'cliente'`, `contrato_id` direto pertence à carteira autorizada atual e ocorre uma destas condições: `status = 'aguardando_fiscal'`; ou `status IN ('recebida', 'em_validacao')` com ao menos uma `comum.pendencia` de `entidade_tipo = 'ordem_servico'`, `entidade_id = os.id`, `tipo = 'decisao_fiscal_p1'` e `status IN ('aberta', 'em_tratamento')`. Demais status ficam fora, mesmo com pendência residual. OS fornecedor, contrato nulo ou fora do escopo também ficam fora. Não há vínculo inferido por subordem, fornecedor, perfil ou destinatário.
+
+O mesmo predicado alimenta `cards.pendingServiceOrders`, `priorityQueue` e `inspectors[].pendingOrders` da carga do Gerente. O card e a carga contam `DISTINCT os.id`; a fila mantém uma linha por OS, com `LEFT JOIN` das pendências elegíveis e filtro de elegibilidade da OS no `WHERE`. Seleciona todas as pendências qualificadas, deduplicadas somente por ID, em ordem técnica de OS e pendência. `aguardando_fiscal` sem pendência produz `pendencies: []`; não cria pendência, `title` ou `description` na API. A célula de motivo e o CSV mostram “OS aguardando decisão fiscal; sem pendência cadastrada.” para essa OS. Filtros sem status específico a preservam; o filtro de status de pendência a exclui.
+
+Esta regra delimita somente elegibilidade no escopo contratual do dashboard. Não reproduz autorização de ações nem fallback de perfis do SAC. Fotografias históricas sem reconstrução confiável permanecem `UNAVAILABLE`, sem consultar o estado atual. A constatação do banco local 0057 não implica equivalência com produção.
 
 ## Apresentação dos saldos dos itens — ausência, filtros e zero real
 

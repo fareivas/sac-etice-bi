@@ -116,6 +116,12 @@ const pendingOrder = {
   serviceOrderId: 11, pendencies: [{ pendencyId: 101, description: null, status: 'aberta' as const }], type: 'SERVICE_ORDER' as const, severity: null, contractId: 184, contractNumber: 'CT-184',
   supplierName: null, title: null, dueAt: null,
 };
+it('shows a waiting OS without pendency in the existing motive cell', () => {
+  const panel = queuePanel([{ ...pendingOrder, pendencies: [] }]);
+  expect(panel.querySelector('[data-queue-order-id="11"]')?.textContent).toContain('OS aguardando decisão fiscal; sem pendência cadastrada.');
+  expect(panel.querySelector('[data-queue-order-id="11"] .fiscal-order-details')).toBeNull();
+  expect(panel.textContent).toContain('1 de 1 OS');
+});
 it('explains portfolio eligibility and each missing queue field without personal attribution or financial guesses', () => {
   const data = summary(1, [pendingOrder]);
   data.data.contractBalances = [{ contractId: 184, contractNumber: 'CT-184',

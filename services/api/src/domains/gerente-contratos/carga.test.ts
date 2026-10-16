@@ -11,7 +11,7 @@ import { composeManagerFiscalLoad } from './carga-service';
 const now = () => new Date('2026-09-25T15:00:00Z');
 const filters = { dataReferencia: '2026-09-25', timezone: 'America/Fortaleza', contratoId: [] as number[] };
 function fixture(designations: { user: number; contract: number; role: string; active: boolean }[],
-  orders: { id: number; contract: number; side: string; pendencies: { type: string; status: string; responsible: number }[] }[],
+  orders: { id: number; contract: number | null; side: string; status?: string; pendencies: { type: string; status: string; responsible: number }[] }[],
   statuses: Record<number, string> = {}) {
   const query = vi.fn(async (sql: string, values?: readonly unknown[]) => {
     if (sql === GET_MANAGER_IDENTITY) return [{ id: String(values![0]), nome: 'Gestor', ativo: true }];
@@ -23,8 +23,9 @@ function fixture(designations: { user: number; contract: number; role: string; a
       return fiscals.map((user) => {
         const contracts = [...new Set(designations.filter((d) => d.user === user && ids.includes(d.contract) && d.role === 'fiscal' && d.active).map((d) => d.contract))];
         const active = contracts.filter((id) => (statuses[id] ?? 'vigente') === 'vigente');
-        const pending = [...new Set(orders.filter((os) => contracts.includes(os.contract) && os.side === 'cliente' &&
-          os.pendencies.some((p) => p.type === 'decisao_fiscal_p1' && ['aberta', 'em_tratamento'].includes(p.status))).map((os) => os.id))];
+        const pending = [...new Set(orders.filter((os) => os.contract !== null && contracts.includes(os.contract) && os.side === 'cliente' &&
+          (os.status === 'aguardando_fiscal' || (['recebida', 'em_validacao'].includes(os.status ?? 'recebida') &&
+          os.pendencies.some((p) => p.type === 'decisao_fiscal_p1' && ['aberta', 'em_tratamento'].includes(p.status))))).map((os) => os.id))];
         return { user_id: String(user), name: `Fiscal ${user}`, contract_ids: contracts.map(String),
           active_contracts: String(active.length), pending_orders: String(pending.length) };
       });
@@ -63,6 +64,23 @@ describe('manager fiscal load', () => {
     const result = await composeManagerFiscalLoad(1, filters, repo, now);
     expect(result.data.inspectors?.[0]).toMatchObject({ activeContracts: 2, pendingOrders: 1 });
     expect(result.meta.dataCoverage).toMatchObject({ activeContracts: 'AVAILABLE', pendingOrders: 'AVAILABLE' });
+  });
+  it('counts waiting orders without pendencies and legacy orders only with eligible decisions', async () => {
+    const orders = [
+      { id: 1, contract: 10, side: 'cliente', status: 'aguardando_fiscal', pendencies: [] },
+      { id: 2, contract: 10, side: 'cliente', status: 'aguardando_fiscal', pendencies: [p(7), p(8)] },
+      { id: 3, contract: 10, side: 'cliente', status: 'recebida', pendencies: [p(7)] },
+      { id: 4, contract: 10, side: 'cliente', status: 'em_validacao', pendencies: [p(7)] },
+      ...['cancelada', 'aprovada', 'executada', 'aguardando_correcao'].map((status, i) =>
+        ({ id: 5 + i, contract: 10, side: 'cliente', status, pendencies: [p(7)] })),
+      { id: 9, contract: 10, side: 'fornecedor', status: 'aguardando_fiscal', pendencies: [] },
+      { id: 10, contract: null, side: 'cliente', status: 'aguardando_fiscal', pendencies: [] },
+      { id: 11, contract: 11, side: 'cliente', status: 'aguardando_fiscal', pendencies: [] },
+      { id: 12, contract: 10, side: 'cliente', status: 'recebida', pendencies: [{ ...p(7), type: 'other' }] },
+      { id: 13, contract: 10, side: 'cliente', status: 'em_validacao', pendencies: [{ ...p(7), status: 'resolvida' }] },
+    ];
+    const { repo } = fixture([d(1, 10, 'gestor'), d(7, 10, 'fiscal')], orders);
+    expect((await composeManagerFiscalLoad(1, filters, repo, now)).data.inspectors?.[0].pendingOrders).toBe(4);
   });
   it('publishes only the official 7.2 names in the strict Zod contract', async () => {
     const { repo } = fixture([d(1, 10, 'gestor'), d(7, 10, 'fiscal')], []);

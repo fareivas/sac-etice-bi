@@ -345,7 +345,7 @@ export function FiscalDashboardView({
                               {item.supplierName ?? 'Fornecedor não identificado na fila'}
                             </td>
                             <td>
-                              <details className="fiscal-order-details"><summary>{pendencies.length} {pendencies.length === 1 ? 'pendência de decisão fiscal' : 'pendências de decisão fiscal'}</summary>
+                              {pendencies.length === 0 ? <span>OS aguardando decisão fiscal; sem pendência cadastrada.</span> : <details className="fiscal-order-details"><summary>{pendencies.length}{' '}{pendencies.length === 1 ? 'pendência de decisão fiscal' : 'pendências de decisão fiscal'}</summary>
                               {item.title !== null && <p className="fiscal-order-title">{item.title}</p>}
                               <ul>
                                 {pendencies.map((pendency) => (
@@ -358,7 +358,7 @@ export function FiscalDashboardView({
                                   </li>
                                 ))}
                               </ul>
-                              </details>
+                              </details>}
                               {hiddenCount > 0 && (
                                 <small className="fiscal-queue-hidden">
                                   {hiddenCount}{' '}

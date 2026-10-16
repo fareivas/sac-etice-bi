@@ -17,6 +17,8 @@ export function filterFiscalQueue(queue: Queue, filters: QueueFilters) {
       item.contractNumber, item.contractId === null ? null : String(item.contractId),
       item.contractId === null ? null : `Contrato ID ${item.contractId}`, item.supplierName]
       .some(value => value !== null && normalize(value).includes(query));
+    if (!item.pendencies.length) return !filters.status && orderMatches
+      ? [{ item, pendencies: [], hiddenCount: 0 }] : [];
     const pendencies = item.pendencies.filter(pendency =>
       (!filters.status || pendency.status === filters.status) &&
       (orderMatches || (pendency.description !== null && normalize(pendency.description).includes(query))));

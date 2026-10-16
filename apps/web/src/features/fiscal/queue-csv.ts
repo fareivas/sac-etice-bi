@@ -3,6 +3,7 @@ import type { filterFiscalQueue } from './use-fiscal-queue-filters';
 
 type VisibleQueue = ReturnType<typeof filterFiscalQueue>;
 const generalReason = 'Decisão fiscal pendente no Processo 1';
+const noPendencyReason = 'OS aguardando decisão fiscal; sem pendência cadastrada.';
 
 export function fiscalQueueCsv(visible: VisibleQueue, reference: string) {
   const rows: (string | number | null | undefined)[][] = [
@@ -10,7 +11,7 @@ export function fiscalQueueCsv(visible: VisibleQueue, reference: string) {
   ];
   for (const { item, pendencies } of visible) {
     const base = [reference, item.serviceOrderId, item.contractId, item.contractNumber, item.supplierName];
-    if (!pendencies.length) rows.push([...base, null, generalReason, null]);
+    if (!pendencies.length) rows.push([...base, null, noPendencyReason, null]);
     else for (const pendency of pendencies) rows.push([...base, pendency.pendencyId,
       pendency.description?.trim() ? pendency.description : generalReason, pendency.status]);
   }

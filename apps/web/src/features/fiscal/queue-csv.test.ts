@@ -32,8 +32,8 @@ it.each(['=SUM(1;2)', '+1', '-1', '@comando', ' \t=1', '\r\n+1', '\u0000@1'])('n
   const csv = fiscalQueueCsv(filterFiscalQueue([item], empty), '2026-10-08');
   expect(csv.split(`"'${text}"`)).toHaveLength(4);
 });
-it('preserves a defensive row for an OS without details and leaves absent pendency fields blank', () => {
+it('exports an OS without pendency with explanatory reason and blank pendency fields', () => {
   const item = { ...queue[0], contractId: null, contractNumber: null, supplierName: null, pendencies: [] };
   expect(fiscalQueueCsv([{ item, pendencies: [], hiddenCount: 0 }], '2026-10-08')).toContain(
-    '"2026-10-08";"11";"";"";"";"";"Decisão fiscal pendente no Processo 1";""');
+    '"2026-10-08";"11";"";"";"";"";"OS aguardando decisão fiscal; sem pendência cadastrada.";""');
 });

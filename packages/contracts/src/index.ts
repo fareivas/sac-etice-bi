@@ -98,7 +98,7 @@ const fiscalQueuePendencySchema = z.strictObject({
 });
 const fiscalPriorityQueueItemSchema = z.strictObject({
   serviceOrderId: z.number().int().positive().safe(),
-  pendencies: z.array(fiscalQueuePendencySchema).min(1).refine(
+  pendencies: z.array(fiscalQueuePendencySchema).refine(
     items => new Set(items.map(item => item.pendencyId)).size === items.length,
     'Pendências duplicadas na OS',
   ),

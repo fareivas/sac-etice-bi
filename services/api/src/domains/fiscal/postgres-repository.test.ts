@@ -185,7 +185,19 @@ describe('PostgresFiscalSummaryRepository', () => {
     expect(GET_PENDING_FISCAL_SERVICE_ORDERS).not.toContain('responsavel_id');
     expect(GET_PENDING_FISCAL_SERVICE_ORDERS).not.toContain('usuario_id');
     expect(GET_PENDING_FISCAL_SERVICE_ORDERS).toContain('ORDER BY ordem_servico_id');
+    expect(GET_PENDING_FISCAL_SERVICE_ORDERS).toContain('LEFT JOIN comum.pendencia p');
+    expect(GET_PENDING_FISCAL_SERVICE_ORDERS).toContain("os.status = 'aguardando_fiscal'");
+    expect(GET_PENDING_FISCAL_SERVICE_ORDERS).toContain("os.status IN ('recebida', 'em_validacao')");
 
+  });
+
+  it('keeps a waiting OS with no pendency and does not manufacture pendency fields', async () => {
+    const query = vi.fn().mockResolvedValue([{ ordem_servico_id: '11', contrato_id: '184', contrato_numero: 'C-184',
+      pendencia_id: null, pendencia_descricao: null, pendencia_status: null }]);
+    const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
+    const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: null }] };
+    const result = await repo.getPriorityQueue({ context: context([184]), scope });
+    expect(result).toMatchObject({ coverage: 'AVAILABLE', items: [{ serviceOrderId: 11, pendencies: [] }] });
   });
 
   it('groups every eligible pendency by OS and deduplicates IDs, not descriptions', async () => {

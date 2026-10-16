@@ -1,5 +1,5 @@
-// DEC-026: only open P1 fiscal decisions linked directly to a service order.
-// The queue JOIN and the count EXISTS use the same pendency criteria (alias p).
+// DEC-036: current SAC eligibility, shared by Fiscal card/queue and manager load.
+// The queue JOIN and the EXISTS use the same pendency criteria (alias p).
 export const FISCAL_PENDING_DECISION_PREDICATE = `
 p.entidade_tipo = 'ordem_servico'
       AND p.entidade_id = os.id
@@ -9,7 +9,8 @@ p.entidade_tipo = 'ordem_servico'
 // EXISTS avoids multiplying one order when it has several eligible pendencies.
 export const FISCAL_PENDING_ORDER_PREDICATE = `
 os.lado = 'cliente'
-  AND EXISTS (
+  AND (os.status = 'aguardando_fiscal'
+    OR (os.status IN ('recebida', 'em_validacao') AND EXISTS (
     SELECT 1 FROM comum.pendencia p
     WHERE ${FISCAL_PENDING_DECISION_PREDICATE}
-  )`;
+  )))`;

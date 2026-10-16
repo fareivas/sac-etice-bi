@@ -22,8 +22,8 @@ interface ScopeRow { contrato_id: string | bigint }
 interface CountRow { total: string | bigint }
 interface PendingOrderRow {
   ordem_servico_id: string | bigint; contrato_id: string | bigint; contrato_numero: string | null;
-  pendencia_id: string | bigint; pendencia_descricao: string | null;
-  pendencia_status: 'aberta' | 'em_tratamento';
+  pendencia_id: string | bigint | null; pendencia_descricao: string | null;
+  pendencia_status: 'aberta' | 'em_tratamento' | null;
 }
 
 interface ContractRow {
@@ -191,10 +191,12 @@ export class PostgresFiscalSummaryRepository implements FiscalSummaryRepository 
         byOrder.set(orderId, item);
         seenPendencies.set(orderId, new Set());
       }
+      if (row.pendencia_id === null) continue;
       const pendencyId = safeBigintId(row.pendencia_id);
       const seen = seenPendencies.get(orderId)!;
       if (seen.has(pendencyId)) continue;
       seen.add(pendencyId);
+      if (row.pendencia_status === null) throw new TypeError('Missing status for fiscal pendency');
       item.pendencies.push({ pendencyId, description: row.pendencia_descricao?.trim() || null,
         status: row.pendencia_status });
     }

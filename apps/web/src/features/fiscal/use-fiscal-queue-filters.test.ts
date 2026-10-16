@@ -58,3 +58,11 @@ it('filters null contract IDs defensively using only the provided data', () => {
   expect(filterFiscalQueue([row], { ...empty, contract: 'unidentified' })).toHaveLength(1);
   expect(filterFiscalQueue([row], { ...empty, contract: '317' })).toEqual([]);
 });
+it('keeps an OS without pendency unless filtering by pendency status', () => {
+  const waiting = { ...queue[0], serviceOrderId: 99, pendencies: [] };
+  const rows = [...queue, waiting];
+  expect(filterFiscalQueue(rows, empty).map(row => row.item.serviceOrderId)).toContain(99);
+  expect(filterFiscalQueue(rows, { ...empty, contract: '184', search: 'OS 99' })[0]).toMatchObject({ item: { serviceOrderId: 99 }, pendencies: [] });
+  expect(filterFiscalQueue(rows, { ...empty, status: 'aberta' }).map(row => row.item.serviceOrderId)).not.toContain(99);
+  expect(filterFiscalQueue(rows, { ...empty, search: 'documento' }).map(row => row.item.serviceOrderId)).not.toContain(99);
+});

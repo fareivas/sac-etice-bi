@@ -177,10 +177,11 @@ describe('fiscalDashboardSummaryResponseSchema', () => {
       { pendencyId: 102, description: null, status: 'em_tratamento' },
     ] });
     expect(fiscalDashboardSummaryResponseSchema.safeParse(response).success).toBe(true);
+    expect(fiscalDashboardSummaryResponseSchema.safeParse({ ...response, data: {
+      ...response.data, priorityQueue: [{ ...response.data.priorityQueue[0], pendencies: [] }] } }).success).toBe(true);
     for (const invalid of [
       { ...response.data.priorityQueue[0], serviceOrderId: 0 },
       { ...response.data.priorityQueue[0], serviceOrderId: Number.MAX_SAFE_INTEGER + 1 },
-      { ...response.data.priorityQueue[0], pendencies: [] },
       { ...response.data.priorityQueue[0], pendencies: undefined },
       { ...response.data.priorityQueue[0], pendencies: [{ pendencyId: 0, description: null, status: 'aberta' }] },
       { ...response.data.priorityQueue[0], pendencies: [{ pendencyId: 101, status: 'aberta' }] },

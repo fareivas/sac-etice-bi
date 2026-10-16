@@ -14,7 +14,7 @@ As seções anteriores registram a análise baseada nos documentos de referênci
 
 ## Contrato HTTP já decidido
 
-O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-contrato-fiscal.md), DEC-001 a DEC-023. Este documento apenas mapeia evidência física. Em particular, preserva: cobertura histórica separada por indicador; indisponibilidade distinta de zero; identidade do usuário autenticado separada das designações por contrato; ausência de heurísticas para os campos da fila; e KPIs como fonte externa.
+O contrato normativo permanece em [`decisoes-contrato-fiscal.md`](./decisoes-contrato-fiscal.md), inclusive DEC-036 para elegibilidade atual. Este documento apenas mapeia evidência física. Em particular, preserva: cobertura histórica separada por indicador; indisponibilidade distinta de zero; identidade do usuário autenticado separada das designações por contrato; ausência de heurísticas para os campos da fila; e KPIs como fonte externa.
 
 ## Evidência por domínio
 
@@ -335,3 +335,7 @@ entidades, resolvidas/canceladas, OS fornecedor ou contratos fora do recorte.
 Uma pendência não pode servir de motivo de uma OS apenas por compartilhar um
 ID numérico: a entidade, o tipo e o status fazem parte do JOIN obrigatório.
 Nenhuma API oficial foi consumida nem dados do banco foram alterados.
+
+### Rastreabilidade vigente — DEC-036, banco SAC local 0057
+
+As seções anteriores registram a investigação e a regra então aprovada. A DEC-036 substitui a exigência universal de pendência e a exclusão de `aguardando_fiscal`: OS cliente com contrato direto autorizado e status `aguardando_fiscal` entra mesmo sem pendência; `recebida` e `em_validacao` entram somente com decisão fiscal P1 aberta/em tratamento. Outros status, inclusive `cancelada` com pendência residual, ficam fora. O card conserva `COUNT(DISTINCT os.id)`; a fila usa `LEFT JOIN` nas pendências qualificadas e o mesmo predicado de OS no `WHERE`, com uma linha por OS e `pendencies: []` quando não há registro. A carga do Gerente compartilha esse predicado e conserva `COUNT(DISTINCT os.id)` por fiscal designado ativamente. As descrições continuam restritas às pendências qualificadas. OS cliente sem contrato direto permanece fora, sem inferência de carteira. Isso delimita o dashboard, sem reproduzir autorização de ações ou fallback de perfis do SAC, e não afirma equivalência com produção.

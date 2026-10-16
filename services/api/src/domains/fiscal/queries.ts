@@ -36,8 +36,8 @@ SELECT os.id::text AS ordem_servico_id, contrato.id::text AS contrato_id,
        p.descricao AS pendencia_descricao, p.status AS pendencia_status
 FROM ordens.ordem_servico os
 JOIN contratos.contrato contrato ON contrato.id = os.contrato_id
-JOIN comum.pendencia p ON ${FISCAL_PENDING_DECISION_PREDICATE}
-WHERE os.contrato_id = ANY($1::bigint[]) AND os.lado = 'cliente'
+LEFT JOIN comum.pendencia p ON ${FISCAL_PENDING_DECISION_PREDICATE}
+WHERE os.contrato_id = ANY($1::bigint[]) AND ${FISCAL_PENDING_ORDER_PREDICATE}
 ORDER BY ordem_servico_id, p.id
 `;
 
