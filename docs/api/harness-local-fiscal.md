@@ -2,58 +2,40 @@
 
 Este roteiro executa o caminho existente: navegador → Vite → SAM local →
 `LocalFiscalAuthProvider` → `PostgresFiscalSummaryRepository` → service →
-contrato HTTP. Use somente uma instância local de desenvolvimento. O banco é
-acessado com transações de leitura (`default_transaction_read_only=on`).
+contrato HTTP. Use somente uma instância local de desenvolvimento. O banco SAC
+compartilhado é **somente leitura**; não execute migrations, seeds, fixtures,
+backfill ou qualquer escrita. As consultas devem usar credencial de leitura.
 
 ## Pré-requisitos
 
-- Node.js 22, npm, AWS SAM CLI, Docker e Python 3;
-- dependências instaladas com `npm install` na raiz deste repositório;
+- Node.js 22, npm, AWS SAM CLI e Docker;
+- dependências já instaladas na raiz deste repositório;
 - PostgreSQL SAC acessível **somente para leitura** na máquina local;
-- ID positivo de um usuário Fiscal ativo que tenha acesso à visão local;
+- IDs positivos de usuários Fiscal e Gerente ativos que tenham acesso às visões locais;
 - portas locais 3000 (SAM) e 5173 (Vite) livres.
 
-O exemplo abaixo usa Linux e descobre o gateway da rede Docker `bridge` para
-alcançar o PostgreSQL do host. Dentro da Lambda, `127.0.0.1` aponta para o
-próprio contêiner. Ajuste porta, nome do banco e usuário às configurações
-locais. Não coloque a senha em arquivos versionados ou na linha de comando.
+O script local descobre o gateway da rede Docker `bridge` quando `SAC_DB_HOST`
+não está definido. Dentro da Lambda, `127.0.0.1` aponta para o próprio
+contêiner. Ajuste a configuração local às portas, banco e credencial de leitura.
+Não coloque a senha em arquivos versionados ou na linha de comando.
 
 ## 1. Iniciar o backend
 
-No terminal 1, a partir da raiz de `sac-etice-bi`:
+No terminal 1, a partir da raiz de `sac-etice-bi`, configure `.env.local` a
+partir de `.env.local.example`, incluindo `LOCAL_FISCAL_USER_ID`,
+`LOCAL_MANAGER_USER_ID` e `SAC_DB_*` com credencial somente leitura. O script
+gera o ambiente temporário e faz `sam build` antes de iniciar o SAM:
 
 ```bash
-npm install
-export LOCAL_FISCAL_USER_ID='<ID_FISCAL_ATIVO>'
-export SAC_DB_HOST="$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')"
-export SAC_DB_PORT='5434'
-export SAC_DB_NAME='sac'
-export SAC_DB_USER='<USUARIO_SOMENTE_LEITURA>'
-read -rs -p 'Senha do PostgreSQL: ' SAC_DB_PASSWORD
-printf '\n'
-export SAC_DB_PASSWORD
-PATH="$PWD/node_modules/.bin:$PATH" sam build --template-file infra/sam/template.yaml --build-dir /tmp/sac-etice-bi-sam-build
-FISCAL_ENV_FILE="$(mktemp /tmp/sac-etice-bi-fiscal-env.XXXXXX.json)"
-export FISCAL_ENV_FILE
-chmod 600 "$FISCAL_ENV_FILE"
-python3 - <<'PY'
-import json, os
-names = ('LOCAL_FISCAL_USER_ID', 'SAC_DB_HOST', 'SAC_DB_PORT',
-         'SAC_DB_NAME', 'SAC_DB_USER', 'SAC_DB_PASSWORD')
-settings = {name: os.environ[name] for name in names}
-settings.update(NODE_ENV='development', LOCAL_FISCAL_DASHBOARD_ENABLED='true',
-                LOCAL_FISCAL_CAN_ACCESS_VIEW='true', SAC_DB_SSL='false')
-with open(os.environ['FISCAL_ENV_FILE'], 'w', encoding='utf-8') as file:
-    json.dump({'FiscalFunction': settings}, file)
-PY
-sam local start-api --template-file /tmp/sac-etice-bi-sam-build/template.yaml --env-vars "$FISCAL_ENV_FILE" --host 127.0.0.1 --port 3000
+npm run local:api
 ```
 
-Quando encerrar o SAM, elimine o arquivo temporário de ambiente com
-`rm "$FISCAL_ENV_FILE"` e remova a variável do shell com
-`unset SAC_DB_PASSWORD`. O ID e a autorização vêm apenas do ambiente do
-servidor; headers, query string e frontend não escolhem identidade. O harness
-não implementa JWT/RBAC oficial (DEC-031).
+Após mudança na API, pare a instância SAM em execução e rode novamente
+`npm run local:api`: `scripts/local-api.sh` executa `sam build` e inicia a API
+na porta 3000. O arquivo temporário de ambiente é removido pelo script ao
+encerrar. O ID e a autorização vêm apenas do ambiente do servidor; headers,
+query string e frontend não escolhem identidade. O harness não implementa
+JWT/RBAC oficial (DEC-031).
 
 ## 2. Iniciar o frontend
 
@@ -63,18 +45,20 @@ No terminal 2, na mesma raiz:
 npm run dev:web
 ```
 
-Abra `http://127.0.0.1:5173/`. O Vite encaminha apenas a rota
-`/api/v1/fiscais/me/dashboard/resumo` ao SAM local na porta 3000. Para conferir
-a resposta diretamente: `curl -i 'http://127.0.0.1:3000/api/v1/fiscais/me/dashboard/resumo?includeExternal=false'`.
+Abra `http://127.0.0.1:5173/`. O proxy Vite encaminha todo o prefixo
+`/api/v1` ao SAM local na porta 3000. Para conferir a resposta diretamente:
+`curl -i 'http://127.0.0.1:3000/api/v1/fiscais/me/dashboard/resumo?includeExternal=false'`.
 
 ## 3. Resultado esperado
 
 O HTTP 200 mostra identidade, carteira autorizada e contagem real de contratos
 ativos do PostgreSQL na data atual. Uma contagem `0` significa nenhum contrato
-**ativo** apurado; não é uma contagem separada da carteira. OS pendentes, itens
-críticos e ações vencidas aparecem como **Indisponível**, com cobertura
-`UNAVAILABLE`. A fila aparece como **Fila indisponível** (`priorityQueue: null`);
-`[]` significaria consulta válida sem ocorrências e não representa esta situação.
+**ativo** apurado; não é uma contagem separada da carteira. Na fotografia atual,
+`pendingServiceOrders` e `priorityQueue` são apurados pela DEC-036: zero e `[]`
+significam consulta válida sem OS elegível. Para referência histórica sem
+reconstrução confiável, o card fica `null` com cobertura `UNAVAILABLE` e a
+fila fica `null`. Itens críticos e ações vencidas continuam indisponíveis sem
+fonte aprovada.
 
 Por padrão `includeExternal=false`: consulta KPI desabilitada e
 `externalViolations: null`. Ao marcar **Consultar fonte externa**, o protótipo
@@ -85,42 +69,9 @@ como erro, sem substituir dados ausentes por zero.
 ## 4. Conferir a proteção de produção
 
 O handler retorna 501 se `LOCAL_FISCAL_DASHBOARD_ENABLED` não for `true` ou se
-`NODE_ENV` não for `development`/`test`. Para conferir no SAM, pare o servidor,
-altere **somente no arquivo temporário** `FiscalFunction.NODE_ENV` para
-`production`, reinicie o mesmo comando `sam local start-api` e consulte a rota
-com `curl -i`: ela deve retornar HTTP 501 mesmo com a chave local em `true`.
-Restaure `development` para voltar à demonstração. O teste automatizado do
-handler também cobre esse bloqueio.
-
-## Fixture DEV/TEST para a carteira Fiscal
-
-Use somente no PostgreSQL local de desenvolvimento/teste. Esta fixture é opt-in,
-substitui o cenário anterior em uma transação e não popula OS, itens críticos,
-ações vencidas ou fila. O SAC-ETICE permanece somente leitura.
-
-Com `SAC_DB_HOST`, `SAC_DB_PORT`, `SAC_DB_NAME`, `SAC_DB_USER` e
-`SAC_DB_PASSWORD` configurados no shell (não grave a senha no repositório):
-
-```bash
-export NODE_ENV=development
-export ALLOW_LOCAL_DB_FIXTURES=true
-node scripts/dev/fiscal-fixture-setup.mjs A
-```
-
-Troque `A` por `B`, `C` ou `D` para recriar o recorte. O comando imprime os IDs
-`fiscalA` e `fiscalB`; configure `LOCAL_FISCAL_USER_ID` com o ID desejado no
-harness SAM. Os cenários são: A, fiscal A sem designações (0 ativo); B, um
-contrato vigente para A (1); C, dois vigentes e um de cada status suspenso,
-encerrado e rescindido para A (2); D, cenário C mais um vigente exclusivo de B
-(A=2, B=1). Os demais indicadores continuam `UNAVAILABLE`/`null`.
-
-```bash
-node scripts/dev/fiscal-fixture-cleanup.mjs
-```
-
-O cleanup remove somente registros identificados pela fixture. Ambos os comandos
-recusam `NODE_ENV=production`, exigem `ALLOW_LOCAL_DB_FIXTURES=true` e
-configuração `SAC_DB_*` válida.
+`NODE_ENV` não for `development`/`test`. O ambiente gerado por
+`npm run local:api` usa `development`; o teste automatizado do handler verifica
+o bloqueio 501 para produção. A demonstração local não libera a rota em produção.
 
 ## Diagnóstico de indisponibilidade local
 
@@ -146,3 +97,26 @@ do contrato preservado. Nenhuma mudança no código de produção foi necessári
 O teste de recuperação HTTP 500 → resposta válida cobre esse carregamento com
 fila/carteira de itens vazias e exportação desabilitada. A validação CSV continua
 isolada no roteiro descrito em `scripts/test/README.md`.
+
+## Validação local — 16/10/2026, banco Alembic 0057
+
+Quatro endpoints responderam HTTP 200 na fotografia observada. No resumo
+Fiscal do usuário 4, a carteira tinha contrato 2, saldo consolidado de
+R$ 300.000, nenhum item, um alerta, zero OS elegíveis e fila `[]`. No resumo
+Gerente do usuário 4, a carteira tinha contratos 8 e 29, saldo consolidado de
+R$ 612.156, um item e quatro alertas. A carga de fiscais retornou `[]` porque
+não havia fiscais designados na carteira gerenciada. O endpoint de fornecedores
+respondeu HTTP 200 com dois registros; não houve reconciliação individual
+desses registros por SQL.
+
+SQL independente confirmou os resultados de Fiscal, Gerente e carga dentro de
+`BEGIN READ ONLY`/`ROLLBACK`, sem escrita. O contrato 29 tinha status `vigente`
+e fim em 16/08/2023: entrou na carteira pela regra de status, mas não na janela
+de vencimentos futuros.
+
+Não houve confirmação de reinício do SAM após o commit `6d5974c`; portanto,
+as respostas observadas não podem ser atribuídas com certeza a esse build.
+O banco real não exercitou item bloqueado nem OS `aguardando_fiscal` com
+contrato direto; ambos têm cobertura automatizada. Essas constatações locais
+não comprovam o estado de produção. Os valores são fotografia de validação,
+não expectativas fixas para execuções futuras.
