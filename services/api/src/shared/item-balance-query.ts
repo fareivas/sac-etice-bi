@@ -10,7 +10,8 @@ SELECT c.id::text AS contract_id, c.numero AS contract_number,
        s.valor_consumido::text AS value_consumed,
        s.valor_medido::text AS value_measured,
        s.valor_saldo::text AS value_balance,
-       ci.status_verificacao AS verification_status
+       ci.status_verificacao AS verification_status,
+       ci.bloqueado_em AS blocked_at, ci.bloqueio_motivo AS block_reason
 FROM bi.saldos_por_item s
 JOIN contratos.contrato_item ci ON ci.id = s.contrato_item_id
 JOIN contratos.contrato c ON c.id = ci.contrato_id

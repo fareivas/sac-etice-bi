@@ -68,7 +68,7 @@ describe('PostgresFiscalSummaryRepository', () => {
       item_id: '10', sequence: 1, specification: 'Serviço', unit: 'un', quantity_contracted: '1',
       quantity_consumed: '0', quantity_measured: null, quantity_balance: '1',
       value_contracted: '100', value_consumed: '0', value_measured: null,
-      value_balance: '100', verification_status: null };
+      value_balance: '100', verification_status: null, blocked_at: null, block_reason: null };
     const query = vi.fn().mockResolvedValue([item]);
     const repo = new PostgresFiscalSummaryRepository({ query } as DbReader, current);
     const scope = { coverage: 'AVAILABLE' as const, contracts: [{ contractId: 184, integrationUuid: null }] };

@@ -68,7 +68,7 @@ describe('manager current portfolio', () => {
       quantity_contracted: '1', quantity_consumed: '0', quantity_measured: '0', quantity_balance: '1',
       value_contracted: consumed === null ? null : '100', value_consumed: consumed,
       value_measured: '0', value_balance: consumed === null ? null : String(100 - Number(consumed)),
-      verification_status: null,
+      verification_status: null, blocked_at: null, block_reason: null,
     });
     query.mockImplementation(async (sql, values) => sql === GET_CURRENT_ITEM_BALANCES ? [
       item('1', '11', '90'), item('1', '12', '40'), item('1', '13', null),
@@ -214,15 +214,19 @@ describe('manager current portfolio', () => {
       specification: 'Serviço', unit: 'un', quantity_contracted: '2', quantity_consumed: '1',
       quantity_measured: '1', quantity_balance: '1', value_contracted: '100', value_consumed: '95',
       value_measured: '20', value_balance: '5', verification_status: 'pendente',
+      blocked_at: new Date('2026-10-16T15:30:00.000Z'), block_reason: 'Pendência documental',
     }, {
       contract_id: '2', contract_number: 'CT-2', supplier_name: null, item_id: '11', sequence: 2,
       specification: null, unit: null, quantity_contracted: '1', quantity_consumed: null,
       quantity_measured: null, quantity_balance: null, value_contracted: null, value_consumed: null,
-      value_measured: null, value_balance: null, verification_status: null,
+      value_measured: null, value_balance: null, verification_status: null, blocked_at: null, block_reason: null,
     }] : original(sql, values));
     const result = await composeManagerSummary(1, filters, repo, now);
     expect(query).toHaveBeenCalledWith(GET_CURRENT_ITEM_BALANCES, [[1, 2]]);
     expect(result.meta.dataCoverage.itemBalances).toBe('AVAILABLE');
+    if (result.data.itemBalances.coverage === 'AVAILABLE') {
+      expect(result.data.itemBalances.itens[0]).toMatchObject({ blockedAt: '2026-10-16T15:30:00.000Z', blockReason: 'Pendência documental' });
+    }
     expect(result.data.itemBalances).toMatchObject({ coverage: 'AVAILABLE', resumo: { critico: 1, nao_verificavel: 1 },
       agregados: { itemCount: 2, totalContratado: null, saldoComprometido: null,
         contractedValueRows: 1, committedBalanceRows: 1, measuredBalanceRows: 1 } });

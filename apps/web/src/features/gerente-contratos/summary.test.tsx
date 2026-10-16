@@ -227,6 +227,17 @@ function withItems(items: ReturnType<typeof item>[]): ManagerDashboardSummaryRes
   return data;
 }
 
+it('shows an existing blocked item in Ver detalhes', () => {
+  const view = mount(withItems([item(10, 1, 'Fornecedor', 'adequado', {
+    blockedAt: '2026-10-16T15:30:00.000Z', blockReason: 'Pendência documental',
+  })]));
+  try {
+    const details = view.host.querySelector('.manager-saldo-row-details');
+    expect(details?.querySelector('summary')?.textContent).toBe('Ver detalhes');
+    expect(details?.textContent).toContain('Bloqueado: Pendência documental');
+  } finally { view.unmount(); }
+});
+
 function mount(data: ManagerDashboardSummaryResponse) {
   const host = document.createElement('div');
   document.body.append(host);

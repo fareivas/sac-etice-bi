@@ -502,6 +502,12 @@ O resumo Fiscal inclui `data.itemBalances`. `coverage: "UNAVAILABLE"` indica dat
 
 Cada item contém identificação do contrato, fornecedor e item; sequência, especificação, unidade; quantidades e valores contratados, consumidos, medidos e saldo; `valueMeasuredBalance` e `quantityMeasuredBalance` calculados no backend; percentuais; faixa e status cadastral de verificação. `blockedAt` e `blockReason` são `null` enquanto o banco local não disponibilizar as colunas da migration oficial 0043. Cada agregado monetário é `null` se algum item carecer de um valor necessário para aquele agregado; medido nulo é tratado como zero quando o contratado existe, conforme a regra oficial. Os agregados usam os decimais originais do PostgreSQL, com arredondamento final ao centavo (meio para longe de zero) e rejeição de valores fora da precisão segura. `itemCount`, `contractedValueRows`, `committedBalanceRows` e `measuredBalanceRows` expõem coberturas independentes; `completeValueRows` permanece por compatibilidade. A lista considera apenas contratos vigentes da carteira autorizada. O ciclo financeiro permanece indisponível sem fontes comprovadas para suas etapas.
 
+### Estado atual — banco SAC local Alembic 0057
+
+A afirmação anterior sobre ausência das colunas registra o estado da investigação original. No banco local atualizado até Alembic 0057, `contratos.contrato_item` possui `bloqueado_em` (`timestamptz`, anulável) e `bloqueio_motivo` (`text`, anulável). A leitura compartilhada dos saldos por item expõe esses valores como `blockedAt` (datetime ISO 8601 quando preenchido) e `blockReason`, preservando `null`. Esta constatação local não estabelece equivalência com produção.
+
+Pendências registradas, sem mudança de regra: divergência entre DEC-026 e a elegibilidade oficial (`aguardando_fiscal` ou `recebida`/`em_validacao` com `decisao_fiscal_p1` aberta ou em tratamento); todas as OS cliente locais sem contrato direto, sem inferência de carteira por subordem, fornecedor, perfil ou destinatário; pendência fiscal residual em OS cancelada; quatro itens de contratos vigentes sem valor contratado; views financeiras existentes sem equivalência automática com indicadores ainda indisponíveis dos dashboards. Aceite e recusa não desativam designações, portanto o escopo continua filtrado por `ativo=true`. O saldo consolidado continua baseado no cabeçalho via `contratos.vw_saldo_contrato` (DEC-033 e DEC-GC-026).
+
 ## Apresentação da fila de OS — análise de fontes e limitações
 
 A seção antes intitulada “Minha fila de ação” passa a se chamar **OS com decisão
