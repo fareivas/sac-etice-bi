@@ -206,17 +206,41 @@ O roteiro intercepta todas as requisições `/api/**` com dados sintéticos, val
 ## GC-035B/GC-035C — três páginas independentes
 
 O roteiro GC-035 substitui as verificações visuais históricas que pressupunham
-abas e painéis complementares. Com Vite local na porta 5183:
+abas e painéis complementares. No computador local, inicie o preview em um terminal:
 
 ```bash
+npm run dev --workspace @sac-etice-bi/web -- --host 127.0.0.1 --port 5183 --strictPort
+```
+
+Em outro terminal, na raiz do repositório, gere os dois bundles e execute a
+regressão básica seguida dos estados recentes. Playwright e Chromium são os
+caminhos já validados nesse computador; as capturas e relatórios ficam em `/tmp`:
+
+```bash
+mkdir -p /tmp/gc035-visual
 node_modules/.bin/esbuild scripts/test/fixtures/manager-global-filters.ts \
-  --bundle --platform=node --format=esm --outfile=/tmp/gc035-fixtures.mjs
-PLAYWRIGHT_MODULE=/tmp/vis006-browser/node_modules/playwright/index.mjs \
-CHROMIUM_EXECUTABLE=/opt/google/chrome/chrome \
+  --bundle --platform=node --format=esm --outfile=/tmp/gc035-visual/base-fixtures.mjs
+node_modules/.bin/esbuild scripts/test/fixtures/gc035-recent-states.ts \
+  --bundle --platform=node --format=esm --outfile=/tmp/gc035-visual/recent-fixtures.mjs
+PLAYWRIGHT_MODULE=/tmp/sac-bi-browser/node_modules/playwright/index.mjs \
+CHROMIUM_EXECUTABLE=/usr/bin/google-chrome \
 FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
   node scripts/test/gc035-prototype.visual.mjs \
-  /tmp/gc035-fixtures.mjs /tmp/gc035c-captures
+  /tmp/gc035-visual/base-fixtures.mjs /tmp/gc035-visual/basico
+PLAYWRIGHT_MODULE=/tmp/sac-bi-browser/node_modules/playwright/index.mjs \
+CHROMIUM_EXECUTABLE=/usr/bin/google-chrome \
+FISCAL_PREVIEW_URL=http://127.0.0.1:5183 \
+  node scripts/test/gc035-recent-states.visual.mjs \
+  /tmp/gc035-visual/recent-fixtures.mjs /tmp/gc035-visual/estados-recentes
 ```
+
+O roteiro complementar intercepta todas as chamadas `/api/**` com fixtures
+validadas pelos schemas e cobre 13 cenários em 1440, 900 e 390 px na Supervisão
+e Visão agregada: saldos vazios/zerados/medidos, fiscais no recorte,
+referências incompatíveis e nova tentativa de fornecedores. Cada cenário gera
+captura, inclusive em falha, e `estados-recentes/report.json` identifica o
+resultado por viewport. Falhas retornam código diferente de zero. Nenhum dado
+vai ao backend ou banco. A rota Fiscal permanece na regressão básica.
 
 O roteiro usa apenas fixtures HTTP sintéticas e os protótipos locais. Gera
 capturas comparativas do Fiscal, da Supervisão e da Visão agregada em 1440,
